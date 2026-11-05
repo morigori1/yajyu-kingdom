@@ -317,17 +317,21 @@
    box-shadow: inset 0 0 0 1px #8b6914, 0 0 0 2px #3a2810; }
   #overlay button:hover { background: #7a3a2a; filter: drop-shadow(0 0 6px rgba(255,215,0,.35)); }
   #overlay.hidden { display: none; }
-  #gfx-chip {
-    position: absolute; right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 6px);
-    z-index: 12; pointer-events: auto;
+  #gfx-chip, #mute-chip {
+    position: absolute; z-index: 12; pointer-events: auto;
     font-family: "Press Start 2P", monospace; font-size: 8px;
     background: rgba(20,12,8,.88); color: #ffd700;
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
     cursor: pointer; touch-action: manipulation;
   }
-  #gfx-chip:active { background: #7a3a2a; }
+  #gfx-chip { right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 6px); }
+  #mute-chip { right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 40px); color: #8cf; border-color: #468; }
+  #gfx-chip:active, #mute-chip:active { background: #7a3a2a; }
+  #mute-chip.muted { color: #888; border-color: #555; }
   @media (max-width: 720px) {
-    #gfx-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 4px); font-size: 7px; padding: 5px 6px; }
+    #gfx-chip, #mute-chip { font-size: 7px; padding: 5px 6px; }
+    #gfx-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 4px); }
+    #mute-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 34px); }
   }
 
   #choice-panel {
@@ -653,6 +657,7 @@
     </div>
   </div>
   <div id="ach-toast" role="status"></div>
+  <button type="button" id="mute-chip" aria-label="音声ミュート切替" aria-pressed="false">音:ON</button>
   <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
   <div id="touch-pad" aria-label="タッチ操作">
     <div class="pad-group">
@@ -2621,6 +2626,7 @@ function triggerHeatstroke() {
   state.humidity = clamp(state.humidity + 4, 0, 100);
   unlockCodexId('qh_stroke', true);
   toast('熱中症…！　動けぬわ　アイスティー／麦茶！', 3.2);
+  try { if (typeof audPlay === 'function') audPlay('heat'); } catch (_) {}
   story(storyCompose('熱中症注意報　クゥーン…　でも王道を征く　茶を飲め', { bond: true, schedule: true, heat: true }), 2.8);
   spawnMeme(player.x, GROUND_Y - 70, 'ぬわあああん');
   shake(4, 0.35);
@@ -2641,6 +2647,7 @@ function tryDrinkMugicha() {
   state.heatRisk = clamp((state.heatRisk | 0) - 28, 0, 100);
   unlockCodexId('qh_mugicha', true);
   toast('麦茶は麦じゃない（迫真）　湿度↓　リスク↓', 2.6);
+  try { if (typeof audPlay === 'function') audPlay('tea'); } catch (_) {}
   spawnMeme(player.x, GROUND_Y - 50, '麦茶');
   story(storyCompose('麦茶を飲む　冷えてるゾ　いいかな？（念押し）', { bond: true, schedule: false, heat: true }), 2.2);
   updateHumidityHud();
@@ -3333,6 +3340,7 @@ function cycleQuality() {
   GFX.mode = GFX.mode === 'auto' ? 'high' : GFX.mode === 'high' ? 'low' : 'auto';
   try { localStorage.setItem('yk-gfx', GFX.mode); } catch (_) {}
   applyQuality();
+  try { if (typeof audPlay === 'function') audPlay('ui'); } catch (_) {}
   toast(GFX.mode === 'auto' ? `画質 自動 → ${GFX.quality === 'low' ? '低' : '高'}` : `画質 ${GFX.mode === 'low' ? '低' : '高'}`, 1.6);
 }
 
@@ -3344,6 +3352,326 @@ applyQuality();
 document.getElementById('gfx-chip')?.addEventListener('click', (e) => {
   e.preventDefault();
   cycleQuality();
+});
+
+// =========================================================
+// 音（Web Audio 合成 SFX／簡易BGM）— 外部音声ファイル不要
+// localStorage: yk-mute = '1'|'0'　既存ループは gain 調整のみ
+// =========================================================
+const AUD = {
+  muted: false,
+  unlocked: false,
+  ctx: null,
+  master: null,
+  sfx: null,
+  bgm: null,
+  bgmOsc: null,
+  bgmOsc2: null,
+  bgmLfo: null,
+  rainNode: null,
+  rainGain: null,
+  mode: 'title', // title|day|night
+  last: { coin: 0, shot: 0, ui: 0, meme: 0, hit: 0 },
+};
+
+try {
+  const sm = localStorage.getItem('yk-mute');
+  if (sm === '1') AUD.muted = true;
+} catch (_) {}
+
+function audNow() {
+  return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+}
+
+function audEnsure() {
+  if (AUD.muted) return null;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!AUD.ctx) {
+      AUD.ctx = new AC();
+      AUD.master = AUD.ctx.createGain();
+      AUD.master.gain.value = 0.55;
+      AUD.master.connect(AUD.ctx.destination);
+      AUD.sfx = AUD.ctx.createGain();
+      AUD.sfx.gain.value = 0.9;
+      AUD.sfx.connect(AUD.master);
+      AUD.bgm = AUD.ctx.createGain();
+      AUD.bgm.gain.value = 0;
+      AUD.bgm.connect(AUD.master);
+    }
+    if (AUD.ctx.state === 'suspended') AUD.ctx.resume().catch(() => {});
+    AUD.unlocked = true;
+    return AUD.ctx;
+  } catch (_) {
+    return null;
+  }
+}
+
+function audRefreshMuteChip() {
+  const chip = document.getElementById('mute-chip');
+  if (!chip) return;
+  chip.textContent = AUD.muted ? '音:OFF' : '音:ON';
+  chip.classList.toggle('muted', !!AUD.muted);
+  chip.setAttribute('aria-pressed', AUD.muted ? 'true' : 'false');
+}
+
+function audSetMuted(m) {
+  AUD.muted = !!m;
+  try { localStorage.setItem('yk-mute', AUD.muted ? '1' : '0'); } catch (_) {}
+  audRefreshMuteChip();
+  if (AUD.muted) {
+    try {
+      if (AUD.bgm) AUD.bgm.gain.setTargetAtTime(0, AUD.ctx ? AUD.ctx.currentTime : 0, 0.05);
+      if (AUD.rainGain) AUD.rainGain.gain.setTargetAtTime(0, AUD.ctx ? AUD.ctx.currentTime : 0, 0.05);
+      if (AUD.ctx && AUD.ctx.state === 'running') AUD.ctx.suspend().catch(() => {});
+    } catch (_) {}
+  } else {
+    audEnsure();
+    audSyncBgm(true);
+  }
+}
+
+function audToggleMute() {
+  audSetMuted(!AUD.muted);
+  toast(AUD.muted ? '音OFF　ミュート' : '音ON　おかのした', 1.4);
+  if (!AUD.muted) audPlay('ui');
+}
+
+function audTone(freq, dur, type, vol, slideTo) {
+  const ctx = audEnsure();
+  if (!ctx || !AUD.sfx) return;
+  const t0 = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(Math.max(40, freq), t0);
+  if (slideTo != null) o.frequency.exponentialRampToValueAtTime(Math.max(40, slideTo), t0 + dur);
+  const v = (vol == null ? 0.12 : vol) * (AUD.muted ? 0 : 1);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v), t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + Math.max(0.03, dur));
+  o.connect(g); g.connect(AUD.sfx);
+  o.start(t0);
+  o.stop(t0 + dur + 0.02);
+}
+
+function audNoiseBurst(dur, vol, hp) {
+  const ctx = audEnsure();
+  if (!ctx || !AUD.sfx) return;
+  const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = hp || 1200;
+  f.Q.value = 0.6;
+  const g = ctx.createGain();
+  const t0 = ctx.currentTime;
+  const v = (vol == null ? 0.1 : vol);
+  g.gain.setValueAtTime(v, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(AUD.sfx);
+  src.start(t0);
+  src.stop(t0 + dur + 0.01);
+}
+
+function audPlay(kind) {
+  if (AUD.muted) return;
+  const t = audNow();
+  const L = AUD.last;
+  try {
+    switch (kind) {
+      case 'coin':
+        if (t - L.coin < 45) return;
+        L.coin = t;
+        audTone(880 + Math.random() * 40, 0.07, 'square', 0.09, 1320);
+        audTone(1320, 0.05, 'triangle', 0.05, 1760);
+        break;
+      case 'shot':
+        if (t - L.shot < 70) return;
+        L.shot = t;
+        audNoiseBurst(0.05, 0.07, 1800);
+        audTone(220 + Math.random() * 40, 0.06, 'sawtooth', 0.05, 90);
+        break;
+      case 'hit':
+        if (t - L.hit < 55) return;
+        L.hit = t;
+        audTone(160, 0.08, 'square', 0.07, 70);
+        audNoiseBurst(0.04, 0.05, 600);
+        break;
+      case 'ui':
+        if (t - L.ui < 40) return;
+        L.ui = t;
+        audTone(520, 0.04, 'triangle', 0.06);
+        audTone(780, 0.05, 'triangle', 0.04);
+        break;
+      case 'meme':
+        if (t - L.meme < 120) return;
+        L.meme = t;
+        audTone(440, 0.05, 'square', 0.05, 660);
+        audTone(660, 0.07, 'triangle', 0.04, 880);
+        break;
+      case 'night':
+        audTone(110, 0.35, 'sawtooth', 0.08, 55);
+        audTone(82, 0.45, 'triangle', 0.06, 40);
+        audNoiseBurst(0.25, 0.06, 300);
+        break;
+      case 'day':
+        audTone(392, 0.12, 'triangle', 0.07, 523);
+        audTone(523, 0.16, 'triangle', 0.05, 659);
+        break;
+      case 'rain':
+        audNoiseBurst(0.35, 0.08, 900);
+        break;
+      case 'pay':
+        audTone(660, 0.06, 'square', 0.07, 440);
+        audTone(330, 0.1, 'triangle', 0.05);
+        break;
+      case 'tea':
+        audTone(740, 0.08, 'sine', 0.06, 520);
+        audTone(520, 0.12, 'sine', 0.04);
+        break;
+      case 'heat':
+        audTone(90, 0.28, 'sawtooth', 0.09, 50);
+        audNoiseBurst(0.2, 0.07, 400);
+        break;
+      case 'win':
+        audTone(523, 0.12, 'triangle', 0.08, 659);
+        setTimeout(() => audTone(659, 0.12, 'triangle', 0.07, 784), 90);
+        setTimeout(() => audTone(784, 0.18, 'triangle', 0.08, 1046), 180);
+        break;
+      case 'lose':
+        audTone(220, 0.25, 'sawtooth', 0.08, 80);
+        audTone(110, 0.4, 'triangle', 0.06, 55);
+        break;
+      case 'panel':
+        audTone(300, 0.05, 'triangle', 0.05, 450);
+        break;
+      default:
+        audTone(440, 0.05, 'square', 0.05);
+    }
+  } catch (_) {}
+}
+
+function audStopBgmOsc() {
+  try {
+    if (AUD.bgmOsc) { AUD.bgmOsc.stop(); AUD.bgmOsc.disconnect(); }
+    if (AUD.bgmOsc2) { AUD.bgmOsc2.stop(); AUD.bgmOsc2.disconnect(); }
+    if (AUD.bgmLfo) { AUD.bgmLfo.stop(); AUD.bgmLfo.disconnect(); }
+  } catch (_) {}
+  AUD.bgmOsc = AUD.bgmOsc2 = AUD.bgmLfo = null;
+}
+
+function audStartBgmPad(mode) {
+  const ctx = audEnsure();
+  if (!ctx || !AUD.bgm || AUD.muted) return;
+  audStopBgmOsc();
+  const t0 = ctx.currentTime;
+  const o1 = ctx.createOscillator();
+  const o2 = ctx.createOscillator();
+  const g1 = ctx.createGain();
+  const g2 = ctx.createGain();
+  const lfo = ctx.createOscillator();
+  const lfoG = ctx.createGain();
+  o1.type = 'sine';
+  o2.type = 'triangle';
+  lfo.type = 'sine';
+  if (mode === 'night') {
+    o1.frequency.value = 55;
+    o2.frequency.value = 82.5;
+    lfo.frequency.value = 0.07;
+    lfoG.gain.value = 8;
+  } else if (mode === 'title') {
+    o1.frequency.value = 98;
+    o2.frequency.value = 147;
+    lfo.frequency.value = 0.05;
+    lfoG.gain.value = 4;
+  } else {
+    o1.frequency.value = 130.8;
+    o2.frequency.value = 196;
+    lfo.frequency.value = 0.09;
+    lfoG.gain.value = 5;
+  }
+  g1.gain.value = 0.045;
+  g2.gain.value = 0.028;
+  lfo.connect(lfoG);
+  lfoG.connect(o1.frequency);
+  o1.connect(g1); g1.connect(AUD.bgm);
+  o2.connect(g2); g2.connect(AUD.bgm);
+  o1.start(t0); o2.start(t0); lfo.start(t0);
+  AUD.bgmOsc = o1; AUD.bgmOsc2 = o2; AUD.bgmLfo = lfo;
+  AUD.mode = mode;
+  const target = mode === 'night' ? 0.22 : (mode === 'title' ? 0.12 : 0.16);
+  AUD.bgm.gain.cancelScheduledValues(t0);
+  AUD.bgm.gain.setTargetAtTime(target, t0, 0.8);
+}
+
+function audSyncBgm(force) {
+  if (AUD.muted) return;
+  let mode = 'title';
+  if (state && state.running && !state.over) mode = state.isNight ? 'night' : 'day';
+  else if (state && (state.over || state.won)) mode = state.won ? 'day' : 'title';
+  if (!force && mode === AUD.mode && AUD.bgmOsc) return;
+  audStartBgmPad(mode);
+}
+
+function audSetRain(on) {
+  const ctx = audEnsure();
+  if (!ctx || !AUD.sfx) return;
+  if (on) {
+    if (!AUD.rainNode) {
+      const n = Math.max(1, Math.floor(ctx.sampleRate * 2));
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) data[i] = (Math.random() * 2 - 1) * 0.4;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1100;
+      f.Q.value = 0.4;
+      const g = ctx.createGain();
+      g.gain.value = 0.0001;
+      src.connect(f); f.connect(g); g.connect(AUD.sfx);
+      src.start();
+      AUD.rainNode = src;
+      AUD.rainGain = g;
+    }
+    if (AUD.rainGain && !AUD.muted) {
+      AUD.rainGain.gain.setTargetAtTime(0.045, ctx.currentTime, 0.4);
+    }
+  } else if (AUD.rainGain) {
+    AUD.rainGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.5);
+  }
+}
+
+audRefreshMuteChip();
+document.getElementById('mute-chip')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  audToggleMute();
+});
+
+document.getElementById('choice-panel')?.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t && t.tagName === 'BUTTON') { try { audPlay('ui'); } catch (_) {} }
+}, true);
+document.getElementById('startBtn')?.addEventListener('click', () => { try { audEnsure(); audPlay('ui'); audSyncBgm(true); } catch (_) {} });
+document.getElementById('continueBtn')?.addEventListener('click', () => { try { audEnsure(); audPlay('ui'); audSyncBgm(true); } catch (_) {} });
+['btn-civil','btn-mili','btn-pay','btn-skill'].forEach(id => {
+  document.getElementById(id)?.addEventListener('pointerdown', () => { try { audPlay('ui'); } catch (_) {} });
+});
+// 初回ジェスチャで AudioContext 解錠（ブラウザ制限）
+function audUnlockOnce() {
+  audEnsure();
+  audSyncBgm(true);
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => {
+  window.addEventListener(ev, audUnlockOnce, { once: true, passive: true });
 });
 
 /** Kingdom Crowns級：章テーマ風景＋統一トーン */
@@ -3629,6 +3957,7 @@ function trySkill() {
   state.skillCd = 9;
   state.skillStunT = 2.6;
   state.humidity = clamp(state.humidity + 6, 0, 100);
+  try { if (typeof audPlay === 'function') audPlay('meme'); } catch (_) {}
   spawnSkillFx(player.x);
   spawnMeme(player.x, GROUND_Y - 70, 'あっ（察し）');
   spawnMeme(player.x + 30, GROUND_Y - 90, '（迫真）');
@@ -3657,6 +3986,7 @@ function tryDrinkTea() {
   state.heatRisk = clamp((state.heatRisk | 0) - 22, 0, 100);
   structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 4);
   toast('アイスティーしかなかったけどいいかな？　湿度↓　リスク↓', 2.6);
+  try { if (typeof audPlay === 'function') audPlay('tea'); } catch (_) {}
   spawnMeme(player.x, GROUND_Y - 50, 'Foo↑');
   unlockCodexId('qs_iikana', true);
   updateHumidityHud();
@@ -4764,6 +5094,7 @@ function tryPay() {
     const ok = spot.buy();
     if (ok) {
       pushFx({ type: 'ring', x: spot.x, y: GROUND_Y - 20, t: 0, life: 0.4, color: 'rgba(255,215,0,0.55)', r0: 6, r1: 36 });
+      try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
       if (typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
       saveGame(true);
     }
@@ -4785,6 +5116,7 @@ function dropCoin(x, n = 1, fromPlayer = false) {
 
 function spawnMeme(x, y, text) {
   pushFx({ type: 'meme', x, y, text: String(text).slice(0, 14), t: 0, life: 0.95 });
+  try { if (typeof audPlay === 'function') audPlay('meme'); } catch (_) {}
 }
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -4804,6 +5136,7 @@ function startNight() {
   saveGame(true);
   screenFlash('rgba(40,20,80,0.35)', 0.35);
   shake(2, 0.2);
+  try { if (typeof audPlay === 'function') audPlay('night'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   ensureHeatState();
   if (state.midsummer || state.heatEvent === 'heatwave' || state.heatEvent === 'heatstroke_warn') {
     state.humidity = clamp(state.humidity + 6, 0, 100);
@@ -4877,6 +5210,7 @@ function startNight() {
 function startDay() {
   state.isNight = false;
   state.dayTimer = 0;
+  try { if (typeof audPlay === 'function') audPlay('day'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   spawnDawnFx();
   state.dayChoiceDone = false;
   state.killCombo = 0;
@@ -4965,6 +5299,7 @@ function winCheck() {
   state.won = true; // 一時フラグ（カット用）
   state.over = true;
   state.running = false;
+  try { if (typeof audPlay === 'function') audPlay('win'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   spawnWinFx();
   setTimeout(() => showChapterClear(), 1100);
 }
@@ -5499,6 +5834,11 @@ function loop(now) {
       state.nightSway = Math.sin(state.animT * 1.2) * 1.2;
     }
   }
+  // 音：BGMモード同期（約1.2秒ごと・既存ループ非阻害）
+  if (typeof audSyncBgm === 'function') {
+    if (!AUD._syncAt) AUD._syncAt = 0;
+    if (now - AUD._syncAt > 1200) { AUD._syncAt = now; try { audSyncBgm(false); } catch (_) {} }
+  }
   draw();
   requestAnimationFrame(loop);
 }
@@ -5675,6 +6015,7 @@ function update(dt) {
       state.coins++;
       spawnCoinSparkle(c.x, c.y);
       coinsOnGround.splice(i, 1);
+      try { if (typeof audPlay === 'function') audPlay('coin'); } catch (_) {}
       spawnMeme(player.x, GROUND_Y - 36, '+1');
       if (Math.random() < 0.35) spawnMeme(player.x + 20, GROUND_Y - 50, pick(LORE.coinPickup));
     }
@@ -5764,6 +6105,7 @@ function update(dt) {
           iced,
           color: iced ? '#8cf' : ((u.tier|0)>=2 ? '#f8a' : '#ffe8a0'),
         });
+        try { if (typeof audPlay === 'function') audPlay('shot'); } catch (_) {}
         u._shotFlash = 0.18;
         spawnSparks(u.x, GROUND_Y - 28, iced ? 4 : 3, iced ? ['#8cf','#dff','#ffd700'] : ['#fff8d0', '#ffd700'], 50);
         pushFx({ type: 'ring', x: u.x, y: GROUND_Y - 28, t: 0, life: 0.15, color: iced ? 'rgba(120,200,255,0.45)' : 'rgba(255,240,180,0.4)', r0: 2, r1: 12 });
@@ -5795,6 +6137,7 @@ function update(dt) {
       if (Math.abs(a.x - e.x) < 14 && Math.abs((GROUND_Y - 20) - (e.y - 14)) < 24) {
         e.hp -= (a.dmg || 1);
         hit = true;
+        try { if (typeof audPlay === 'function') audPlay('hit'); } catch (_) {}
         if (a.iced) {
           e._snareSlow = Math.max(e._snareSlow || 0, 0.7);
           e.stunned = Math.max(e.stunned || 0, 0.25);
@@ -5920,6 +6263,7 @@ function update(dt) {
           shake(10, 0.55);
           screenFlash('rgba(180,0,40,0.4)', 0.35);
           spawnSparks(0, GROUND_Y - 40, 12, ['#f44', '#ff6b9d', '#333'], 160);
+          try { if (typeof audPlay === 'function') audPlay('lose'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
           showEnd(false);
         }
       }
@@ -5969,7 +6313,10 @@ function tickWindWeather(dt) {
   // 雲影スクロール
   state.cloudX = (state.cloudX || 0) + (18 + state.wind * 6) * dt;
   // 夕立（昼終盤／夕のみ・短い／予報日は高確率）
-  if (state.rainT > 0) state.rainT -= dt;
+  if (state.rainT > 0) {
+    state.rainT -= dt;
+    if (state.rainT <= 0) { try { if (typeof audSetRain === 'function') audSetRain(false); } catch (_) {} }
+  }
   if (state.rainCool > 0) state.rainCool -= dt;
   if (state.running && !state.isNight && state.rainT <= 0 && state.rainCool <= 0) {
     const phase = dayPhase();
@@ -5983,6 +6330,7 @@ function tickWindWeather(dt) {
       state.heatFlags.shower_count = (state.heatFlags.shower_count | 0) + 1;
       unlockCodexId('qh_shower', true);
       if (Math.random() < 0.7 || showerDay) toast(showerDay ? '夕立！　熱が流れる　リスク↓' : '夕立…湿度が上がる', 2.4);
+      try { if (typeof audPlay === 'function') audPlay('rain'); if (typeof audSetRain === 'function') audSetRain(true); } catch (_) {}
       state.humidity = Math.min(100, state.humidity + (showerDay ? 10 : 6));
       state.heatRisk = clamp((state.heatRisk | 0) - (showerDay ? 14 : 6), 0, 100);
       updateHumidityHud();

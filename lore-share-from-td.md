@@ -125,3 +125,7 @@ No.018 ブーン… — ハエ稼働
 - 真夏Evt：猛暑／焼肉の風／洗濯日和／眼光の太陽／810祭／夕立予報／麦茶の日／熱中症注意／湯気蜃気楼／アイス屋台
 - `LORE.heatStory` が朝イベント文を供給。任務「真夏密着」「週次・真夏の王」と実績連動
 - セーブ `mugichaStock` / `heatRisk` / `heatFlags` / `heatEvent` / `_heatSeen` / `_mugichaDrunk`（旧欠落→既定）
+
+## 音（Web Audio・Kingdom側）
+- 外部wav/mp3なし。`AUD` がオシレータ／ノイズでSFX＋薄いBGMパッド
+- ミュートは `yk-mute`（セーブ `yk-save-v1` とは別）。初回ジェスチャで AudioContext 解錠
