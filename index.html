@@ -2737,6 +2737,9 @@ function startNight() {
   saveGame(true);
   screenFlash('rgba(40,20,80,0.35)', 0.35);
   shake(2, 0.2);
+  if (state.midsummer || state.heatEvent === 'heatwave') {
+    state.humidity = clamp(state.humidity + 6, 0, 100);
+  }
   const nline = pick(LORE.night);
   toast(`Night ${state.day} — ${nline}`, 3.2);
   story(nline, 3.2);
@@ -3466,7 +3469,7 @@ function update(dt) {
       if (w.workCd <= 0) {
         w.workCd = 4.5 + rand(0, 2);
         // 地面にコイン or 直接収入（軽め）
-        const pay = 1 + (facilityLv(w.lmId) >= 2 ? 1 : 0) + ((state.civilTier | 0) >= 2 && Math.random() < 0.35 ? 1 : 0);
+        const pay = 1 + (facilityLv(w.lmId) >= 2 ? 1 : 0) + ((state.civilTier | 0) >= 2 && Math.random() < 0.35 ? 1 : 0) + (Math.random() < bondMul('kohai') - 1 ? 1 : 0);
         if (Math.random() < 0.55) {
           dropCoin(w.x + rand(-12, 12), pay);
         } else {
@@ -4713,9 +4716,11 @@ function tickLocationBus(dt) {
     if (b.mode === 'raid') {
       const op = (state.outposts || []).find(o => o.id === b.opId);
       if (op && !op.cleared) {
-        let dmg = 10 + (state.miliTier | 0) * 3 + (b.vans || []).length * 8;
+        let dmg = 8 + (state.miliTier | 0) * 3 + (b.vans || []).length * 9;
         dmg += Math.min(6, units.filter(u => u.role === 'gun').length);
         dmg += Math.min(4, (b.cargo || []).length * 2);
+        dmg += Math.floor(((state.bond && state.bond.crew)|0) / 25);
+        if (state.day < 5) dmg = Math.max(6, dmg - 2);
         damageOutpost(op, dmg);
       }
       // 先鋒を部室側へ戻す
@@ -4928,6 +4933,27 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
     glow.addColorStop(1, 'rgba(255,180,0,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(sx - 36, GROUND_Y - 40, 30, 40);
+    // 施設Lvで看板光
+    const fac = facilityLv(L.id);
+    if (fac >= 2) {
+      drawPixelRect(sx - 18, GROUND_Y - 52, 36, 4, '#ffd700');
+    }
+    // ミッション対象なら強い撮影ライト
+    if (state.mission && state.mission.lmId === L.id && state.gfxDeep) {
+      const pulse = 0.35 + Math.sin(state.animT * 8) * 0.15;
+      const g2 = ctx.createRadialGradient(sx, GROUND_Y - 30, 2, sx, GROUND_Y - 30, 55);
+      g2.addColorStop(0, `rgba(255,255,200,${pulse})`);
+      g2.addColorStop(1, 'rgba(255,200,80,0)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(sx - 55, GROUND_Y - 70, 110, 70);
+      // カメラクレーン片鱗
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx + 24, GROUND_Y - 10);
+      ctx.lineTo(sx + 40, GROUND_Y - 48);
+      ctx.stroke();
+      drawPixelRect(sx + 36, GROUND_Y - 54, 12, 8, '#222');
+    }
   }
 }
 
