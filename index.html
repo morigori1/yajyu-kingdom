@@ -774,18 +774,272 @@ const LORE = {
     body: 'ぬわあああん疲れたもおおおん<br>†悔い改めて†　王道を征く…？<br><br>',
     btn: '†悔い改めて†',
   },
+  heatStory: {
+    heatwave: [
+      '猛暑注意報　湿度が　測定器を殴る　動け…ぬわあああん',
+      'エアコンは　そうだよ　汗が　王道を征く',
+    ],
+    bbq_wind: [
+      '焼肉の風　まずうちさぁ…屋上あんだけど…　あ〜いいっすね〜',
+      '朝コインが　香りと一緒に　ありますあります',
+    ],
+    laundry_day: [
+      '洗濯日和　ランドリーが　くさいを褒める　いいゾ〜これ',
+      'コインランドリー　湿度↓　乾いた汗は　まだ嘘をつく',
+    ],
+    gaze_sun: [
+      '眼光の太陽　噂の…眼光　見とけよ見とけよ〜',
+      '昼なのに　眼光が　キタ！（来るな）',
+    ],
+    '810_festival': [
+      '810祭　銀行が踊る　やっと　やりますねぇ',
+      '利息＋1　おかのした　財布？　あっ（察し）',
+    ],
+  },
+};
+
+/** 章ごと（下北→井の頭→新宿→外縁）導入・昼・夜・攻勢・クリア　語録崩し */
+const CHAPTER_STORY = {
+  0: {
+    name: '下北',
+    intro: [
+      '†悔い改めて†　下北の湿度は　測定器が壊れてる　24歳、学生です（そうだよ）',
+      '部室の火が　王冠を照らす　王道を征く　汗系ですか',
+      '北沢の風が　財布をなでてくる　ありますあります？　ま、多少はね？',
+    ],
+    day: [
+      'Day{d}　下北　いいゾ〜これ（汗）　ロケは　こ↑こ↓',
+      'Day{d}　あずま寿しの匂いが　撮影班を呼ぶ　やりますねぇ',
+      'Day{d}　ランドリーの回転が　114514　当たり前だよなぁ？',
+      'Day{d}　世田谷の片鱗が　見えてきた　キタ！（来るな）',
+      'Day{d}　まずうちさぁ…屋上あんだけど…焼いてかない？',
+    ],
+    night: [
+      'じゃけん夜行きましょうね　たかりの影　ファッ！？　810',
+      '見とけよ見とけよ〜　なに！？　下北の夜は　湿度が高い',
+      'あっ（察し）　眼光…？　いや〜キツイっす（迫真）　消えんな火',
+      'キタ！（来るな）　部室の主が　ロッカーから　ンアッー',
+    ],
+    assault: [
+      '平定だけでは終わらない　隣の聖地へ　ロケバス　いいよ！こいよ！',
+      '下北は一時　井の頭が　焼いてこないか聞いてくる',
+      '攻勢開始　王道を征く　次の汗へ',
+    ],
+    clear: [
+      '下北の平和は一時　汗は嘘をつく　終わり！閉廷！（この章だけ）',
+      'はっきりわかんだね　バリケードは石　でも隣がある',
+      '王冠（外さない）　湿度114514　つづきは攻勢で',
+      'やりますねぇ　いいゾ〜これ　多少はね？　井の頭へ',
+      '撮影班が言う　おかのした　次のロケだ',
+    ],
+  },
+  1: {
+    name: '井の頭',
+    intro: [
+      'まずうちさぁ…池のほとりあんだけど…焼いてかない？　あ〜いいっすね〜',
+      '井の頭ロケ　セピアの水面に　114514年前の写真　測定器壊れてる',
+      'なんで見る必要なんかあるんですか　見ろよ見ろよ　池が答える',
+    ],
+    day: [
+      'Day{d}　井の頭　アイスティーしかなかったけどいいかな？　冷えてるゾ',
+      'Day{d}　吉祥寺の風が　ンギモを運ぶ　ま、多少はね？',
+      'Day{d}　池畔ロケ　撮影班　あり…ますあります　汗が光る',
+      'Day{d}　遠野笑顔が　水面にうつる　ファッ！？　いいゾ〜',
+      'Day{d}　裏拠点の噂　王道を征く、汗系ですか',
+    ],
+    night: [
+      'ンギモが来る　ファッ！？　遠野笑顔が　見とけよ見とけよ〜',
+      '池の夜　じゃけん…　MURが　こ↑こ↓',
+      '部室の主・真　真　キタ！（来るな）　消えんな火',
+      'あっ（察し）　裏から　たかり　810',
+    ],
+    assault: [
+      '井の頭は平定した　が新宿の片鱗が　キタ！（来るな）',
+      'ロケバス侵攻　駅前へ　いいよ！こいよ！',
+      '攻勢　王道を征く　湿度はまだ　壊れてる',
+    ],
+    clear: [
+      '池は平定した　多少はね？　新宿の片鱗が　待ってる',
+      'セピアの記憶は　閉廷（仮）　つづきは攻勢',
+      'やりますねぇ　ンギモも　おかのした　次へ',
+      '王冠（外れてない）　井の頭の汗が　残った',
+      'はっきりわかんだね　隣がある　イキスギィ！',
+    ],
+  },
+  2: {
+    name: '新宿',
+    intro: [
+      '新宿の片鱗　湿度114514　エアコンは　そうだよ',
+      '駅前の風が　くさいを褒める　いいゾ〜これ　やりますねぇ',
+      '24歳、学生です（迫真）　新宿でも　王道を征く',
+    ],
+    day: [
+      'Day{d}　新宿片鱗　ホラホラホラホラ　ロケが　熱い',
+      'Day{d}　財布？　あっ（察し）　810が　駅に降る',
+      'Day{d}　撮影班ミーティング　あり…ますあります　汗系ですか',
+      'Day{d}　眼光の噂が　昼にまで　見とけよ見とけよ〜',
+      'Day{d}　ま、多少はね？　いいよ！こいよ！　片鱗を掴む',
+    ],
+    night: [
+      '眼光の噂が　噂の眼光　じゃけん夜…　MUR',
+      'ファッ！？　新宿の夜は　たかりが　倍速',
+      '迫真の淫獣…？　キタ！（来るな）　消えんな火',
+      'なに！？　しょうがねぇなぁ　駅前バリケード',
+    ],
+    assault: [
+      '新宿片鱗　閉廷（仮）　外縁が　114514砦を見せる',
+      'ロケバス　外縁へ　いいよ！こいよ！　エンドレスの匂い',
+      '攻勢続行　王道を征く　測定不能ゾーンへ',
+    ],
+    clear: [
+      '新宿片鱗　平定　外縁が待ってる　イキスギィ！',
+      '終わり！閉廷！（この章だけ）　湿度は　まだ壊れてる',
+      'やりますねぇ　駅前の汗が　残った　つづきは攻勢',
+      '王冠（外さない）　114514　次は果て',
+      'はっきりわかんだね　隣が　こ↑こ↓',
+    ],
+  },
+  3: {
+    name: '外縁',
+    intro: [
+      '外縁ロケ　測定不能　王道を征く、汗系ですか',
+      'こ↑こ↓塔の影　ブーン…　ぬるッ！　ま、多少はね？',
+      '果てがない　エンドレス　24歳、学生です（そうだよ）',
+    ],
+    day: [
+      'Day{d}　外縁　いいゾ〜これ　ロケが　無限に　おかのした',
+      'Day{d}　114514砦が　昼でも　見とけよ見とけよ〜',
+      'Day{d}　ぬわあああん疲れたもおおおん…やる　やりますねぇ',
+      'Day{d}　撮影班が言う　あり…ますあります　汗は嘘をつく',
+      'Day{d}　当たり前だよなぁ？　外縁でも　王道を征く',
+    ],
+    night: [
+      '野獣の眼光　迫真の淫獣　キタ！（来るな）　消灯するな',
+      'じゃけん夜行きましょうね　果てまで　ファッ！？',
+      'MURと　こ↑こ↓が　同時に　ンアッー',
+      'いや〜キツイっす（迫真）　でも　いいよ！こいよ！',
+    ],
+    assault: [
+      '外縁は果てがない　攻勢は　ループする　やりますねぇ',
+      'ロケバスは　まだ走る　いいよ！こいよ！　114514',
+      'エンドレス侵攻　王道を征く　閉廷はまだ早い',
+    ],
+    clear: [
+      '終わり！閉廷！以上！皆解散！　でも湿度は　まだ114514',
+      'やりますねぇ！　いいゾ〜これ　多少はね？　外縁の汗',
+      '王冠（外れてない）　野獣先輩は　今日も王道を征く',
+      '下北から外縁まで　測定器は　壊れたまま',
+      '†悔い改めて†　つづきは　また攻勢で',
+    ],
+  },
 };
 
 let storyTimer = 0;
 function story(msg, sec = 3.0) {
   const el = document.getElementById('story');
   if (!el) return;
-  el.textContent = shortenMsg(msg, 72);
+  el.textContent = shortenMsg(msg, 96);
   el.classList.add('show');
-  storyTimer = Math.min(sec, 3.4);
+  storyTimer = Math.min(sec, 4.2);
+}
+
+function chapterStoryPack(ch) {
+  const i = clamp(ch | 0, 0, 3);
+  return CHAPTER_STORY[i] || CHAPTER_STORY[0];
+}
+function fillDayToken(s) {
+  return String(s || '').replace(/\{d\}/g, String(state.day | 0));
+}
+function bondFlavorSuffix() {
+  const b = state.bond || { kohai: 0, crew: 0, town: 0 };
+  const bits = [];
+  if ((b.kohai | 0) >= 60) bits.push('後輩も　おかのした');
+  else if ((b.kohai | 0) >= 30) bits.push('後輩　あり…ます');
+  if ((b.crew | 0) >= 60) bits.push('撮影班　やりますねぇ');
+  else if ((b.crew | 0) >= 30) bits.push('班が　あ〜いいっすね〜');
+  if ((b.town | 0) >= 60) bits.push('街が　王道を征く');
+  else if ((b.town | 0) >= 30) bits.push('街　いいゾ〜');
+  if (!bits.length) return '';
+  return '　' + bits.slice(0, 2).join('　');
+}
+function scheduleFlavorSuffix() {
+  const sch = state.schedule || [];
+  if (!sch.length) return '';
+  const pending = sch.filter(s => !s.done);
+  const head = (pending[0] || sch[0]);
+  const n = sch.length;
+  const done = sch.filter(s => s.done).length;
+  if (done >= n) return '　本日ロケ完了　おかのした';
+  return `　本日ロケ${n}本　${head.label || '撮影'}`;
+}
+function heatFlavorSuffix() {
+  const id = state.heatEvent;
+  if (!id) return state.midsummer ? '　真夏　湿度' + (state.humidity | 0) : '';
+  const map = {
+    heatwave: '　猛暑　動けぬわ',
+    bbq_wind: '　焼肉の風',
+    laundry_day: '　洗濯日和',
+    gaze_sun: '　眼光の太陽',
+    '810_festival': '　810祭',
+  };
+  return map[id] || ('　真夏:' + id);
+}
+function storyCompose(base, opts) {
+  opts = opts || {};
+  let s = fillDayToken(base);
+  if (opts.bond !== false) s += bondFlavorSuffix();
+  if (opts.schedule) s += scheduleFlavorSuffix();
+  if (opts.heat) s += heatFlavorSuffix();
+  return s;
+}
+function pickChapterLine(kind) {
+  const pack = chapterStoryPack(state.chapter);
+  const arr = pack[kind] || [];
+  if (!arr.length) return '';
+  return fillDayToken(pick(arr));
 }
 function dayOpenLine(day) {
-  return LORE.dayOpen[day] || pick(LORE.dayOpenFallback);
+  // 章昼ビート優先 → 旧Day固定 → fallback、関係値・ロケ・真夏を末尾に織る
+  const chLine = pickChapterLine('day');
+  const base = chLine || LORE.dayOpen[day] || pick(LORE.dayOpenFallback);
+  return storyCompose(base, { bond: true, schedule: true, heat: true });
+}
+function nightOpenLine() {
+  const chLine = pickChapterLine('night');
+  const base = chLine || pick(LORE.night);
+  return storyCompose(base, { bond: true, schedule: false, heat: true });
+}
+function chapterIntroLine() {
+  const pack = chapterStoryPack(state.chapter);
+  return storyCompose(pick(pack.intro), { bond: true, schedule: false, heat: true });
+}
+function chapterAssaultLine() {
+  const pack = chapterStoryPack(state.chapter);
+  const next = chapterName(Math.min((state.chapter | 0) + 1, 3));
+  const base = pick(pack.assault) || pick(LORE.assaultOpen);
+  return storyCompose(base + '　→' + next, { bond: true, schedule: false, heat: true });
+}
+function chapterClearLines() {
+  const pack = chapterStoryPack(state.chapter);
+  const lines = (pack.clear || []).slice();
+  // 関係値・真夏・ロケ実績を末尾に1行足す
+  const b = state.bond || {};
+  const schDone = (state.schedule || []).filter(s => s.done).length;
+  const epi = [
+    `関係　後輩${b.kohai|0}／班${b.crew|0}／街${b.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}`,
+    state.heatEvent ? `真夏の残響　${state.heatEvent}　湿度${state.humidity|0}` : `湿度${state.humidity|0}　測定器は壊れたまま`,
+    schDone ? `本日ロケ消化 ${schDone}本　おかのした` : 'ロケ日程は　明日も　あり…ますあります',
+  ];
+  return lines.concat(epi).slice(0, 7);
+}
+function maybeChapterIntroStory() {
+  if (!state.chapterIntro) state.chapterIntro = {};
+  const ch = state.chapter | 0;
+  if (state.chapterIntro[ch]) return false;
+  state.chapterIntro[ch] = true;
+  story(chapterIntroLine(), 4.0);
+  toast(`章導入　${chapterName(ch)}`, 2.8);
+  return true;
 }
 
 // ---------- 入力（キーボード維持 + 仮想パッド） ----------
@@ -955,6 +1209,7 @@ const state = {
   busAutoT: 0,        // 内政：自動巡回クールダウン
   chapter: 0,         // 現在章
   chapterBeat: {},    // 章クリア済み
+  chapterIntro: {},   // 章導入再生済み
   assault: false,     // 攻勢モード（平定後も継続）
   outposts: [],       // 敵拠点
   miliTier: 0,        // 軍事全体ボーナス（0..3）
@@ -1206,6 +1461,12 @@ function rollDaySchedule() {
     const mk = MISSION_KINDS[(state.day + i) % MISSION_KINDS.length];
     state.schedule.push({ lmId: L.id, kind: mk.id, label: mk.label, done: false });
   }
+  // ロケ日程の語録トースト（昼開始時は dayOpen が本隊）
+  if (state.schedule.length && state.panelOpen === 'mission') {
+    const head = state.schedule[0];
+    const L0 = landmarkById(head.lmId);
+    toast(`本日ロケ ${state.schedule.length}本　${(L0 && L0.short) || '?'}…`, 2.6);
+  }
 }
 
 function startMissionFromSchedule(slot) {
@@ -1220,7 +1481,7 @@ function startMissionFromSchedule(slot) {
     reward: mk.reward(), label: mk.label, day: state.day,
   };
   toast(`ロケ日程　${L.short}　${mk.label}`, 2.8);
-  story(`【撮影】${L.short}へ　${mk.label}`, 2.4);
+  story(storyCompose(`【撮影】${chapterName(state.chapter)}・${L.short}へ　${mk.label}`, { bond: true, schedule: true, heat: true }), 2.8);
   if (slot.kind === 'bus' || slot.kind === 'patrol' || slot.kind === 'film') {
     startLocationBus(0, L.id, false, 'civil');
   }
@@ -1276,7 +1537,8 @@ function completeMission() {
     if (s.lmId === m.lmId && s.kind === m.kind && !s.done) s.done = true;
   }
   toast(`ミッション完了　＋${reward}　${m.label}`, 2.8);
-  story('撮影OK　やりますねぇ', 2.0);
+  const Ldone = landmarkById(m.lmId);
+  story(storyCompose(`撮影OK　${(Ldone && Ldone.short) || '聖地'}　${m.label}　やりますねぇ`, { bond: true, schedule: true, heat: true }), 2.6);
   spawnMeme(player.x, GROUND_Y - 70, 'OK');
   state.mission = null;
   checkAchievements();
@@ -1302,8 +1564,9 @@ function rollHeatEvent() {
     state.heatEvent = ev.id;
     state.heatEventT = state.dayLength;
     state.humidity = clamp(state.humidity + (ev.humid || 0), 0, 100);
+    const hs = (LORE.heatStory && LORE.heatStory[ev.id]) ? pick(LORE.heatStory[ev.id]) : (ev.name + '　' + ev.desc);
     toast(`真夏イベント　${ev.name}　${ev.desc}`, 3.4);
-    story(ev.name + '　' + ev.desc, 2.8);
+    state._heatStoryPending = storyCompose(hs + '　' + chapterName(state.chapter), { bond: true, schedule: true, heat: false });
     if (ev.id === 'bbq_wind') state.coins += 1;
     if (ev.id === '810_festival') state.bank += 1;
   }
@@ -1621,13 +1884,31 @@ function openBranchPanel(tab) {
   if (state.panelOpen === 'bond') {
     addBtn(`後輩と話す（関係${state.bond.kohai|0}）湿度↓`, 0, () => {
       bumpBond('kohai', 4); state.humidity = clamp(state.humidity - 6, 0, 100);
-      toast('後輩「やりますねぇ」', 2.2); updateHumidityHud();
+      toast('後輩「やりますねぇ」', 2.2);
+      story(storyCompose(pick([
+        '後輩「やりますねぇ」　湿度が下がる　おかのした',
+        '後輩「いいよ！こいよ！」　部室の火が安定',
+        '後輩「ま、多少はね？」　汗が嘘をつく',
+      ]), { bond: true, schedule: true, heat: true }), 2.6);
+      updateHumidityHud();
     });
     addBtn(`撮影班ミーティング（班${state.bond.crew|0}）`, 1, () => {
-      bumpBond('crew', 5); state.filmShots = (state.filmShots|0)+1; toast('ミーティング完了', 2.0); return true;
+      bumpBond('crew', 5); state.filmShots = (state.filmShots|0)+1; toast('ミーティング完了', 2.0);
+      story(storyCompose(pick([
+        '撮影班「あり…ますあります」　カット割り　114514',
+        'ミーティング完了　ロケバス　いいよ！こいよ！',
+        '班長「やりますねぇ」　本日の日程を確認',
+      ]), { bond: true, schedule: true, heat: true }), 2.6);
+      return true;
     });
     addBtn(`街へ差し入れ（街${state.bond.town|0}）`, 2, () => {
-      bumpBond('town', 6); toast('街の評判アップ', 2.0); return true;
+      bumpBond('town', 6); toast('街の評判アップ', 2.0);
+      story(storyCompose(pick([
+        '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
+        '評判アップ　王道を征く　街の湿度も味方',
+        '差し入れ完了　おかのした　収入の片鱗',
+      ]), { bond: true, schedule: true, heat: true }), 2.6);
+      return true;
     });
     const achN = Object.keys(state.achievements||{}).length;
     addBtn(`やりこみ実績 ${achN}/${ACH_DEFS.length}（確認）`, 0, () => {
@@ -3084,9 +3365,9 @@ function startNight() {
   if (state.midsummer || state.heatEvent === 'heatwave') {
     state.humidity = clamp(state.humidity + 6, 0, 100);
   }
-  const nline = pick(LORE.night);
-  toast(`Night ${state.day} — ${nline}`, 3.2);
-  story(nline, 3.2);
+  const nline = nightOpenLine();
+  toast(`Night ${state.day} — ${shortenMsg(nline, 48)}`, 3.4);
+  story(nline, 3.6);
   spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
   // 序盤は学習用に波を抑え、中盤から本領
   const waves = state.day <= 2 ? 2 + state.day
@@ -3152,8 +3433,24 @@ function startDay() {
   state.killCombo = 0;
   state.comboTimer = 0;
   state.gazeT = 0;
+  // ロケ日程・真夏を先にロールし、昼語録へ織り込む
+  rollDaySchedule();
+  rollHeatEvent();
+  // 章導入（初回）→ 昼語録（関係・ロケ・真夏連動）
+  const didIntro = maybeChapterIntroStory();
   const open = dayOpenLine(state.day);
-  story(open, 4.2);
+  const heatExtra = state._heatStoryPending || '';
+  state._heatStoryPending = null;
+  if (!didIntro) {
+    story(open, 4.2);
+    if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.2); }, 2800);
+  } else {
+    setTimeout(() => {
+      if (state.isNight || !state.running) return;
+      story(open, 3.8);
+      if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.0); }, 2600);
+    }, 3200);
+  }
   if (state.day > 1) {
     let bonus = 2 + Math.floor(state.day / 2);
     // 湿度低すぎ→収入減／高すぎはペナルティなし（夜の機動力で既に不利）
@@ -3163,8 +3460,12 @@ function startDay() {
     } else if (state.humidity >= 35 && state.humidity <= 70) {
       bonus += 1; // 適湿ボーナス
     }
+    // 関係値・真夏で朝ボーナス微増
+    if (((state.bond && state.bond.town) | 0) >= 40) bonus += 1;
+    if (state.heatEvent === 'bbq_wind') bonus += 1;
+    if (state.heatEvent === '810_festival') bonus += 1;
     state.coins += bonus;
-    const mline = pick(LORE.morning);
+    const mline = pick(LORE.morning) + (state.heatEvent ? heatFlavorSuffix() : '');
     toast(`${mline} ＋${bonus}コイン`, 3.2);
     spawnMeme(0, GROUND_Y - 80, pick(['生きてるゥ', 'やったぜ', 'いいゾ～これ']));
     applyBankInterest();
@@ -3174,8 +3475,7 @@ function startDay() {
   }
   // 朝は少し涼む
   state.humidity = clamp(state.humidity - 8, 5, 100);
-  rollDaySchedule();
-  rollHeatEvent();
+  // schedule/heat は朝語録より先にロール済み
   checkAchievements();
   updateHumidityHud();
   for (let i = 0; i < 3; i++) {
@@ -3222,13 +3522,16 @@ function showChapterClear() {
 
 function renderChapterCut() {
   const ov = document.getElementById('overlay');
-  const lines = (LORE.chapterClear || []).concat(LORE.ending || []).slice(0, 5);
+  const lines = chapterClearLines();
   const i = state.endCut | 0;
   if (i >= lines.length) {
     const ch = chapterName(state.chapter);
+    const b = state.bond || {};
     ov.innerHTML = `<h1><span class="meme">${ch}　平定</span></h1>
       <p>Day ${state.day} ／ 🪙${state.coins} ／ 810銀行 ${state.bank}<br>
-      聖地 ${unlockedCount()}　内政Lv${state.civilTier}　軍事Lv${state.miliTier}<br><br>
+      聖地 ${unlockedCount()}　内政Lv${state.civilTier}　軍事Lv${state.miliTier}<br>
+      関係 後輩${b.kohai|0}／班${b.crew|0}／街${b.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>
+      ${state.heatEvent ? '真夏残響　'+state.heatEvent+'　' : ''}湿度${state.humidity|0}<br><br>
       一度の平定で終わらせない。<br>ロケバスで隣の聖地へ侵攻できる。</p>
       <button id="assaultBtn" type="button" style="background:#5a2a10;margin-top:8px">攻勢続行：隣の聖地へ</button>
       <button id="startBtn" type="button" style="margin-top:8px">いったん閉廷（セーブしてタイトル）</button>`;
@@ -3275,7 +3578,7 @@ function enterAssaultMode() {
   ov.classList.add('hidden');
   ov.classList.remove('cine-dawn');
   toast(pick(LORE.assaultOpen), 3.2);
-  story(`攻勢モード　次は ${chapterName(state.chapter + 1)}　ロケバス侵攻`, 3.0);
+  story(chapterAssaultLine(), 3.6);
   spawnMeme(player.x, GROUND_Y - 70, '攻勢!');
   screenFlash('rgba(255,100,40,0.2)', 0.3);
   shake(4, 0.25);
@@ -3343,6 +3646,7 @@ function buildSaveBlob() {
     workers: workers.map(w => ({ x: w.x, side: w.side || 0, lmId: w.lmId || null, job: w.job || 'gather' })),
     chapter: state.chapter | 0,
     chapterBeat: Object.assign({}, state.chapterBeat),
+    chapterIntro: Object.assign({}, state.chapterIntro || {}),
     assault: !!state.assault,
     outposts: (state.outposts || []).map(o => ({
       id: o.id, name: o.name, short: o.short, side: o.side, x: o.x,
@@ -3426,6 +3730,7 @@ function applySave(d) {
   state.busAutoT = 0;
   state.chapter = d.chapter | 0;
   state.chapterBeat = Object.assign({}, d.chapterBeat || {});
+  state.chapterIntro = Object.assign({}, d.chapterIntro || {});
   state.assault = !!d.assault;
   state.outposts = Array.isArray(d.outposts) ? d.outposts.map(o => Object.assign({}, o)) : [];
   state.miliTier = clamp(d.miliTier | 0, 0, 3);
@@ -3572,6 +3877,7 @@ function resetGame() {
   state.busAutoT = 0;
   state.chapter = 0;
   state.chapterBeat = {};
+  state.chapterIntro = {};
   state.assault = false;
   state.outposts = [];
   state.miliTier = 0;
@@ -5102,8 +5408,11 @@ function clearOutpost(op) {
   if (got >= need || state.chapter >= 3) {
     if (state.chapter < targetCh) {
       state.chapter = targetCh;
+      if (!state.chapterIntro) state.chapterIntro = {};
+      state.chapterIntro[state.chapter] = false; // 新章導入を朝に再生
       toast(`章進行　→${chapterName(state.chapter)}`, 3.2);
-      story(`新ロケ解禁　${chapterName(state.chapter)}`, 2.8);
+      story(chapterIntroLine(), 3.8);
+      state.chapterIntro[state.chapter] = true;
     }
   }
   bumpBond('crew', 4);
