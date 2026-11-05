@@ -87,6 +87,7 @@
     justify-content: center;
     width: 100%;
     touch-action: none;
+    overflow: hidden;
   }
   canvas {
     image-rendering: pixelated;
@@ -94,8 +95,8 @@
     background: var(--yk-night);
     width: 100%;
     height: auto;
-    max-width: 100%;
-    max-height: 100%;
+    max-width: none;
+    max-height: none;
     object-fit: contain;
     border: 4px solid var(--yk-wood);
     box-shadow:
@@ -329,21 +330,24 @@
    box-shadow: inset 0 0 0 1px #8b6914, 0 0 0 2px #3a2810; }
   #overlay button:hover { background: #7a3a2a; filter: drop-shadow(0 0 6px rgba(255,215,0,.35)); }
   #overlay.hidden { display: none; }
-  #gfx-chip, #mute-chip {
+  #gfx-chip, #mute-chip, #zoom-chip {
     position: absolute; z-index: 12; pointer-events: auto;
     font-family: "Press Start 2P", monospace; font-size: 8px;
     background: rgba(20,12,8,.88); color: #ffd700;
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
     cursor: pointer; touch-action: manipulation;
   }
+  /* タッチパッド上に縦積み（下→上: 画質 / 音 / 拡大） */
   #gfx-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap)); }
   #mute-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap) + 34px); color: #8cf; border-color: #468; }
-  #gfx-chip:active, #mute-chip:active { background: #7a3a2a; }
+  #zoom-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap) + 68px); color: #9f8; border-color: #486; }
+  #gfx-chip:active, #mute-chip:active, #zoom-chip:active { background: #7a3a2a; }
   #mute-chip.muted { color: #888; border-color: #555; }
   @media (max-width: 720px) {
-    #gfx-chip, #mute-chip { font-size: 7px; padding: 5px 6px; }
+    #gfx-chip, #mute-chip, #zoom-chip { font-size: 7px; padding: 5px 6px; }
     #gfx-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 4px); }
     #mute-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 34px); }
+    #zoom-chip { bottom: calc(var(--pad-h) + var(--safe-b) + 64px); }
   }
 
   #choice-panel {
@@ -703,7 +707,7 @@
       touch-action: manipulation;
     }
     .pad-btn { -webkit-tap-highlight-color: transparent; }
-    #gfx-chip, #mute-chip {
+    #gfx-chip, #mute-chip, #zoom-chip {
       min-height: 36px;
       min-width: 64px;
       padding: 8px 10px;
@@ -718,11 +722,15 @@
     visibility: hidden;
   }
   #wrap.ui-panel #gfx-chip,
-  #wrap.ui-panel #mute-chip {
+  #wrap.ui-panel #mute-chip,
+  #wrap.ui-panel #zoom-chip {
     bottom: max(12px, calc(var(--safe-b) + 10px));
   }
   #wrap.ui-panel #mute-chip {
     bottom: max(48px, calc(var(--safe-b) + 46px));
+  }
+  #wrap.ui-panel #zoom-chip {
+    bottom: max(84px, calc(var(--safe-b) + 82px));
   }
   #wrap.ui-panel #ach-toast {
     bottom: max(16px, calc(var(--safe-b) + 14px));
@@ -820,6 +828,7 @@
   </div>
   <div id="ach-toast" role="status"></div>
   <button type="button" id="mute-chip" aria-label="音声ミュート切替" aria-pressed="false">音:ON</button>
+  <button type="button" id="zoom-chip" aria-label="表示拡大切替">拡大:125%</button>
   <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
   <div id="touch-pad" aria-label="タッチ操作">
     <div class="pad-group">
@@ -1381,17 +1390,18 @@ canvas.addEventListener('pointerdown', e => {
 });
 
 function bindHold(el, on, off) {
+  if (!el) return;
   const start = ev => {
     ev.preventDefault();
     try { if (ev.pointerId != null) el.setPointerCapture(ev.pointerId); } catch (_) {}
     el.classList.add('active');
-    on();
+    try { on(); } catch (_) {}
   };
   const end = ev => {
     if (ev) ev.preventDefault();
     try { if (ev && ev.pointerId != null) el.releasePointerCapture(ev.pointerId); } catch (_) {}
     el.classList.remove('active');
-    off();
+    try { off(); } catch (_) {}
   };
   el.addEventListener('pointerdown', start);
   el.addEventListener('pointerup', end);
@@ -1400,12 +1410,27 @@ function bindHold(el, on, off) {
   el.addEventListener('contextmenu', ev => ev.preventDefault());
 }
 
-bindHold(document.getElementById('btn-left'),
-  () => { touchMove.left = true; },
-  () => { touchMove.left = false; });
-bindHold(document.getElementById('btn-right'),
-  () => { touchMove.right = true; },
-  () => { touchMove.right = false; });
+(function bindMovePads() {
+  const bl = document.getElementById('btn-left');
+  const br = document.getElementById('btn-right');
+  bindHold(bl,
+    () => { touchMove.left = true; touchMove.right = false; },
+    () => { touchMove.left = false; });
+  bindHold(br,
+    () => { touchMove.right = true; touchMove.left = false; },
+    () => { touchMove.right = false; });
+  // 保険：pointer が取れない環境向け touchstart/end
+  if (br) {
+    br.addEventListener('touchstart', e => { e.preventDefault(); touchMove.right = true; touchMove.left = false; }, { passive: false });
+    br.addEventListener('touchend', () => { touchMove.right = false; }, { passive: true });
+    br.addEventListener('touchcancel', () => { touchMove.right = false; }, { passive: true });
+  }
+  if (bl) {
+    bl.addEventListener('touchstart', e => { e.preventDefault(); touchMove.left = true; touchMove.right = false; }, { passive: false });
+    bl.addEventListener('touchend', () => { touchMove.left = false; }, { passive: true });
+    bl.addEventListener('touchcancel', () => { touchMove.left = false; }, { passive: true });
+  }
+})();
 
 (function bindPanelPads() {
   const bc = document.getElementById('btn-civil');
@@ -1526,11 +1551,16 @@ function fitCanvas() {
       if (ah < 120 && vv.height > ah) ah = Math.max(ah, Math.floor(vv.height - padH - 8));
     }
   } catch (_) {}
-  const scale = Math.min(aw / W, ah / H);
-  const dw = Math.floor(W * scale);
-  const dh = Math.floor(H * scale);
+  const base = Math.min(aw / W, ah / H);
+  const z = (typeof VIEW !== 'undefined' && VIEW.zoom) ? VIEW.zoom : 1.25;
+  // 内部解像度はそのまま、CSS 表示だけ拡大（はみ出しは stage overflow:hidden）
+  const scale = base * z;
+  const dw = Math.max(1, Math.floor(W * scale));
+  const dh = Math.max(1, Math.floor(H * scale));
   canvas.style.width = dw + 'px';
   canvas.style.height = dh + 'px';
+  canvas.style.maxWidth = 'none';
+  canvas.style.maxHeight = 'none';
 }
 window.addEventListener('resize', fitCanvas);
 window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 160));
@@ -3873,6 +3903,48 @@ document.getElementById('gfx-chip')?.addEventListener('click', (e) => {
 });
 
 // =========================================================
+// 表示拡大（100/125/150/200%）— localStorage: yk-zoom
+// =========================================================
+const VIEW = { zoom: 1.25, zooms: [1, 1.25, 1.5, 2] };
+
+function zoomLabel(z) {
+  return '拡大:' + Math.round((z || 1) * 100) + '%';
+}
+
+function applyZoom(silent) {
+  if (!(VIEW.zoom > 0)) VIEW.zoom = 1.25;
+  const chip = document.getElementById('zoom-chip');
+  if (chip) chip.textContent = zoomLabel(VIEW.zoom);
+  try { document.documentElement.dataset.zoom = String(VIEW.zoom); } catch (_) {}
+  try { fitCanvas(); } catch (_) {}
+  if (!silent) {
+    try { if (typeof audPlay === 'function') audPlay('ui'); } catch (_) {}
+    try { toast(zoomLabel(VIEW.zoom), 1.4); } catch (_) {}
+  }
+}
+
+function cycleZoom() {
+  const zs = VIEW.zooms;
+  let i = zs.findIndex(z => Math.abs(z - VIEW.zoom) < 0.01);
+  i = (i < 0 ? 0 : i + 1) % zs.length;
+  VIEW.zoom = zs[i];
+  try { localStorage.setItem('yk-zoom', String(VIEW.zoom)); } catch (_) {}
+  applyZoom(false);
+}
+
+try {
+  const zs = localStorage.getItem('yk-zoom');
+  const z = zs != null ? parseFloat(zs) : 1.25;
+  if (VIEW.zooms.some(v => Math.abs(v - z) < 0.01)) VIEW.zoom = z;
+  else VIEW.zoom = 1.25;
+} catch (_) { VIEW.zoom = 1.25; }
+applyZoom(true);
+document.getElementById('zoom-chip')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  cycleZoom();
+});
+
+// =========================================================
 // 音（Web Audio 合成 SFX／簡易BGM）— 外部音声ファイル不要
 // localStorage: yk-mute = '1'|'0'　既存ループは gain 調整のみ
 // =========================================================
@@ -5843,12 +5915,38 @@ function startNight() {
   }
 }
 
+function lockPlayVisual() {
+  // 開始直後の見た目・操作を強制確定（startDay例外でもプレイ可）
+  state.titleCine = false;
+  state.titleDawn = 0;
+  state.isNight = false;
+  state.running = true;
+  state.over = false;
+  state.won = false;
+  state.panelOpen = null;
+  try {
+    const cp = document.getElementById('choice-panel');
+    if (cp) cp.classList.remove('show');
+  } catch (_) {}
+  try { syncPanelChrome(false); } catch (_) {}
+  if (!player) return;
+  if (player.x == null || !Number.isFinite(player.x)) player.x = 0;
+  if (player.vx == null || !Number.isFinite(player.vx)) player.vx = 0;
+  player.facing = player.facing || 1;
+  state.cameraX = player.x - W / 2;
+  state.debugHUD = true;
+  state._drawErrLogged = false;
+  state._updErrLogged = false;
+}
+
 function startDay() {
   state.isNight = false;
   state.dayTimer = 0;
-  syncCycleLengths();
+  try { syncCycleLengths(); } catch (e) { try { console.error('syncCycleLengths', e); } catch (_) {} }
+  if (!(state.dayLength > 10)) state.dayLength = 52;
+  if (!(state.nightLength > 10)) state.nightLength = 38;
   try { if (typeof audPlay === 'function') audPlay('day'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
-  spawnDawnFx();
+  try { spawnDawnFx(); } catch (_) {}
   // Day1は選択パネルで「動かない」に見えるのを避ける
   state.dayChoiceDone = (state.day | 0) <= 1;
   state.killCombo = 0;
@@ -5860,25 +5958,30 @@ function startDay() {
     syncPanelChapterTheme();
   } catch (_) {}
   // ロケ日程・真夏を先にロールし、昼語録へ織り込む
-  rollDaySchedule();
-  ensureWeeklyQuest();
-  ensureChapterQuest();
-  rollHeatEvent();
+  try { rollDaySchedule(); } catch (e) { try { console.error('rollDaySchedule', e); } catch (_) {} }
+  try { ensureWeeklyQuest(); } catch (_) {}
+  try { ensureChapterQuest(); } catch (_) {}
+  try { rollHeatEvent(); } catch (e) { try { console.error('rollHeatEvent', e); } catch (_) {} }
   // 章導入（初回）→ 昼語録（関係・ロケ・真夏連動）
-  const didIntro = maybeChapterIntroStory();
-  const open = dayOpenLine(state.day);
+  let didIntro = false;
+  try { didIntro = !!maybeChapterIntroStory(); } catch (_) { didIntro = false; }
+  let open = 'Day1　王道を征く';
+  try { open = dayOpenLine(state.day); } catch (_) {}
   const heatExtra = state._heatStoryPending || '';
   state._heatStoryPending = null;
-  if (!didIntro) {
-    story(open, 4.2);
-    if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.2); }, 2800);
-  } else {
-    setTimeout(() => {
-      if (state.isNight || !state.running) return;
-      story(open, 3.8);
-      if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.0); }, 2600);
-    }, 3200);
-  }
+  try {
+    if (!didIntro) {
+      story(open, 4.2);
+      if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.2); }, 2800);
+    } else {
+      setTimeout(() => {
+        if (state.isNight || !state.running) return;
+        story(open, 3.8);
+        if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.0); }, 2600);
+      }, 3200);
+    }
+  } catch (_) {}
+  try {
   if (state.day > 1) {
     // 日数成長はソフトキャップ。序盤＋攻勢はわずかに厚め
     let bonus = 2 + Math.floor(Math.min(state.day, 14) / 2);
@@ -5928,7 +6031,12 @@ function startDay() {
     }
   }
   if (state.assault) ensureOutpostsForAssault();
-  saveGame(true);
+  } catch (e) { try { console.error('startDay body', e); } catch (_) {} }
+  try { checkAchievements(); } catch (_) {}
+  try { updateHumidityHud(); } catch (_) {}
+  try { saveGame(true); } catch (_) {}
+  // startDay末尾でも昼プレイ確定
+  try { lockPlayVisual(); } catch (_) {}
 }
 
 function winCheck() {
@@ -6351,6 +6459,13 @@ function applySave(d) {
   state.cameraX = player.x - W / 2 + ((player.facing || 1) * 36);
   state._drawErrLogged = false;
   state._updErrLogged = false;
+  try { lockPlayVisual(); } catch (_) {}
+  // つづきは夜セーブ軟着陸後の isNight を優先して再確定しないよう、昼軟着陸済みなら維持
+  if (!state.isNight) {
+    state.isNight = false;
+    state.running = true;
+    state.titleCine = false;
+  }
   updateHumidityHud();
   const ov = document.getElementById('overlay');
   ov.classList.add('hidden');
@@ -6487,27 +6602,26 @@ function resetGame() {
   state.dawnFxT = 0; state.slowMoT = 0; state.clearPillarT = 0;
   state.fxGen = (state.fxGen || 0) + 1;
   // 初期コイン配置
-  dropCoin(-80, 2);
-  dropCoin(90, 2);
-  dropCoin(-250, 1);
-  dropCoin(260, 1);
-  startDay();
-  // 開始直後の見た目・操作を確定（夜空残存／カメラずれ防止）
-  state.titleCine = false;
-  state.titleDawn = 0;
-  state.isNight = false;
-  state.running = true;
-  state.over = false;
-  state.won = false;
+  try {
+    dropCoin(-80, 2);
+    dropCoin(90, 2);
+    dropCoin(-250, 1);
+    dropCoin(260, 1);
+  } catch (_) {}
+  // startDayの前に確定（例外で中断されても昼・操作可）
   player.x = 0;
   player.vx = 0;
   player.facing = 1;
-  state.cameraX = player.x - W / 2;
-  state._drawErrLogged = false;
-  state._updErrLogged = false;
-  spawnMeme(player.x, GROUND_Y - 60, 'やりますねぇ!');
-  updateHumidityHud();
-  saveGame(true);
+  try { lockPlayVisual(); } catch (_) {}
+  try { startDay(); } catch (e) { try { console.error('startDay', e); } catch (_) {} }
+  // startDayの後にも再確定
+  player.x = 0;
+  player.vx = 0;
+  player.facing = 1;
+  try { lockPlayVisual(); } catch (_) {}
+  try { spawnMeme(player.x, GROUND_Y - 60, 'やりますねぇ!'); } catch (_) {}
+  try { updateHumidityHud(); } catch (_) {}
+  try { saveGame(true); } catch (_) {}
 }
 
 function bindTitleButtons() {
@@ -6531,12 +6645,15 @@ function loop(now) {
   if (state.clearPillarT > 0) state.clearPillarT -= raw;
   const scale = state.hitStop > 0 ? 0.15 : (state.slowMoT > 0 ? 0.42 : 1);
   const dt = raw * scale;
+  // 最低限の移動は update の try 外（例外で移動が死なない）
+  if (state.running && !state.over) {
+    try { updateMoveEssential(dt); } catch (_) {}
+  }
   try {
     if (state.running && !state.over) update(dt);
     else {
       tickPresentation(dt, raw);
       if (state.titleCine) {
-        // シネマカメラ：ゆっくり左右に漂う
         state.cameraX = Math.sin(state.animT * 0.25) * 70 + Math.sin(state.animT * 0.07) * 30;
         state.nightSway = Math.sin(state.animT * 1.2) * 1.2;
       }
@@ -6623,6 +6740,27 @@ function tickPresentation(dt, rawDt) {
   for (const u of units) { if (u._shotFlash > 0) u._shotFlash -= dt; }
 }
 
+function updateMoveEssential(dt) {
+  // 移動・カメラ・向き — update 例外でも必ず動く
+  let input = 0;
+  try {
+    if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
+    if (keys['ArrowRight'] || keys['KeyD'] || touchMove.right) input += 1;
+  } catch (_) {}
+  player.vx = input * (player.speed || 160) * (typeof playerSpeedMul === 'function' ? playerSpeedMul() : 1);
+  if (input) player.facing = input;
+  player.x += player.vx * dt;
+  const lb = (world && world.leftBound != null) ? world.leftBound + 40 : -2000;
+  const rb = (world && world.rightBound != null) ? world.rightBound - 40 : 2000;
+  player.x = clamp(player.x, lb, rb);
+  // animT は tickPresentation 側のみ
+  const look = (player.facing || 1) * 36;
+  const breath = Math.sin(state.animT * 0.55) * 2.5;
+  const targetCam = player.x - W / 2 + look + breath;
+  state.cameraX += (targetCam - state.cameraX) * Math.min(1, dt * 4.2);
+  return input;
+}
+
 function update(dt) {
   // 昼夜
   state.dayTimer += dt;
@@ -6681,15 +6819,10 @@ function update(dt) {
   let humidRate = state.isNight ? 1.8 : 1.1;
   // 仮: 下で再計算するためフラグのみ。本計算は移動後
 
-  // 移動
+  // 移動本体は updateMoveEssential（loop側・try外）。ここは湿度用 input のみ
   let input = 0;
   if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
   if (keys['ArrowRight'] || keys['KeyD'] || touchMove.right) input += 1;
-  player.vx = input * player.speed * playerSpeedMul();
-  if (input) player.facing = input;
-  player.x += player.vx * dt;
-  // 壁の内側に制限しすぎない（探索可）。ワールド端のみ
-  player.x = clamp(player.x, world.leftBound + 40, world.rightBound - 40);
 
   // 湿度本計算（真夏Evt倍率）
   const hMul = heatHumidTickMul();
@@ -6704,11 +6837,7 @@ function update(dt) {
   tickHeatRisk(dt, Math.abs(input) > 0);
   if ((Math.floor(state.animT * 4) % 4) === 0) updateHumidityHud();
 
-  // カメラ（向き先読み＋微呼吸）
-  const look = (player.facing || 1) * 36;
-  const breath = Math.sin(state.animT * 0.55) * 2.5;
-  const targetCam = player.x - W / 2 + look + breath;
-  state.cameraX += (targetCam - state.cameraX) * Math.min(1, dt * 4.2);
+  // 通常カメラは updateMoveEssential。bossCine のみ上書き可（上記）
 
   // ambientミーム（たき火周辺）
   if (!state._memeCd) state._memeCd = 0;
@@ -7235,23 +7364,22 @@ function dayPhase() {
   if (state.titleCine && !state.running) {
     return lerp(0.92, 0.22, clamp(state.titleDawn, 0, 1));
   }
-  // 0=夜明け 0.25=昼 0.55=夕暮れ 0.75=夜 1=深夜寄り
   if (!state.running && state.over && !state.won) return 0.85;
-  if (state.isNight) {
-    const p = state.dayTimer / Math.max(1, state.nightLength);
+  // 夜フラグのみが夜phase
+  if (state.isNight === true) {
+    const p = state.dayTimer / Math.max(1, state.nightLength || 38);
     return 0.72 + clamp(p, 0, 1) * 0.26;
   }
-  const p = state.dayTimer / Math.max(1, state.dayLength);
-  // プレイ中の昼：開始直後も昼寄り（0.22〜0.4）で月・星が出ない
-  if (state.running) {
-    if (p < 0.55) return lerp(0.22, 0.40, p / 0.55);
-    if (p < 0.82) return lerp(0.40, 0.58, (p - 0.55) / 0.27);
-    return lerp(0.58, 0.68, (p - 0.82) / 0.18);
+  // プレイ中の昼は常に 0.22〜0.55（夜空にしない）
+  if (state.running && state.isNight !== true) {
+    const p = state.dayTimer / Math.max(1, state.dayLength || 52);
+    return lerp(0.22, 0.55, clamp(p, 0, 1));
   }
-  if (p < 0.12) return lerp(0.12, 0.22, p / 0.12);
-  if (p < 0.55) return lerp(0.22, 0.38, (p - 0.12) / 0.43);
-  if (p < 0.82) return lerp(0.38, 0.58, (p - 0.55) / 0.27);
-  return lerp(0.58, 0.70, (p - 0.82) / 0.18);
+  const p = state.dayTimer / Math.max(1, state.dayLength || 52);
+  if (p < 0.12) return lerp(0.18, 0.28, p / 0.12);
+  if (p < 0.55) return lerp(0.28, 0.45, (p - 0.12) / 0.43);
+  if (p < 0.82) return lerp(0.45, 0.55, (p - 0.55) / 0.27);
+  return lerp(0.55, 0.62, (p - 0.82) / 0.18);
 }
 
 function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
@@ -7599,7 +7727,9 @@ function draw() {
   ctx.imageSmoothingEnabled = false;
   const phase = dayPhase();
   const sky = skyColors(phase);
-  const nightish = phase >= 0.68;
+  // 星・月は isNight のみ（タイトルシネマは例外）
+  const nightSky = (state.isNight === true) || (!!state.titleCine && !state.running);
+  const nightish = nightSky;
 
   // ---- カメラシェイク ----
   let shakeX = 0, shakeY = 0;
@@ -7619,9 +7749,9 @@ function draw() {
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // 星（夜）
-  if (phase >= 0.65) {
-    const starA = clamp((phase - 0.65) / 0.2, 0, 1);
+  // 星：本編は isNight のみ／タイトルシネマのみ例外
+  if (nightSky) {
+    const starA = state.isNight ? 0.9 : clamp(1 - (state.titleDawn || 0), 0.2, 0.9);
     ctx.globalAlpha = starA * 0.9;
     const starN = GFX.starCount || 40;
     for (let i = 0; i < starN; i++) {
@@ -7638,8 +7768,9 @@ function draw() {
     if (GFX.aurora) drawAurora();
   }
 
-  // 太陽 / 月
-  if (phase < 0.68) {
+  // 太陽 / 月（月は nightSky のみ）
+  if (!nightSky) {
+
     const sunX = W * (0.82 - phase * 0.25);
     const sunY = 28 + Math.pow(Math.abs(phase - 0.35), 1.2) * 110;
     const glow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 70);
@@ -8061,6 +8192,32 @@ function draw() {
     ctx.fillRect(0, 0, W, 18);
     ctx.fillRect(0, H - 18, W, 18);
     ctx.globalAlpha = 1;
+  }
+
+  // 一時デバッグHUD（直るまで残す）
+  if (state.debugHUD) {
+    try {
+      const lines = [
+        'run=' + !!state.running + ' night=' + !!state.isNight + ' cine=' + !!state.titleCine,
+        'cam=' + (state.cameraX|0) + ' px=' + (player.x|0) + ' vx=' + (player.vx|0),
+        'phase=' + (typeof dayPhase === 'function' ? dayPhase().toFixed(2) : '?') + ' day=' + (state.day|0),
+        'tmL=' + !!touchMove.left + ' tmR=' + !!touchMove.right,
+      ];
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffe066';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < lines.length; i++) {
+        const y = 14 + i * 12;
+        ctx.strokeText(lines[i], 8, y);
+        ctx.fillText(lines[i], 8, y);
+      }
+      ctx.restore();
+    } catch (_) {}
   }
 }
 
