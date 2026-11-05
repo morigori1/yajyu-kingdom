@@ -405,6 +405,29 @@
     font-size: 10px; color: #c9a227; text-align: center; margin: 4px 0 8px;
     animation: hintPulse 1.6s ease-in-out infinite;
   }
+  #choice-panel .collect-box {
+    text-align: left; max-height: min(42vh, 280px); overflow-y: auto;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    background: rgba(0,0,0,.4); border: 1px solid #5a4030; border-radius: 8px;
+    padding: 8px 10px; margin: 6px 0 10px; font-size: clamp(9px,2.4vw,11px); line-height: 1.55;
+  }
+  #choice-panel .collect-box .row {
+    padding: 4px 0; border-bottom: 1px solid rgba(90,64,48,.45); color: #dcc;
+  }
+  #choice-panel .collect-box .row:last-child { border-bottom: none; }
+  #choice-panel .collect-box .row.on { color: #ffe7a0; }
+  #choice-panel .collect-box .row.off { color: #776; }
+  #choice-panel .collect-box .tag {
+    display: inline-block; min-width: 3.2em; color: #c9a227; font-size: 9px;
+  }
+  #choice-panel .collect-sub {
+    display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 4px 0 6px;
+  }
+  #choice-panel .collect-sub button {
+    min-height: 34px; padding: 6px 8px; font-size: clamp(9px,2.3vw,11px); border-radius: 8px;
+  }
+  #choice-panel .collect-sub button.active { outline: 2px solid #ffd700; }
+
   @keyframes hintPulse {
     0%,100% { opacity: .55; transform: translateY(0); }
     50% { opacity: 1; transform: translateY(-1px); }
@@ -1009,6 +1032,7 @@ function story(msg, sec = 3.0) {
   el.textContent = shortenMsg(msg, 96);
   el.classList.add('show');
   storyTimer = Math.min(sec, 4.2);
+  try { unlockCodexFromStory(msg); } catch (_) {}
 }
 
 function chapterStoryPack(ch) {
@@ -1303,6 +1327,12 @@ const state = {
   bestiary: {},        // enemy name -> kills
   filmShots: 0,        // 累計撮影カット
   sweatDrops: 0,       // やりこみ: 汗ドロップ収集
+  codexQuotes: {},     // 語録図鑑 id -> true
+  locPhotos: {},       // ロケ写真 landmarkId/secretPhotoId -> true
+  towerSkin: 'default',
+  towerSkins: { default: true },
+  secrets: {},         // 章隠し id -> true
+  collectSub: null,    // ach|codex|photo|skin|secret|null
   gfxDeep: true,
 };
 
@@ -1470,7 +1500,229 @@ const ACH_DEFS = [
   { id: 'mission5', name: 'ミッション5', check: () => (state._missionsDone|0)>=5 },
   { id: 'day10', name: 'Day10到達', check: () => (state.day|0)>=10 },
   { id: 'bestiary8', name: '図鑑8種', check: () => Object.keys(state.bestiary||{}).length>=8 },
+  { id: 'codex8', name: '語録図鑑8', check: () => Object.keys(state.codexQuotes||{}).length>=8 },
+  { id: 'codex20', name: '語録図鑑20', check: () => Object.keys(state.codexQuotes||{}).length>=20 },
+  { id: 'photo4', name: 'ロケ写真4', check: () => Object.keys(state.locPhotos||{}).length>=4 },
+  { id: 'photo_all', name: '聖地写真コンプ', check: () => LANDMARKS.every(L => !!(state.locPhotos||{})[L.id]) },
+  { id: 'skin2', name: '塔スキン2種', check: () => Object.keys(state.towerSkins||{}).filter(k => state.towerSkins[k]).length>=2 },
+  { id: 'skin_crown', name: '王冠砲装備', check: () => state.towerSkin === 'crown' },
+  { id: 'secret1', name: '章の隠し1', check: () => Object.keys(state.secrets||{}).length>=1 },
+  { id: 'secret_all', name: '四章の隠し', check: () => CHAPTER_SECRETS.every(s => !!(state.secrets||{})[s.id]) },
+  { id: 'lm_all_ch1', name: '井の頭コンプ', check: () => landmarksForChapter(1).every(L => state.landmarks[L.id]) },
+  { id: 'lm_all_ch2', name: '新宿コンプ', check: () => landmarksForChapter(2).every(L => state.landmarks[L.id]) },
+  { id: 'ach_half', name: '実績半数', check: () => Object.keys(state.achievements||{}).length >= Math.ceil(ACH_DEFS.length * 0.45) },
 ];
+
+// ========== 収集・実績（completionism）語録図鑑／ロケ写真／塔スキン／章隠し ==========
+const CODEX_BEATS = ['intro', 'day', 'night', 'assault', 'clear'];
+const CODEX_QUOTES = (() => {
+  const out = [];
+  for (let ch = 0; ch <= 3; ch++) {
+    const pack = CHAPTER_STORY[ch];
+    if (!pack) continue;
+    for (const beat of CODEX_BEATS) {
+      (pack[beat] || []).forEach((text, i) => {
+        out.push({ id: `q${ch}_${beat}_${i}`, ch, beat, raw: String(text) });
+      });
+    }
+  }
+  // 関係会話の定番（パネル）
+  [
+    ['qb_kohai0', 0, 'bond', '後輩「やりますねぇ」　湿度が下がる　おかのした'],
+    ['qb_kohai1', 0, 'bond', '後輩「いいよ！こいよ！」　部室の火が安定'],
+    ['qb_crew0', 0, 'bond', '撮影班「あり…ますあります」　カット割り　114514'],
+    ['qb_town0', 0, 'bond', '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ'],
+  ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
+  return out;
+})();
+
+const CHAPTER_SECRETS = [
+  { id: 'sec_ch0', ch: 0, x: -410, cost: 2, name: '北沢抜け道メモ', photo: 'ph_sec0',
+    blurb: '西の路地　落書きが　あり…ますあります',
+    story: '隠しロケメモ　北沢　ま、多少はね？　測定器はまだ壊れてる' },
+  { id: 'sec_ch1', ch: 1, x: 390, cost: 3, name: '池畔セピア写真', photo: 'ph_sec1',
+    blurb: '水面にうつる　114514年前の片鱗',
+    story: 'セピア写真　井の頭　見ろよ見ろよ　池が答える' },
+  { id: 'sec_ch2', ch: 2, x: -280, cost: 3, name: '駅前くさい缶', photo: 'ph_sec2',
+    blurb: 'エアコン脇の缶　くさいを褒める',
+    story: 'くさい缶　新宿片鱗　いいゾ〜これ　やりますねぇ' },
+  { id: 'sec_ch3', ch: 3, x: 780, cost: 4, name: '測定器の破片', photo: 'ph_sec3',
+    blurb: '壊れた数値　114514　果てまで',
+    story: '測定器破片　外縁　エンドレス　王道を征く' },
+];
+
+const TOWER_SKINS = [
+  { id: 'default', name: '標準砲台', desc: '初期装備', free: true, accent: '#c9a227' },
+  { id: 'gold', name: '金縁114514砲', desc: '114514砲配備', accent: '#ffd700',
+    check: () => !!(state.achievements && state.achievements.gun_t2) || units.some(u => (u.role||'gun')!=='vanguard' && (u.tier|0)>=2) },
+  { id: 'sepia', name: '井の頭セピア砲', desc: '章1の隠し', accent: '#c8a070',
+    check: () => !!(state.secrets && state.secrets.sec_ch1) },
+  { id: 'neon', name: '新宿ネオン砲', desc: '新宿章到達', accent: '#ff6b9d',
+    check: () => (state.chapter|0) >= 2 },
+  { id: 'void', name: '外縁虚空砲', desc: '章3の隠し', accent: '#8a6ab0',
+    check: () => !!(state.secrets && state.secrets.sec_ch3) },
+  { id: 'rose', name: '薔薇後輩砲', desc: '後輩絆60', accent: '#e080a0',
+    check: () => ((state.bond && state.bond.kohai)|0) >= 60 },
+  { id: 'crown', name: '王冠砲', desc: '実績12個', accent: '#ffe680',
+    check: () => Object.keys(state.achievements||{}).length >= 12 },
+];
+
+function ensureCollectState() {
+  if (!state.codexQuotes) state.codexQuotes = {};
+  if (!state.locPhotos) state.locPhotos = {};
+  if (!state.towerSkins) state.towerSkins = { default: true };
+  if (!state.towerSkins.default) state.towerSkins.default = true;
+  if (!state.towerSkin) state.towerSkin = 'default';
+  if (!state.secrets) state.secrets = {};
+}
+
+function unlockCodexId(id, quiet) {
+  ensureCollectState();
+  if (!id || state.codexQuotes[id]) return false;
+  state.codexQuotes[id] = true;
+  if (!quiet) {
+    const q = CODEX_QUOTES.find(x => x.id === id);
+    toast('語録図鑑　+' + (q ? shortenMsg(fillDayToken(q.raw), 28) : id), 2.0);
+  }
+  return true;
+}
+
+function unlockCodexFromStory(msg) {
+  ensureCollectState();
+  const m = String(msg || '');
+  if (!m) return;
+  let n = 0;
+  for (const q of CODEX_QUOTES) {
+    if (state.codexQuotes[q.id]) continue;
+    const filled = fillDayToken(q.raw);
+    // 先頭〜中盤の特徴部分で照合（compose接尾辞付きでも拾う）
+    const keys = [filled.slice(0, 14), filled.slice(0, 10)];
+    if (q.raw.indexOf('{d}') >= 0) keys.push(String(q.raw).split('{d}')[0].slice(0, 12));
+    if (keys.some(k => k && k.length >= 6 && m.indexOf(k) >= 0)) {
+      state.codexQuotes[q.id] = true;
+      n++;
+    }
+  }
+  if (n === 1) toast('語録図鑑　+1', 1.4);
+  else if (n > 1) toast(`語録図鑑　+${n}`, 1.6);
+}
+
+function unlockLocPhoto(id, quiet) {
+  ensureCollectState();
+  if (!id || state.locPhotos[id]) return false;
+  state.locPhotos[id] = true;
+  if (!quiet) {
+    const L = landmarkById(id);
+    const sec = CHAPTER_SECRETS.find(s => s.photo === id);
+    const name = (L && L.short) || (sec && sec.name) || id;
+    toast('ロケ写真　' + name, 2.2);
+    spawnMeme(player.x, GROUND_Y - 70, '📷');
+  }
+  return true;
+}
+
+function refreshTowerSkins(announce) {
+  ensureCollectState();
+  let gained = null;
+  for (const s of TOWER_SKINS) {
+    const ok = !!s.free || (typeof s.check === 'function' && !!s.check());
+    if (ok && !state.towerSkins[s.id]) {
+      state.towerSkins[s.id] = true;
+      gained = s;
+    } else if (ok) state.towerSkins[s.id] = true;
+  }
+  if (!state.towerSkins[state.towerSkin]) state.towerSkin = 'default';
+  if (announce && gained) {
+    toast('塔スキン解放　' + gained.name, 2.4);
+    spawnMeme(player.x, GROUND_Y - 80, '塔');
+  }
+  return gained;
+}
+
+function setTowerSkin(id) {
+  ensureCollectState();
+  refreshTowerSkins(false);
+  if (!state.towerSkins[id]) { toast('未解放の塔スキン', 1.8); return false; }
+  state.towerSkin = id;
+  const s = TOWER_SKINS.find(x => x.id === id);
+  toast('塔スキン　' + ((s && s.name) || id), 2.0);
+  saveGame(true);
+  return true;
+}
+
+function unlockSecret(sec) {
+  ensureCollectState();
+  if (!sec || state.secrets[sec.id]) return false;
+  state.secrets[sec.id] = true;
+  if (sec.photo) unlockLocPhoto(sec.photo, true);
+  story(storyCompose(sec.story, { bond: true, schedule: true, heat: true }), 2.8);
+  toast('章の隠し　' + sec.name, 2.6);
+  spawnMeme(sec.x, GROUND_Y - 70, '★');
+  bumpBond('town', 3);
+  refreshTowerSkins(true);
+  return true;
+}
+
+function towerSkinAccent() {
+  ensureCollectState();
+  const s = TOWER_SKINS.find(x => x.id === state.towerSkin);
+  return (s && s.accent) || '#c9a227';
+}
+
+function collectCounts() {
+  ensureCollectState();
+  return {
+    codex: Object.keys(state.codexQuotes).length,
+    photo: Object.keys(state.locPhotos).length,
+    skin: Object.keys(state.towerSkins).filter(k => state.towerSkins[k]).length,
+    secret: Object.keys(state.secrets).length,
+    ach: Object.keys(state.achievements || {}).length,
+  };
+}
+
+function renderCollectBox(parent, sub) {
+  ensureCollectState();
+  refreshTowerSkins(false);
+  const box = document.createElement('div');
+  box.className = 'collect-box';
+  const rows = [];
+  if (sub === 'ach') {
+    for (const a of ACH_DEFS) {
+      const on = !!(state.achievements && state.achievements[a.id]);
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${on ? '✓' : '・'}</span>${a.name}</div>`);
+    }
+  } else if (sub === 'codex') {
+    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係' };
+    for (const q of CODEX_QUOTES) {
+      const on = !!state.codexQuotes[q.id];
+      const label = on ? shortenMsg(fillDayToken(q.raw), 42) : '？？？';
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${chapterName(q.ch)}/${beatJa[q.beat]||q.beat}</span>${label}</div>`);
+    }
+  } else if (sub === 'photo') {
+    for (const L of LANDMARKS) {
+      const on = !!state.locPhotos[L.id];
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${chapterName(L.chapter)}</span>${on ? '📷 ' + L.name : '未撮影　' + L.short}</div>`);
+    }
+    for (const s of CHAPTER_SECRETS) {
+      const on = !!state.locPhotos[s.photo];
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">隠し</span>${on ? '📷 ' + s.name : '未発見　章' + (s.ch+1)}</div>`);
+    }
+  } else if (sub === 'skin') {
+    for (const s of TOWER_SKINS) {
+      const on = !!state.towerSkins[s.id];
+      const eq = state.towerSkin === s.id;
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${eq ? '装備' : (on ? '解放' : '未')}</span>${s.name}　${s.desc}</div>`);
+    }
+  } else if (sub === 'secret') {
+    for (const s of CHAPTER_SECRETS) {
+      const on = !!state.secrets[s.id];
+      const known = (state.chapter|0) >= s.ch;
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${chapterName(s.ch)}</span>${on ? '★ ' + s.name + '　' + s.blurb : (known ? '未発見（現地で支払）' : '章未到達')}</div>`);
+    }
+  }
+  box.innerHTML = rows.join('') || '<div class="row off">まだなし</div>';
+  parent.appendChild(box);
+}
 
 function bumpBond(key, n) {
   if (!state.bond) state.bond = { kohai:0, crew:0, town:0 };
@@ -1500,6 +1752,7 @@ function unlockAch(id) {
 
 function checkAchievements() {
   if (!state.achievements) state.achievements = {};
+  try { refreshTowerSkins(true); } catch (_) {}
   for (const a of ACH_DEFS) {
     try { if (!state.achievements[a.id] && a.check()) unlockAch(a.id); } catch (_) {}
   }
@@ -1568,6 +1821,7 @@ function tickMission(dt) {
         m._acc = 0;
         m.progress++;
         state.filmShots = (state.filmShots|0) + 1;
+        unlockLocPhoto(m.lmId, m.kind !== 'film');
         if (m.kind === 'sweat') {
           state.sweatDrops = (state.sweatDrops|0) + 1;
           spawnMeme(L.x, GROUND_Y - 50, '汗');
@@ -1648,6 +1902,7 @@ function closeBranchPanel() {
   const panel = document.getElementById('choice-panel');
   if (panel) panel.classList.remove('show');
   state.panelOpen = null;
+  state.collectSub = null;
   if (!state.over && !state.won) state.running = true;
 }
 
@@ -1670,6 +1925,7 @@ function openBranchPanel(tab) {
   // 既に開いていればタブ切替OK。未開かつ停止中は昼の選択待ちなど — ボタンからは通常 running
   const prevTab = state.panelOpen;
   state.panelOpen = tab || state.panelOpen || 'civil';
+  if (state.panelOpen !== 'bond') state.collectSub = null;
   if (state.panelOpen === 'mili' && !state.miliSub) state.miliSub = 'west';
   state.running = false;
   const panel = document.getElementById('choice-panel');
@@ -1698,7 +1954,9 @@ function openBranchPanel(tab) {
   const meta = document.createElement('div');
   meta.className = 'meta';
   if (!state.bond) state.bond = { kohai:0, crew:0, town:0 };
-  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}`;
+  ensureCollectState();
+  const _cc = collectCounts();
+  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}　隠し${_cc.secret}`;
   btns.appendChild(meta);
   title.textContent = ({
     civil: '【内政パネル】施設・作業員・バス',
@@ -1706,6 +1964,15 @@ function openBranchPanel(tab) {
     mission: '【ロケ日程】撮影ミッション',
     bond: '【関係・やりこみ】',
   })[state.panelOpen] || 'パネル';
+  if (state.panelOpen === 'bond' && state.collectSub) {
+    title.textContent = ({
+      ach: '【実績パネル】',
+      codex: '【語録図鑑】',
+      photo: '【ロケ写真】',
+      skin: '【塔スキン】',
+      secret: '【章ごとの隠し】',
+    })[state.collectSub] || '【収集】';
+  }
 
   const addBtn = (label, cost, fn, enabled=true) => {
     const b = document.createElement('button');
@@ -1951,43 +2218,93 @@ function openBranchPanel(tab) {
   }
 
   if (state.panelOpen === 'bond') {
-    addBtn(`後輩と話す（関係${state.bond.kohai|0}）湿度↓`, 0, () => {
-      bumpBond('kohai', 4); state.humidity = clamp(state.humidity - 6, 0, 100);
-      toast('後輩「やりますねぇ」', 2.2);
-      story(storyCompose(pick([
-        '後輩「やりますねぇ」　湿度が下がる　おかのした',
-        '後輩「いいよ！こいよ！」　部室の火が安定',
-        '後輩「ま、多少はね？」　汗が嘘をつく',
-      ]), { bond: true, schedule: true, heat: true }), 2.6);
-      updateHumidityHud();
-    });
-    addBtn(`撮影班ミーティング（班${state.bond.crew|0}）`, 1, () => {
-      bumpBond('crew', 5); state.filmShots = (state.filmShots|0)+1; toast('ミーティング完了', 2.0);
-      story(storyCompose(pick([
-        '撮影班「あり…ますあります」　カット割り　114514',
-        'ミーティング完了　ロケバス　いいよ！こいよ！',
-        '班長「やりますねぇ」　本日の日程を確認',
-      ]), { bond: true, schedule: true, heat: true }), 2.6);
-      return true;
-    });
-    addBtn(`街へ差し入れ（街${state.bond.town|0}）`, 2, () => {
-      bumpBond('town', 6); toast('街の評判アップ', 2.0);
-      story(storyCompose(pick([
-        '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
-        '評判アップ　王道を征く　街の湿度も味方',
-        '差し入れ完了　おかのした　収入の片鱗',
-      ]), { bond: true, schedule: true, heat: true }), 2.6);
-      return true;
-    });
-    const achN = Object.keys(state.achievements||{}).length;
-    addBtn(`やりこみ実績 ${achN}/${ACH_DEFS.length}（確認）`, 0, () => {
-      const names = ACH_DEFS.filter(a => state.achievements[a.id]).map(a => a.name).slice(0,8).join('／') || 'まだなし';
-      toast(names, 3.5);
-    });
-    const bk = Object.keys(state.bestiary||{}).length;
-    addBtn(`図鑑 ${bk}種　汗${state.sweatDrops|0}　撮影${state.filmShots|0}`, 0, () => {
-      toast('撃破図鑑・撮影・汗は自動で貯まる', 2.5);
-    });
+    ensureCollectState();
+    refreshTowerSkins(false);
+    const cc = collectCounts();
+    const sub = state.collectSub || null;
+    const subNav = document.createElement('div');
+    subNav.className = 'collect-sub';
+    for (const [id, label] of [
+      [null, '関係'],
+      ['ach', `実績${cc.ach}/${ACH_DEFS.length}`],
+      ['codex', `語録${cc.codex}/${CODEX_QUOTES.length}`],
+      ['photo', `写真${cc.photo}`],
+      ['skin', `塔${cc.skin}/${TOWER_SKINS.length}`],
+      ['secret', `隠し${cc.secret}/${CHAPTER_SECRETS.length}`],
+    ]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = (sub === id || (!sub && id === null)) ? 'active' : '';
+      b.textContent = label;
+      b.onclick = () => { state.collectSub = id; openBranchPanel('bond'); };
+      subNav.appendChild(b);
+    }
+    btns.appendChild(subNav);
+
+    if (!sub) {
+      addBtn(`後輩と話す（関係${state.bond.kohai|0}）湿度↓`, 0, () => {
+        bumpBond('kohai', 4); state.humidity = clamp(state.humidity - 6, 0, 100);
+        toast('後輩「やりますねぇ」', 2.2);
+        story(storyCompose(pick([
+          '後輩「やりますねぇ」　湿度が下がる　おかのした',
+          '後輩「いいよ！こいよ！」　部室の火が安定',
+          '後輩「ま、多少はね？」　汗が嘘をつく',
+        ]), { bond: true, schedule: true, heat: true }), 2.6);
+        updateHumidityHud();
+        refreshTowerSkins(true);
+      });
+      addBtn(`撮影班ミーティング（班${state.bond.crew|0}）`, 1, () => {
+        bumpBond('crew', 5); state.filmShots = (state.filmShots|0)+1; toast('ミーティング完了', 2.0);
+        story(storyCompose(pick([
+          '撮影班「あり…ますあります」　カット割り　114514',
+          'ミーティング完了　ロケバス　いいよ！こいよ！',
+          '班長「やりますねぇ」　本日の日程を確認',
+        ]), { bond: true, schedule: true, heat: true }), 2.6);
+        return true;
+      });
+      addBtn(`街へ差し入れ（街${state.bond.town|0}）`, 2, () => {
+        bumpBond('town', 6); toast('街の評判アップ', 2.0);
+        story(storyCompose(pick([
+          '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
+          '評判アップ　王道を征く　街の湿度も味方',
+          '差し入れ完了　おかのした　収入の片鱗',
+        ]), { bond: true, schedule: true, heat: true }), 2.6);
+        return true;
+      });
+      const bk = Object.keys(state.bestiary||{}).length;
+      addBtn(`撃破図鑑 ${bk}種　汗${state.sweatDrops|0}　撮影${state.filmShots|0}`, 0, () => {
+        const names = Object.keys(state.bestiary||{}).slice(0, 10).join('／') || 'まだなし';
+        toast(names, 3.2);
+      });
+      addBtn(`収集サマリ　語録${cc.codex}／写真${cc.photo}／塔${cc.skin}／隠し${cc.secret}`, 0, () => {
+        state.collectSub = 'ach'; openBranchPanel('bond');
+      });
+    } else {
+      renderCollectBox(btns, sub);
+      if (sub === 'skin') {
+        for (const s of TOWER_SKINS) {
+          const on = !!state.towerSkins[s.id];
+          const eq = state.towerSkin === s.id;
+          addBtn(`${eq ? '【装備中】' : (on ? '装備：' : '未解放：')}${s.name}`, 0, () => {
+            if (!on) { toast(s.desc + '　で解放', 2.2); return; }
+            setTowerSkin(s.id);
+            openBranchPanel('bond');
+          }, on);
+        }
+      }
+      if (sub === 'secret') {
+        addBtn('現地ヒント：章の聖地付近で光る★に支払い', 0, () => {
+          const next = CHAPTER_SECRETS.find(s => !state.secrets[s.id] && (state.chapter|0) >= s.ch);
+          toast(next ? (chapterName(next.ch) + '　x≈' + next.x + '　' + next.blurb) : '隠しコンプ　おかのした', 3.2);
+        });
+      }
+      if (sub === 'codex') {
+        addBtn('語録はストーリー表示で自動収録', 0, () => toast('章語録・関係会話が図鑑へ', 2.2));
+      }
+      if (sub === 'photo') {
+        addBtn('聖地解放と撮影ロケで写真が増える', 0, () => toast('隠し発見でも追加写真', 2.2));
+      }
+    }
   }
 
   const closeB = document.createElement('button');
@@ -2002,7 +2319,7 @@ function openBranchPanel(tab) {
     civil: '内政：施設Lv・作業員・810銀行・ロケバス',
     mili: '軍事：西東タブで砲台・トリオ　罠・覚醒でスネア／地雷／片鱗',
     mission: 'ロケ日程：ミッション選択で進行',
-    bond: '関係：後輩・撮影班・街',
+    bond: '関係／実績／語録図鑑／ロケ写真／塔スキン／章隠し',
   })[state.panelOpen] || '';
   hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
   btns.insertBefore(hint, btns.firstChild);
@@ -3204,6 +3521,7 @@ function shopSpots() {
         state.facility[L.id] = 1; // 解放時施設Lv1
         if (L.side > 0) structures.rightWall.x = Math.max(structures.rightWall.x, L.x + 40);
         else structures.leftWall.x = Math.min(structures.leftWall.x, L.x - 40);
+        unlockLocPhoto(L.id, true);
         toast(pick(LORE.landmarkOpen));
         story(`聖地　${L.short}　ロケバス開通`, 2.6);
         spawnMeme(L.x, GROUND_Y - 60, L.short);
@@ -3422,6 +3740,22 @@ function shopSpots() {
       return true;
     }
   });
+  // 章ごとの隠し（現地支払い）
+  ensureCollectState();
+  for (const sec of CHAPTER_SECRETS) {
+    if ((state.chapter | 0) < sec.ch && !(state.assault && state.chapter + 1 >= sec.ch)) continue;
+    if (state.secrets[sec.id]) continue;
+    spots.push({
+      id: 'secret_' + sec.id,
+      x: sec.x,
+      r: 42,
+      cost: sec.cost,
+      can: true,
+      branch: 'civil',
+      label: `【隠し】${sec.name}`,
+      buy() { return unlockSecret(sec); }
+    });
+  }
   return spots;
 }
 
@@ -3823,6 +4157,12 @@ function buildSaveBlob() {
     bestiary: Object.assign({}, state.bestiary || {}),
     midsummer: !!state.midsummer,
     _missionsDone: state._missionsDone | 0,
+    // 収集・実績（旧セーブ欠落→applyで空）
+    codexQuotes: Object.assign({}, state.codexQuotes || {}),
+    locPhotos: Object.assign({}, state.locPhotos || {}),
+    towerSkin: state.towerSkin || 'default',
+    towerSkins: Object.assign({ default: true }, state.towerSkins || {}),
+    secrets: Object.assign({}, state.secrets || {}),
     savedAt: Date.now(),
   };
 }
@@ -3908,6 +4248,18 @@ function applySave(d) {
   state.bestiary = Object.assign({}, d.bestiary || {});
   state.midsummer = !!d.midsummer;
   state._missionsDone = Math.max(0, d._missionsDone | 0);
+  state.codexQuotes = Object.assign({}, d.codexQuotes || {});
+  state.locPhotos = Object.assign({}, d.locPhotos || {});
+  // 既存聖地は写真解放済み扱い（旧セーブ互換）
+  for (const id of Object.keys(state.landmarks || {})) {
+    if (state.landmarks[id]) state.locPhotos[id] = true;
+  }
+  state.towerSkins = Object.assign({ default: true }, d.towerSkins || {});
+  state.towerSkins.default = true;
+  state.towerSkin = d.towerSkin || 'default';
+  state.secrets = Object.assign({}, d.secrets || {});
+  state.collectSub = null;
+  try { refreshTowerSkins(false); } catch (_) {}
   if (!Array.isArray(d.snares)) state.snares = state.snares || [];
   if (!Array.isArray(d.mines)) state.mines = state.mines || [];
   state.dayChoiceDone = !!d.dayChoiceDone;
@@ -4055,6 +4407,12 @@ function resetGame() {
   state.filmShots = 0;
   state.sweatDrops = 0;
   state._missionsDone = 0;
+  state.codexQuotes = {};
+  state.locPhotos = {};
+  state.towerSkin = 'default';
+  state.towerSkins = { default: true };
+  state.secrets = {};
+  state.collectSub = null;
   state.gfxDeep = true;
   state.killCombo = 0;
   state.comboTimer = 0;
@@ -6406,6 +6764,25 @@ function drawLandmarkMap(phase, nightish) {
     }
     ctx.globalAlpha = 1;
   }
+  // 章隠しマーカー
+  ensureCollectState();
+  for (const sec of CHAPTER_SECRETS) {
+    if ((state.chapter | 0) < sec.ch && !(state.assault && (state.chapter|0) + 1 >= sec.ch)) continue;
+    if (state.secrets[sec.id]) continue;
+    const sx = wx(sec.x);
+    if (sx < -40 || sx > W + 40) continue;
+    const pulse = 0.45 + Math.sin(state.animT * 5 + sec.x * 0.02) * 0.25;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('★', sx, GROUND_Y - 36 + Math.sin(state.animT * 3) * 2);
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#c9a227';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.fillText('隠し', sx, GROUND_Y - 22);
+    ctx.globalAlpha = 1;
+  }
   drawOutposts(nightish);
   if (unlockedCount() > 0 || state.assault) {
     const sx = wx(0);
@@ -6840,9 +7217,20 @@ function drawArcher(x, y, u) {
   const shooting = (u._shotFlash || 0) > 0;
   const fi = shooting ? 3 : frameIndex(5, FR_ARCH.length);
   const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
-  // 台座（塔感）
+  // 台座（塔感）＋装備スキンアクセント
+  const skinA = towerSkinAccent();
   drawPixelRect(x - 12, y - 4, 24, 4, '#3a2818');
-  drawPixelRect(x - 10, y - 6, 20, 2, '#c9a227');
+  drawPixelRect(x - 10, y - 6, 20, 2, skinA);
+  if (state.towerSkin && state.towerSkin !== 'default') {
+    drawPixelRect(x - 14, y - 8, 28, 2, skinA);
+    ctx.globalAlpha = 0.22;
+    const sg = ctx.createRadialGradient(x, y - 20 + bob, 2, x, y - 20 + bob, 26);
+    sg.addColorStop(0, skinA);
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(x - 28, y - 52 + bob, 56, 48);
+    ctx.globalAlpha = 1;
+  }
   blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
   if (SPR.kohai) {
     ctx.imageSmoothingEnabled = false;
