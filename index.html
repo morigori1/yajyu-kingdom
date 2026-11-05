@@ -639,8 +639,8 @@ const state = {
   day: 1,
   isNight: false,
   dayTimer: 0,
-  dayLength: 48,   // 秒（昼）
-  nightLength: 36, // 秒（夜）
+  dayLength: 52,   // 秒（昼）
+  nightLength: 38, // 秒（夜）
   coins: 10,
   cameraX: 0,
   messageLog: [],
@@ -657,6 +657,13 @@ const state = {
   icedTeaStock: 1,     // 所持アイスティー
   animT: 0,            // グローバルアニメ時刻
   nightSway: 0,
+  shakeT: 0,
+  shakeMag: 0,
+  flashT: 0,
+  flashColor: 'rgba(255,255,255,0.35)',
+  skillRingT: 0,
+  winFxT: 0,
+  hitStop: 0,
 };
 
 // ワールド座標: キャンプが x=0
@@ -697,6 +704,121 @@ const structures = {
 const units = [];
 
 
+
+// =========================================================
+// リッチ演出（ドット維持・携帯向け上限あり）
+// =========================================================
+const FX_MAX = 72; // モバイル負荷キャップ
+
+function pushFx(p) {
+  if (fx.length >= FX_MAX) {
+    // 古い軽量パーティクルから間引き
+    for (let i = 0; i < fx.length; i++) {
+      if (fx[i].type === 'spark' || fx[i].type === 'mist' || fx[i].type === 'dot') {
+        fx.splice(i, 1);
+        break;
+      }
+    }
+    if (fx.length >= FX_MAX) fx.shift();
+  }
+  fx.push(p);
+}
+
+function shake(mag = 4, sec = 0.22) {
+  state.shakeMag = Math.max(state.shakeMag || 0, mag);
+  state.shakeT = Math.max(state.shakeT || 0, sec);
+}
+
+function screenFlash(color, sec = 0.12) {
+  state.flashColor = color || 'rgba(255,255,255,0.35)';
+  state.flashT = Math.max(state.flashT || 0, sec);
+}
+
+function spawnSparks(x, y, n, colors, speed = 90) {
+  const cols = colors || ['#fff', '#ff6b9d', '#ffd700'];
+  const count = Math.min(n, 10);
+  for (let i = 0; i < count; i++) {
+    const ang = (Math.PI * 2 * i) / count + rand(-0.2, 0.2);
+    const sp = speed * rand(0.5, 1.2);
+    pushFx({
+      type: 'spark', x, y,
+      vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 40,
+      t: 0, life: rand(0.25, 0.55),
+      color: cols[i % cols.length],
+      size: irand(2, 4),
+    });
+  }
+}
+
+function spawnCoinSparkle(x, y) {
+  for (let i = 0; i < 5; i++) {
+    pushFx({
+      type: 'spark',
+      x: x + rand(-6, 6), y: y + rand(-8, 0),
+      vx: rand(-40, 40), vy: rand(-120, -40),
+      t: 0, life: rand(0.35, 0.7),
+      color: pick(['#ffe566', '#ffd700', '#fff8c8', '#fff']),
+      size: irand(2, 3),
+    });
+  }
+  pushFx({ type: 'ring', x, y: y - 4, t: 0, life: 0.35, color: 'rgba(255,215,0,0.55)', r0: 4, r1: 22 });
+}
+
+function spawnHitFlash(x, y) {
+  spawnSparks(x, y - 18, 7, ['#fff', '#ff6b9d', '#ff3344', '#ffd700'], 120);
+  pushFx({ type: 'burst', x, y: y - 16, t: 0, life: 0.28 });
+  pushFx({ type: 'ring', x, y: y - 16, t: 0, life: 0.22, color: 'rgba(255,100,120,0.5)', r0: 6, r1: 28 });
+  screenFlash('rgba(255,220,220,0.18)', 0.06);
+}
+
+function spawnSkillFx(x) {
+  state.skillRingT = 0.85;
+  shake(5, 0.28);
+  screenFlash('rgba(255,80,160,0.28)', 0.18);
+  pushFx({ type: 'ring', x, y: GROUND_Y - 40, t: 0, life: 0.7, color: 'rgba(255,107,157,0.7)', r0: 10, r1: 160 });
+  pushFx({ type: 'ring', x, y: GROUND_Y - 40, t: 0, life: 0.55, color: 'rgba(255,215,0,0.45)', r0: 4, r1: 120 });
+  for (let i = 0; i < 14; i++) {
+    const ang = (Math.PI * 2 * i) / 14;
+    pushFx({
+      type: 'spark', x, y: GROUND_Y - 36,
+      vx: Math.cos(ang) * 160, vy: Math.sin(ang) * 90 - 30,
+      t: 0, life: 0.55, color: i % 2 ? '#ff6b9d' : '#ffd700', size: 3,
+    });
+  }
+  // 括弧パーティクル
+  pushFx({ type: 'paren', x: x - 50, y: GROUND_Y - 70, text: '（', t: 0, life: 0.9 });
+  pushFx({ type: 'paren', x: x + 50, y: GROUND_Y - 70, text: '）', t: 0, life: 0.9 });
+}
+
+function spawnWinFx() {
+  state.winFxT = 4.5;
+  shake(7, 0.5);
+  screenFlash('rgba(255,215,0,0.35)', 0.35);
+  for (let k = 0; k < 6; k++) {
+    setTimeout(() => {
+      const x = player.x + rand(-120, 120);
+      spawnSparks(x, GROUND_Y - 80 - rand(0, 60), 8, ['#ffd700', '#ff6b9d', '#fff', '#8af'], 140);
+      pushFx({ type: 'burst', x, y: GROUND_Y - 90, t: 0, life: 0.4 });
+      spawnMeme(x, GROUND_Y - 100, pick(['王道を征く', '114514', 'やったぜ', 'いいゾ〜']));
+    }, k * 280);
+  }
+}
+
+function spawnMistAmbient(dt) {
+  // 湿度モヤ：高湿度ほど発生
+  if (state.humidity < 45) return;
+  if (Math.random() > (state.humidity - 40) * 0.012 * dt * 60) return;
+  const px = state.cameraX + rand(0, W);
+  pushFx({
+    type: 'mist',
+    x: px, y: GROUND_Y - rand(20, 120),
+    vx: rand(-12, 12), vy: rand(-8, -2),
+    t: 0, life: rand(1.2, 2.2),
+    size: irand(10, 22),
+    color: state.humidity >= 80 ? 'rgba(255,140,180,0.14)' : 'rgba(180,210,255,0.12)',
+  });
+}
+
 // =========================================================
 // 独自メカニクス（Kingdom骨格＋淫夢固有）
 // =========================================================
@@ -722,9 +844,10 @@ function trySkill() {
     toast(`括弧ツッコミ CD ${state.skillCd.toFixed(1)}s`);
     return;
   }
-  state.skillCd = 11;
+  state.skillCd = 9;
   state.skillStunT = 2.6;
   state.humidity = clamp(state.humidity + 6, 0, 100);
+  spawnSkillFx(player.x);
   spawnMeme(player.x, GROUND_Y - 70, 'あっ（察し）');
   spawnMeme(player.x + 30, GROUND_Y - 90, '（迫真）');
   toast('括弧ツッコミ！　周囲のたかりが鈍る', 2.4);
@@ -732,7 +855,7 @@ function trySkill() {
   for (const e of enemies) {
     if (Math.abs(e.x - player.x) < 160) {
       e.stunned = Math.max(e.stunned || 0, 2.6);
-      fx.push({ type: 'dot', x: e.x, y: GROUND_Y - 30, vx: rand(-30,30), vy: -80, life: 0.5, color: '#ff6b9d' });
+      spawnSparks(e.x, GROUND_Y - 28, 4, ['#ff6b9d', '#fff'], 70);
     }
   }
 }
@@ -760,6 +883,9 @@ function onSacredKill() {
     toast('114514コンボ！　＋2コイン', 2.8);
     spawnMeme(player.x, GROUND_Y - 80, '114514');
     story('いいゾ〜これ　114514', 2.2);
+    spawnCoinSparkle(player.x, GROUND_Y - 40);
+    shake(3, 0.18);
+    screenFlash('rgba(255,107,157,0.22)', 0.12);
   } else if (state.killCombo === 8 || state.killCombo === 10) {
     state.coins += 1;
     toast(`聖数コンボ ${state.killCombo}！　＋1`, 2.2);
@@ -1430,12 +1556,15 @@ function startDay() {
 }
 
 function winCheck() {
-  // 5日生き延び＆両側石壁でクリア
+  // 7日生き延び＆両側石壁でクリア
   if (state.day >= 7 && structures.leftWall.level >= 2 && structures.rightWall.level >= 2 && !state.isNight) {
-    state.won = true;
-    state.over = true;
-    state.running = false;
-    showEnd(true);
+    if (!state.won) {
+      state.won = true;
+      state.over = true;
+      state.running = false;
+      spawnWinFx();
+      setTimeout(() => showEnd(true), 1100);
+    }
   }
 }
 
@@ -1480,6 +1609,8 @@ function resetGame() {
   state.dayChoiceDone = false;
   state.icedTeaStock = 1;
   state.animT = 0;
+  state.shakeT = 0; state.shakeMag = 0;
+  state.flashT = 0; state.skillRingT = 0; state.winFxT = 0; state.hitStop = 0;
   // 初期コイン配置
   dropCoin(-80, 2);
   dropCoin(90, 2);
@@ -1574,9 +1705,11 @@ function update(dt) {
   state.humidity = clamp(state.humidity, 0, 100);
   if ((Math.floor(state.animT * 4) % 4) === 0) updateHumidityHud();
 
-  // カメラ
-  const targetCam = player.x - W / 2;
-  state.cameraX += (targetCam - state.cameraX) * Math.min(1, dt * 6);
+  // カメラ（向き先読み＋微呼吸）
+  const look = (player.facing || 1) * 36;
+  const breath = Math.sin(state.animT * 0.55) * 2.5;
+  const targetCam = player.x - W / 2 + look + breath;
+  state.cameraX += (targetCam - state.cameraX) * Math.min(1, dt * 4.2);
 
   // ambientミーム（たき火周辺）
   if (!state._memeCd) state._memeCd = 0;
@@ -1603,6 +1736,7 @@ function update(dt) {
     }
     if (c.pickupDelay <= 0 && Math.abs(c.x - player.x) < 22 && Math.abs(c.y - (GROUND_Y - 10)) < 30) {
       state.coins++;
+      spawnCoinSparkle(c.x, c.y);
       coinsOnGround.splice(i, 1);
       spawnMeme(player.x, GROUND_Y - 36, '+1');
       if (Math.random() < 0.35) spawnMeme(player.x + 20, GROUND_Y - 50, pick(LORE.coinPickup));
@@ -1658,11 +1792,15 @@ function update(dt) {
       if (Math.abs(a.x - e.x) < 14 && Math.abs((GROUND_Y - 20) - (e.y - 14)) < 24) {
         e.hp--;
         hit = true;
-        fx.push({ type: 'dot', x: e.x, y: GROUND_Y - 24, vx: rand(-40,40), vy: -60, life: 0.4, color: '#c44' });
+        spawnHitFlash(e.x, GROUND_Y);
+        e._flash = 0.12;
         if (e.hp <= 0) {
           spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
-          // ドロップ
           if (Math.random() < 0.55) dropCoin(e.x, 1);
+          if (e.isTaka && Math.random() < 0.5) dropCoin(e.x, 1);
+          onSacredKill();
+          shake(e.isBoss || e.isMur ? 6 : 2.5, e.isBoss ? 0.35 : 0.12);
+          spawnSparks(e.x, GROUND_Y - 24, e.isBoss ? 12 : 6, ['#ff6b9d', '#ffd700', '#fff'], 130);
           enemies.splice(j, 1);
         }
         break;
@@ -1688,7 +1826,7 @@ function update(dt) {
       e.stealCd = (e.stealCd || 0) - dt;
       if (Math.abs(e.x - player.x) < 36 && e.stealCd <= 0) {
         state.coins = Math.max(0, state.coins - 1);
-        e.stealCd = 2.2;
+        e.stealCd = 2.8;
         dropCoin(e.x + rand(-20, 20), 1, true); // 奪って落とす演出（回収可）
         spawnMeme(e.x, GROUND_Y - 50, 'たかり!');
         toast('たかり後輩にコインを…あっ（察し）', 2.0);
@@ -1723,9 +1861,11 @@ function update(dt) {
     e.attackCd -= dt;
     if (wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20) {
       if (e.attackCd <= 0) {
-        wall.hp -= 4 + state.day;
+        wall.hp -= 3 + Math.floor(state.day * 0.85);
         e.attackCd = 0.9;
         spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
+        spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
+        shake(1.5, 0.08);
         if (wall.hp <= 0) {
           wall.hp = 0;
           wall.level = 0;
@@ -1733,15 +1873,21 @@ function update(dt) {
           toast((e.side < 0 ? '西' : '東') + 'の壁崩壊！ ' + bl, 3);
           story(bl, 2.8);
           spawnMeme(wall.x, GROUND_Y - 60, pick(['あ゛あ゛っ', 'ファッ!?', 'なに!?']));
+          shake(7, 0.4);
+          screenFlash('rgba(200,80,40,0.3)', 0.2);
+          spawnSparks(wall.x, GROUND_Y - 40, 10, ['#8b5a2b', '#ff6b9d', '#fff'], 140);
         }
       }
     } else if (Math.abs(e.x - 0) < 28) {
       // たき火ダメージ
       if (e.attackCd <= 0) {
-        structures.campfire.hp -= 8 + state.day;
+        structures.campfire.hp -= 6 + Math.floor(state.day * 0.9);
         e.attackCd = 0.8;
         const cl = pick(LORE.campHit);
         spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
+        shake(4, 0.15);
+        screenFlash('rgba(255,120,40,0.2)', 0.08);
+        spawnSparks(0, GROUND_Y - 30, 5, ['#ff6600', '#ffcc33'], 80);
         if (structures.campfire.hp < 40) {
           toast(cl, 2);
           story(cl, 2.2);
@@ -1750,10 +1896,31 @@ function update(dt) {
           structures.campfire.hp = 0;
           state.over = true;
           state.running = false;
+          shake(10, 0.55);
+          screenFlash('rgba(180,0,40,0.4)', 0.35);
+          spawnSparks(0, GROUND_Y - 40, 12, ['#f44', '#ff6b9d', '#333'], 160);
           showEnd(false);
         }
       }
     }
+  }
+
+  // 画面演出タイマー
+  if (state.shakeT > 0) state.shakeT -= dt;
+  else state.shakeMag = 0;
+  if (state.flashT > 0) state.flashT -= dt;
+  if (state.skillRingT > 0) state.skillRingT -= dt;
+  if (state.winFxT > 0) state.winFxT -= dt;
+  spawnMistAmbient(dt);
+  // たき火の火の粉（常時・夜は多め）
+  if (Math.random() < (state.isNight ? 0.35 : 0.12) * dt * 60) {
+    pushFx({
+      type: 'spark', x: rand(-8, 8), y: GROUND_Y - rand(24, 40),
+      vx: rand(-20, 20), vy: rand(-70, -30),
+      t: 0, life: rand(0.4, 0.9),
+      color: pick(['#ffcc33', '#ff6600', '#ffe566', '#fff']),
+      size: 2,
+    });
   }
 
   // FX
@@ -1762,13 +1929,21 @@ function update(dt) {
     f.t += dt;
     if (f.type === 'pay') {
       const p = Math.min(1, f.t / f.life);
-      f.x = f.x + (f.tx - f.x) * p; // will be overwritten below better
+      f.x = f.x + (f.tx - f.x) * p;
     }
-    if (f.type === 'dot') {
-      f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 120 * dt;
+    if (f.type === 'dot' || f.type === 'spark') {
+      f.x += (f.vx || 0) * dt;
+      f.y += (f.vy || 0) * dt;
+      f.vy = (f.vy || 0) + (f.type === 'spark' ? 200 : 120) * dt;
     }
+    if (f.type === 'mist' || f.type === 'ember') {
+      f.x += (f.vx || 0) * dt;
+      f.y += (f.vy || 0) * dt;
+    }
+    if (f.type === 'paren') f.y -= 22 * dt;
     if (f.t >= (f.life || 1)) fx.splice(i, 1);
   }
+  for (const e of enemies) { if (e._flash > 0) e._flash -= dt; }
 
   // HUD
   const left = document.getElementById('hud-left');
@@ -1784,6 +1959,132 @@ function update(dt) {
     : `${sk}<br>T＝アイスティー／湿度に注意`;
 }
 
+
+// =========================================================
+// 時刻・光（Two Crowns風の昼夜ブレンド）
+// =========================================================
+function dayPhase() {
+  // 0=夜明け 0.25=昼 0.55=夕暮れ 0.75=夜 1=深夜寄り
+  if (!state.running && state.over && !state.won) return 0.85;
+  if (state.isNight) {
+    const p = state.dayTimer / Math.max(1, state.nightLength);
+    return 0.72 + clamp(p, 0, 1) * 0.26;
+  }
+  const p = state.dayTimer / Math.max(1, state.dayLength);
+  if (p < 0.12) return lerp(0.05, 0.22, p / 0.12);       // 夜明け→朝
+  if (p < 0.55) return lerp(0.22, 0.38, (p - 0.12) / 0.43); // 朝→昼
+  if (p < 0.82) return lerp(0.38, 0.58, (p - 0.55) / 0.27); // 昼→夕
+  return lerp(0.58, 0.72, (p - 0.82) / 0.18);               // 夕→夜前
+}
+
+function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+
+function skyColors(phase) {
+  // phase 0..1 → top/mid/bot
+  const stops = [
+    { p: 0.00, t: '#1a2040', m: '#3a4068', b: '#6a5080' }, // 夜明け前
+    { p: 0.12, t: '#ff9a6a', m: '#ffc090', b: '#8fbc6a' }, // 夜明け
+    { p: 0.28, t: '#5eb8ff', m: '#b8e4ff', b: '#8fbc6a' }, // 朝
+    { p: 0.40, t: '#4aa8ff', m: '#c8e8ff', b: '#7aaa58' }, // 昼
+    { p: 0.58, t: '#ff7a4a', m: '#ffb070', b: '#6a8a48' }, // 夕
+    { p: 0.72, t: '#1a1840', m: '#2a2858', b: '#3a3050' }, // 宵
+    { p: 0.88, t: '#070a18', m: '#121828', b: '#1a2030' }, // 深夜
+    { p: 1.00, t: '#050812', m: '#0c1020', b: '#141820' },
+  ];
+  let a = stops[0], b = stops[1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (phase >= stops[i].p && phase <= stops[i + 1].p) { a = stops[i]; b = stops[i + 1]; break; }
+    if (phase >= stops[i].p) { a = stops[i]; b = stops[Math.min(i + 1, stops.length - 1)]; }
+  }
+  const t = (phase - a.p) / Math.max(0.001, b.p - a.p);
+  return { top: mixHex(a.t, b.t, t), mid: mixHex(a.m, b.m, t), bot: mixHex(a.b, b.b, t), phase };
+}
+
+function mixHex(c1, c2, t) {
+  const p = (c) => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+  const a = p(c1), b = p(c2);
+  const r = (a[0] + (b[0]-a[0])*t)|0, g = (a[1]+(b[1]-a[1])*t)|0, bl = (a[2]+(b[2]-a[2])*t)|0;
+  return '#' + [r,g,bl].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function drawSoftShadow(x, y, w, alpha) {
+  ctx.globalAlpha = alpha || 0.28;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, w, Math.max(3, w * 0.28), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawGodRays(phase) {
+  if (phase < 0.08 || phase > 0.62) return;
+  const sunX = W * (0.78 - (phase - 0.2) * 0.15);
+  const sunY = 36 + Math.abs(phase - 0.35) * 90;
+  ctx.save();
+  ctx.globalAlpha = phase > 0.5 ? 0.07 : 0.09;
+  for (let i = -3; i <= 3; i++) {
+    const ang = -0.4 + i * 0.11;
+    ctx.fillStyle = phase > 0.5 ? '#ffaa66' : '#fff8d0';
+    ctx.beginPath();
+    ctx.moveTo(sunX, sunY);
+    ctx.lineTo(sunX + Math.cos(ang) * 420, sunY + Math.sin(ang) * 420);
+    ctx.lineTo(sunX + Math.cos(ang + 0.05) * 420, sunY + Math.sin(ang + 0.05) * 420);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawAurora() {
+  if (!state.isNight) return;
+  ctx.save();
+  for (let band = 0; band < 3; band++) {
+    const y0 = 28 + band * 22;
+    const g = ctx.createLinearGradient(0, y0, W, y0 + 40);
+    const a = 0.10 + Math.sin(state.animT * 0.7 + band) * 0.04;
+    g.addColorStop(0, `rgba(40,255,180,0)`);
+    g.addColorStop(0.35, `rgba(${60+band*40},${220-band*30},255,${a})`);
+    g.addColorStop(0.65, `rgba(180,80,255,${a * 0.85})`);
+    g.addColorStop(1, `rgba(40,255,180,0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, y0 + 20);
+    for (let x = 0; x <= W; x += 16) {
+      const yy = y0 + Math.sin(x * 0.012 + state.animT * (0.8 + band * 0.2) + band) * (10 + band * 4)
+        + Math.sin(x * 0.03 - state.animT) * 4;
+      ctx.lineTo(x, yy);
+    }
+    ctx.lineTo(W, y0 + 55);
+    ctx.lineTo(0, y0 + 55);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawHumidityHaze() {
+  const h = state.humidity || 0;
+  if (h < 40) return;
+  const a = clamp((h - 40) / 120, 0, 0.22);
+  const g = ctx.createLinearGradient(0, GROUND_Y - 100, 0, GROUND_Y + 20);
+  const col = h >= 80 ? `rgba(255,140,180,${a})` : `rgba(170,200,255,${a})`;
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, col);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, GROUND_Y - 110, W, 130);
+  // 熱ゆらぎドット
+  if (h >= 70) {
+    ctx.globalAlpha = 0.12;
+    for (let i = 0; i < 8; i++) {
+      const x = ((i * 97 + state.animT * 30) % W);
+      const y = GROUND_Y - 20 - Math.sin(state.animT * 2 + i) * 8;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x, y, 2, 6);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 // ---------- 描画（ドット絵ベース + ミーム文字） ----------
 function wx(x) { return Math.floor(x - state.cameraX); }
 
@@ -1794,53 +2095,103 @@ function drawPixelRect(x, y, w, h, color) {
 
 function draw() {
   ctx.imageSmoothingEnabled = false;
-  // 空
-  const night = state.isNight || (!state.running && state.over && !state.won);
-  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-  if (state.isNight) {
-    skyGrad.addColorStop(0, '#0b1020');
-    skyGrad.addColorStop(1, '#1a1530');
-  } else {
-    skyGrad.addColorStop(0, '#6ec6ff');
-    skyGrad.addColorStop(0.55, '#c8e8ff');
-    skyGrad.addColorStop(1, '#8fbc6a');
+  const phase = dayPhase();
+  const sky = skyColors(phase);
+  const nightish = phase >= 0.68;
+
+  // ---- カメラシェイク ----
+  let shakeX = 0, shakeY = 0;
+  if (state.shakeT > 0 && state.shakeMag > 0) {
+    const m = state.shakeMag * (state.shakeT / 0.35);
+    shakeX = (Math.random() - 0.5) * 2 * m;
+    shakeY = (Math.random() - 0.5) * 2 * m * 0.6;
   }
+  ctx.save();
+  ctx.translate(shakeX | 0, shakeY | 0);
+
+  // ---- 空グラデ ----
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, sky.top);
+  skyGrad.addColorStop(0.45, sky.mid);
+  skyGrad.addColorStop(1, sky.bot);
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // 星
-  if (state.isNight) {
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < 40; i++) {
-      const sx = ((i * 97 + 30) - state.cameraX * 0.1) % W;
-      const sy = (i * 53) % (GROUND_Y - 40);
-      if (sy > 10) ctx.fillRect(sx, sy, 2, 2);
+  // 星（夜）
+  if (phase >= 0.65) {
+    const starA = clamp((phase - 0.65) / 0.2, 0, 1);
+    ctx.globalAlpha = starA * 0.9;
+    for (let i = 0; i < 55; i++) {
+      const sx = ((i * 97 + 30) - state.cameraX * 0.08 + Math.sin(state.animT * 0.2 + i) * 2) % W;
+      const sy = (i * 53) % (GROUND_Y - 50);
+      if (sy > 8) {
+        const tw = 0.55 + Math.sin(state.animT * 3 + i * 1.7) * 0.45;
+        ctx.globalAlpha = starA * tw;
+        ctx.fillStyle = i % 7 === 0 ? '#ffd700' : '#fff';
+        ctx.fillRect(sx, sy, i % 5 === 0 ? 2 : 1, i % 5 === 0 ? 2 : 1);
+      }
     }
-  } else {
-    // 太陽
-    drawPixelRect(W - 100, 40, 28, 28, '#ffe566');
+    ctx.globalAlpha = 1;
+    drawAurora();
   }
 
-  // 遠景丘（ドットシルエット・パララックス）
-  drawParallaxHills();
+  // 太陽 / 月
+  if (phase < 0.68) {
+    const sunX = W * (0.82 - phase * 0.25);
+    const sunY = 28 + Math.pow(Math.abs(phase - 0.35), 1.2) * 110;
+    const glow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 70);
+    const warm = phase > 0.5;
+    glow.addColorStop(0, warm ? 'rgba(255,160,80,0.85)' : 'rgba(255,245,200,0.95)');
+    glow.addColorStop(0.35, warm ? 'rgba(255,120,40,0.25)' : 'rgba(255,220,140,0.28)');
+    glow.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(sunX - 80, sunY - 80, 160, 160);
+    drawPixelRect(sunX - 10, sunY - 10, 20, 20, warm ? '#ff8844' : '#ffe566');
+    drawPixelRect(sunX - 6, sunY - 6, 12, 12, '#fff8d0');
+    drawGodRays(phase);
+  } else {
+    const moonX = W * 0.72;
+    const moonY = 48;
+    const mg = ctx.createRadialGradient(moonX, moonY, 2, moonX, moonY, 46);
+    mg.addColorStop(0, 'rgba(200,220,255,0.55)');
+    mg.addColorStop(1, 'rgba(120,160,255,0)');
+    ctx.fillStyle = mg;
+    ctx.fillRect(moonX - 50, moonY - 50, 100, 100);
+    drawPixelRect(moonX - 8, moonY - 8, 16, 16, '#d8e4ff');
+    drawPixelRect(moonX - 4, moonY - 2, 4, 4, '#a0b0d0');
+  }
 
-  // 地面タイル
-  drawGroundTiles();
+  // 遠景
+  drawParallaxHills(phase);
 
-  // 領地床の色（壁の内側）
+  // 地面
+  drawGroundTiles(phase);
+
+  // 領地床
   const lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
   const rx = structures.rightWall.level > 0 ? structures.rightWall.x : 40;
-  const territoryAlpha = state.isNight ? 0.18 : 0.14;
+  const territoryAlpha = nightish ? 0.16 : 0.12;
   ctx.fillStyle = `rgba(255, 215, 0, ${territoryAlpha})`;
   ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
-  // 金ドット縁
-  ctx.fillStyle = 'rgba(255,215,0,0.35)';
+  ctx.fillStyle = 'rgba(255,215,0,0.4)';
   for (let x = wx(lx); x < wx(rx); x += 4) ctx.fillRect(x, GROUND_Y, 2, 2);
+  // 領地の淡い光床
+  if (!nightish || state.isNight) {
+    const tg = ctx.createLinearGradient(wx(lx), GROUND_Y - 8, wx(rx), GROUND_Y - 8);
+    tg.addColorStop(0, 'rgba(255,215,0,0)');
+    tg.addColorStop(0.5, nightish ? 'rgba(255,180,60,0.08)' : 'rgba(255,215,0,0.06)');
+    tg.addColorStop(1, 'rgba(255,215,0,0)');
+    ctx.fillStyle = tg;
+    ctx.fillRect(wx(lx), GROUND_Y - 10, rx - lx, 10);
+  }
 
-  // たき火
+  // たき火（影→本体）
+  drawSoftShadow(wx(0), GROUND_Y, 22, nightish ? 0.4 : 0.22);
   drawCampfire(wx(0), GROUND_Y);
 
   // 壁
+  drawSoftShadow(wx(structures.leftWall.x), GROUND_Y, 14, 0.25);
+  drawSoftShadow(wx(structures.rightWall.x), GROUND_Y, 14, 0.25);
   drawWall(structures.leftWall, true);
   drawWall(structures.rightWall, false);
 
@@ -1855,6 +2206,13 @@ function draw() {
       ctx.arc(wx(s.x), GROUND_Y - 4, 12, 0, Math.PI * 2);
       ctx.stroke();
       if (near) {
+        // パルス光環
+        ctx.globalAlpha = 0.25 + Math.sin(state.animT * 5) * 0.1;
+        ctx.strokeStyle = '#fff8c0';
+        ctx.beginPath();
+        ctx.arc(wx(s.x), GROUND_Y - 4, 16 + Math.sin(state.animT * 5) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffd700';
         ctx.font = '8px "Press Start 2P"';
         ctx.textAlign = 'center';
@@ -1866,24 +2224,55 @@ function draw() {
   }
 
   // コイン
-  for (const c of coinsOnGround) drawCoin(wx(c.x), c.y);
+  for (const c of coinsOnGround) {
+    drawSoftShadow(wx(c.x), GROUND_Y, 6, 0.2);
+    drawCoin(wx(c.x), c.y);
+  }
 
-  // ユニット（弓後輩）
-  for (const u of units) drawArcher(wx(u.x), GROUND_Y, u);
+  // ユニット
+  for (const u of units) {
+    drawSoftShadow(wx(u.x), GROUND_Y, 10, 0.22);
+    drawArcher(wx(u.x), GROUND_Y, u);
+  }
 
   // 敵
-  for (const e of enemies) drawEnemy(wx(e.x), GROUND_Y, e);
+  for (const e of enemies) {
+    drawSoftShadow(wx(e.x), GROUND_Y, e.isBoss || e.isMur ? 16 : 11, 0.28);
+    drawEnemy(wx(e.x), GROUND_Y, e);
+  }
 
-  // 矢
-  ctx.fillStyle = '#ddd';
+  // 矢 + 軌跡
   for (const a of arrows) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#ffe8a0';
+    ctx.fillRect(wx(a.x) - (a.vx > 0 ? 6 : -2), a.y, 6, 2);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fff';
     ctx.fillRect(wx(a.x), a.y, 8, 2);
   }
 
-  // プレイヤー（野獣先輩）
+  // プレイヤー
+  drawSoftShadow(wx(player.x), GROUND_Y, 14, 0.3);
   drawYajyu(wx(player.x), GROUND_Y, player.facing);
 
-  // FX ミーム文字
+  // 技能リング残光
+  if (state.skillRingT > 0) {
+    const p = 1 - state.skillRingT / 0.85;
+    ctx.globalAlpha = (1 - p) * 0.55;
+    ctx.strokeStyle = '#ff6b9d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(wx(player.x), GROUND_Y - 36, 20 + p * 90, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(wx(player.x), GROUND_Y - 36, 10 + p * 60, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // FX
   for (const f of fx) {
     if (f.type === 'meme') {
       const a = 1 - f.t / f.life;
@@ -1891,24 +2280,56 @@ function draw() {
       ctx.fillStyle = '#ff6b9d';
       ctx.font = '9px "Press Start 2P"';
       ctx.textAlign = 'center';
-      // 上端HUD帯（おおよそ y<100）と地面下を避けて表示
       const my = clamp(f.y - f.t * 26, 108, GROUND_Y - 28);
       const mx = clamp(wx(f.x), 40, W - 40);
       ctx.fillText(String(f.text).slice(0, 12), mx, my);
       ctx.globalAlpha = 1;
     } else if (f.type === 'burst') {
       const p = f.t / f.life;
-      for (let k = 0; k < 6; k++) {
-        const ang = k / 6 * Math.PI * 2;
-        drawPixelRect(wx(f.x) + Math.cos(ang) * p * 18, f.y + Math.sin(ang) * p * 12, 3, 3, '#ff6b9d');
+      for (let k = 0; k < 8; k++) {
+        const ang = k / 8 * Math.PI * 2;
+        drawPixelRect(wx(f.x) + Math.cos(ang) * p * 22, f.y + Math.sin(ang) * p * 14, 3, 3, k % 2 ? '#ff6b9d' : '#ffd700');
       }
-    } else if (f.type === 'dot') {
+    } else if (f.type === 'dot' || f.type === 'spark') {
+      const a = 1 - f.t / (f.life || 1);
+      ctx.globalAlpha = a;
       ctx.fillStyle = f.color || '#fff';
-      ctx.fillRect(wx(f.x), f.y, 3, 3);
+      const s = f.size || 3;
+      ctx.fillRect(wx(f.x), f.y, s, s);
+      if (f.type === 'spark') {
+        ctx.globalAlpha = a * 0.4;
+        ctx.fillRect(wx(f.x) - 1, f.y - 1, s + 2, s + 2);
+      }
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'mist') {
+      const a = (1 - f.t / f.life) * 0.9;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color || 'rgba(180,210,255,0.15)';
+      const s = f.size || 14;
+      ctx.beginPath();
+      ctx.ellipse(wx(f.x), f.y, s, s * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'ring') {
+      const p = f.t / f.life;
+      const r = (f.r0 || 4) + ((f.r1 || 30) - (f.r0 || 4)) * p;
+      ctx.globalAlpha = (1 - p) * 0.7;
+      ctx.strokeStyle = f.color || 'rgba(255,215,0,0.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(wx(f.x), f.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'paren') {
+      const a = 1 - f.t / f.life;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ff6b9d';
+      ctx.font = '18px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.text || '（', wx(f.x), f.y);
+      ctx.globalAlpha = 1;
     } else if (f.type === 'pay') {
       const p = Math.min(1, f.t / f.life);
-      const px = f.x + (f.tx - f.x) * p; // initial f.x was start - bug: we mutate
-      // use stored - actually we need start positions. simplify:
       drawCoin(wx(f.tx - (1 - p) * (f.tx - player.x)), GROUND_Y - 20 - Math.sin(p * Math.PI) * 40);
     }
   }
@@ -1921,18 +2342,37 @@ function draw() {
   ctx.fillStyle = '#ffd700';
   ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 84);
 
-  // 夜間ヴィネット
-  if (state.isNight) {
-    const g = ctx.createRadialGradient(W/2, GROUND_Y - 40, 80, W/2, GROUND_Y, 420);
+  // 湿度ヘイズ
+  drawHumidityHaze();
+
+  // 夜間ヴィネット＋たき火ライト体積
+  if (nightish) {
+    const g = ctx.createRadialGradient(W/2, GROUND_Y - 40, 60, W/2, GROUND_Y, 460);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.addColorStop(1, `rgba(0,0,0,${0.35 + (phase - 0.68) * 0.5})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    // たき火の灯り
-    const light = ctx.createRadialGradient(wx(0), GROUND_Y - 20, 10, wx(0), GROUND_Y - 20, 160);
-    light.addColorStop(0, 'rgba(255,180,60,0.25)');
-    light.addColorStop(1, 'rgba(255,180,60,0)');
+    // たき火の暖色ボリュームライト
+    const lx2 = wx(0), ly2 = GROUND_Y - 24;
+    const pulse = 150 + Math.sin(state.animT * 4) * 12;
+    const light = ctx.createRadialGradient(lx2, ly2, 8, lx2, ly2, pulse);
+    light.addColorStop(0, 'rgba(255,190,80,0.32)');
+    light.addColorStop(0.4, 'rgba(255,140,40,0.12)');
+    light.addColorStop(1, 'rgba(255,100,20,0)');
     ctx.fillStyle = light;
+    ctx.fillRect(0, 0, W, H);
+    // 地面に落ちる火の円
+    const floor = ctx.createRadialGradient(lx2, GROUND_Y, 4, lx2, GROUND_Y, 90);
+    floor.addColorStop(0, 'rgba(255,160,40,0.18)');
+    floor.addColorStop(1, 'rgba(255,100,0,0)');
+    ctx.fillStyle = floor;
+    ctx.fillRect(lx2 - 100, GROUND_Y - 4, 200, 20);
+  } else {
+    // 昼でも淡いヴィネットでシネマ感
+    const g = ctx.createRadialGradient(W/2, H*0.45, 120, W/2, H*0.5, 520);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(20,30,50,0.18)');
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -1942,6 +2382,28 @@ function draw() {
   ctx.font = '7px "Press Start 2P"';
   ctx.textAlign = 'center';
   ctx.fillText('部室', wx(0), GROUND_Y + 36);
+
+  ctx.restore(); // shake
+
+  // 画面フラッシュ（シェイク外＝HUDに被せる）
+  if (state.flashT > 0) {
+    ctx.globalAlpha = Math.min(1, state.flashT * 4) * 0.85;
+    ctx.fillStyle = state.flashColor || 'rgba(255,255,255,0.35)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  // クリア演出オーバーレイ
+  if (state.winFxT > 0) {
+    const p = 1 - state.winFxT / 4.5;
+    ctx.globalAlpha = Math.min(0.35, p * 0.4);
+    const wg = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, 300);
+    wg.addColorStop(0, 'rgba(255,215,0,0.5)');
+    wg.addColorStop(1, 'rgba(255,107,157,0)');
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawBar(x, y, w, h, ratio, fg, bg) {
@@ -1954,12 +2416,14 @@ function drawBar(x, y, w, h, ratio, fg, bg) {
 }
 
 
-function drawParallaxHills() {
-  const night = state.isNight;
+function drawParallaxHills(phase) {
+  const night = (phase != null ? phase : (state.isNight ? 0.85 : 0.35)) >= 0.68;
+  const dusk = phase != null && phase > 0.5 && phase < 0.72;
   const bands = [
-    { col: night ? '#12181a' : '#3a6a4a', par: 0.15, h: 70 },
-    { col: night ? '#1a2420' : '#4a8055', par: 0.28, h: 48 },
-    { col: night ? '#243028' : '#5a9458', par: 0.42, h: 32 },
+    { col: night ? '#0e1418' : dusk ? '#4a5a40' : '#3a6a4a', par: 0.12, h: 78 },
+    { col: night ? '#152018' : dusk ? '#5a7048' : '#4a8055', par: 0.24, h: 54 },
+    { col: night ? '#1c2a22' : dusk ? '#6a8850' : '#5a9458', par: 0.38, h: 36 },
+    { col: night ? '#243428' : dusk ? '#7a9a58' : '#6aaa60', par: 0.52, h: 22 },
   ];
   for (const b of bands) {
     ctx.fillStyle = b.col;
@@ -1983,9 +2447,10 @@ function drawParallaxHills() {
   }
 }
 
-function drawGroundTiles() {
-  const night = state.isNight;
-  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? '#2a2118' : '#5c4030');
+function drawGroundTiles(phase) {
+  const night = (phase != null ? phase : (state.isNight ? 0.85 : 0.35)) >= 0.68;
+  const dusk = phase != null && phase > 0.52 && phase < 0.72;
+  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? '#1e1812' : dusk ? '#4a3828' : '#5c4030');
   // 表層草タイル
   const off = ((state.cameraX | 0) % 8);
   for (let x = -off; x < W + 8; x += 8) {
@@ -2017,13 +2482,21 @@ function drawCampfire(x, y) {
   drawPixelRect(x - 10, y - 10, 8, 8, '#5a3a20');
   drawPixelRect(x + 2, y - 12, 8, 10, '#4a2a10');
   const fi = frameIndex(10, FR_FLAME.length);
+  // 火のコア光
+  {
+    const cg = ctx.createRadialGradient(x, y - 22, 2, x, y - 22, 36);
+    cg.addColorStop(0, 'rgba(255,230,120,0.55)');
+    cg.addColorStop(0.5, 'rgba(255,120,40,0.18)');
+    cg.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(x - 40, y - 60, 80, 70);
+  }
   blitOutlined(x - 8 + sway * 0.3, y - 40, FR_FLAME[fi], PAL, 3, false);
-  if (state.isNight) {
-    for (let i = 0; i < 6; i++) {
-      const px = x + Math.sin(state.animT * 3 + i * 1.7) * 12;
-      const py = y - 30 - ((state.animT * 45 + i * 17) % 42);
-      drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
-    }
+  const emberN = state.isNight ? 10 : 5;
+  for (let i = 0; i < emberN; i++) {
+    const px = x + Math.sin(state.animT * 3 + i * 1.7) * (10 + i);
+    const py = y - 28 - ((state.animT * 50 + i * 19) % 48);
+    drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
   }
   // 看板
   ctx.fillStyle = '#3d2b1f';
@@ -2101,8 +2574,18 @@ function drawWall(wall, isLeft) {
 }
 
 function drawCoin(x, y) {
-  const fi = frameIndex(8, FR_COIN.length);
-  blitOutlined(x - 6, y - 6, FR_COIN[fi], PAL, 2, false);
+  const bob = Math.sin(state.animT * 6 + x * 0.05) * 2;
+  const yy = y + bob;
+  // 微光
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.arc(x, yy - 2, 7 + Math.sin(state.animT * 5) * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  drawPixelRect(x - 4, yy - 8, 8, 8, '#c9a227');
+  drawPixelRect(x - 3, yy - 7, 6, 6, '#ffd700');
+  drawPixelRect(x - 1, yy - 5, 2, 2, '#fff8c8');
 }
 
 function drawYajyu(x, y, facing) {
@@ -2172,7 +2655,14 @@ function drawEnemy(x, y, e) {
   else if (e.isNgimo) frames = FR_NGIMO;
   else if (e.isKoko) frames = FR_KOKO;
   else if (e.isMur) frames = FR_MUR;
+  if (e._flash > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; }
   blitOutlined(x - 16, y - 36 + stunBob, frames[fi % frames.length], PAL, 2, e.side > 0);
+  if (e._flash > 0) {
+    ctx.globalAlpha = Math.min(0.7, e._flash * 5);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 14, y - 36 + stunBob, 28, 32);
+    ctx.restore();
+  }
   // 遠野笑顔は顔スプライト
   if (e.isTono && SPR.tono) {
     ctx.imageSmoothingEnabled = false;
