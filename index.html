@@ -1056,13 +1056,19 @@ function bondFlavorSuffix() {
 }
 function scheduleFlavorSuffix() {
   const sch = state.schedule || [];
-  if (!sch.length) return '';
-  const pending = sch.filter(s => !s.done);
-  const head = (pending[0] || sch[0]);
-  const n = sch.length;
-  const done = sch.filter(s => s.done).length;
-  if (done >= n) return '　本日ロケ完了　おかのした';
-  return `　本日ロケ${n}本　${head.label || '撮影'}`;
+  const bits = [];
+  if (sch.length) {
+    const pending = sch.filter(s => !s.done);
+    const head = (pending[0] || sch[0]);
+    const n = sch.length;
+    const done = sch.filter(s => s.done).length;
+    if (done >= n) bits.push('本日ロケ完了　おかのした');
+    else bits.push(`本日ロケ${n}本　${head.label || '撮影'}`);
+  }
+  if (state.weekly && !state.weekly.done) bits.push(`週次 ${state.weekly.label}`);
+  if (state.chapterQuest && !state.chapterQuest.done) bits.push(`章任務 ${state.chapterQuest.label}`);
+  if (!bits.length) return '';
+  return '　' + bits.slice(0, 2).join('　');
 }
 function heatFlavorSuffix() {
   const id = state.heatEvent;
@@ -1333,6 +1339,13 @@ const state = {
   towerSkins: { default: true },
   secrets: {},         // 章隠し id -> true
   collectSub: null,    // ach|codex|photo|skin|secret|null
+  // ロケ日程・任務拡充
+  weekly: null,        // 週次任務 {id,kind,progress,need,reward,week,label,...}
+  weeklyDone: {},      // weekKey -> true
+  chapterQuest: null,  // 章別任務
+  chapterQuestDone: {},// questId -> true
+  missionSub: 'day',   // day|week|chapter
+  _weekFilm: 0,        // 今週の撮影進捗（週次連動）
   gfxDeep: true,
 };
 
@@ -1498,6 +1511,11 @@ const ACH_DEFS = [
   { id: 'sweat30', name: '汗ドロップ30', check: () => (state.sweatDrops|0)>=30 },
   { id: 'midsummer', name: '真夏の王', check: () => !!state.midsummer && state.day>=5 },
   { id: 'mission5', name: 'ミッション5', check: () => (state._missionsDone|0)>=5 },
+  { id: 'mission15', name: 'ミッション15', check: () => (state._missionsDone|0)>=15 },
+  { id: 'weekly1', name: '週次ロケ1', check: () => Object.keys(state.weeklyDone||{}).length>=1 },
+  { id: 'weekly3', name: '週次ロケ3', check: () => Object.keys(state.weeklyDone||{}).length>=3 },
+  { id: 'chquest1', name: '章任務1', check: () => Object.keys(state.chapterQuestDone||{}).length>=1 },
+  { id: 'chquest_all', name: '四章任務', check: () => typeof CHAPTER_MISSIONS !== 'undefined' && CHAPTER_MISSIONS.every(q => !!(state.chapterQuestDone||{})[q.id]) },
   { id: 'day10', name: 'Day10到達', check: () => (state.day|0)>=10 },
   { id: 'bestiary8', name: '図鑑8種', check: () => Object.keys(state.bestiary||{}).length>=8 },
   { id: 'codex8', name: '語録図鑑8', check: () => Object.keys(state.codexQuotes||{}).length>=8 },
@@ -1533,6 +1551,19 @@ const CODEX_QUOTES = (() => {
     ['qb_crew0', 0, 'bond', '撮影班「あり…ますあります」　カット割り　114514'],
     ['qb_town0', 0, 'bond', '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ'],
   ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
+  // カード側共有語録（田所浩二は別枠のため未収録）
+  [
+    ['qs_arimasu', 0, 'share', 'ありますあります'],
+    ['qs_hayarase', 0, 'share', '流行らせコラ！'],
+    ['qs_kuun', 1, 'share', 'クゥーン…'],
+    ['qs_biryushi', 3, 'share', '微粒子レベルで存在している'],
+    // 崩壊イベント系フレーバー
+    ['qc_hayarase', 3, 'collapse', '流行らせコラ！（世界の催促）'],
+    ['qc_arimasu', 2, 'collapse', 'ありますあります（自販機の答え）'],
+    ['qc_naa', 3, 'collapse', 'ンアッー！が114514回木霊する'],
+    ['qc_obs', 3, 'collapse', '微粒子レベルで存在している（観測）'],
+    ['qc_hoshi', 2, 'collapse', 'お前のものが欲しいとか？（世界）'],
+  ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
   return out;
 })();
 
@@ -1565,6 +1596,10 @@ const TOWER_SKINS = [
     check: () => ((state.bond && state.bond.kohai)|0) >= 60 },
   { id: 'crown', name: '王冠砲', desc: '実績12個', accent: '#ffe680',
     check: () => Object.keys(state.achievements||{}).length >= 12 },
+  { id: 'particle', name: '微粒子砲', desc: '週次・崩壊観測ロケ', accent: '#a8d0ff',
+    check: () => !!(state.towerSkins && state.towerSkins.particle) || Object.values(state.weeklyDone||{}).some(v => v === 'w_collapse') },
+  { id: 'vending', name: '自販機砲', desc: '章任務・ありますあります', accent: '#6ecf8a',
+    check: () => !!(state.towerSkins && state.towerSkins.vending) || !!(state.chapterQuestDone && state.chapterQuestDone.ch0_kitazawa) },
 ];
 
 function ensureCollectState() {
@@ -1692,7 +1727,7 @@ function renderCollectBox(parent, sub) {
       rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${on ? '✓' : '・'}</span>${a.name}</div>`);
     }
   } else if (sub === 'codex') {
-    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係' };
+    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係', share: '共有', collapse: '崩壊' };
     for (const q of CODEX_QUOTES) {
       const on = !!state.codexQuotes[q.id];
       const label = on ? shortenMsg(fillDayToken(q.raw), 42) : '？？？';
@@ -1764,25 +1799,103 @@ function bestiaryKill(name) {
 }
 
 const MISSION_KINDS = [
-  { id: 'film', label: '撮影ミッション', need: 3, reward: () => 2 + Math.floor(state.day/3) },
-  { id: 'patrol', label: '聖地巡回', need: 2, reward: () => 2 },
-  { id: 'sweat', label: '汗集めロケ', need: 3, reward: () => 1 },
-  { id: 'bus', label: 'ロケバス往復', need: 1, reward: () => 3 },
+  { id: 'film', label: '撮影ミッション', need: 3, reward: () => 2 + Math.floor(state.day / 3),
+    bond: { crew: 2, town: 1 }, flavor: () => pick(['ありますあります', '流行らせコラ！', 'いいゾ〜これ']) },
+  { id: 'patrol', label: '聖地巡回', need: 1, reward: () => 2,
+    bond: { town: 3 }, flavor: () => pick(['クゥーン…', 'ま、多少はね？', 'おかのした']) },
+  { id: 'sweat', label: '汗集めロケ', need: 3, reward: () => 1,
+    bond: { kohai: 2 }, flavor: () => pick(['微粒子レベルで存在している', '汗系ですか', 'クゥーン…']) },
+  { id: 'bus', label: 'ロケバス往復', need: 1, reward: () => 3,
+    bond: { crew: 3 }, flavor: () => pick(['ありますあります', 'おかのした', 'いいよ！こいよ！']) },
+  { id: 'collab', label: '共有語録ロケ', need: 3, reward: () => 3 + (state.chapter | 0),
+    bond: { crew: 3, town: 2 }, codexIds: ['qs_arimasu', 'qs_hayarase'], chapterMin: 0,
+    flavor: () => '流行らせコラ！　ありますあります' },
+  { id: 'collapse', label: '崩壊観測ロケ', need: 4, reward: () => 4 + (state.chapter | 0),
+    bond: { town: 4, crew: 2 }, codexIds: ['qc_obs', 'qc_hoshi'], chapterMin: 2,
+    flavor: () => '微粒子レベルで存在している（観測）　お前のものが欲しいとか？（世界）' },
 ];
+
+/** 章別ミッション（1章1本・クリアで語録／スキン連動） */
+const CHAPTER_MISSIONS = [
+  { id: 'ch0_kitazawa', ch: 0, kind: 'film', label: '下北・北沢密着ロケ', lmPrefer: 'kitazawa', need: 4, reward: 4,
+    bond: { crew: 4, town: 2 }, codexIds: ['qs_arimasu', 'qc_arimasu'], skin: 'vending',
+    story: '北沢密着　ありますあります（自販機の答え）　いいゾ〜これ' },
+  { id: 'ch1_pond', ch: 1, kind: 'sweat', label: '井の頭・池畔汗ロケ', lmPrefer: 'inokashira', need: 4, reward: 5,
+    bond: { kohai: 3, crew: 3 }, codexIds: ['qs_kuun'],
+    story: '池畔　クゥーン…　セピアが揺れる　やりますねぇ' },
+  { id: 'ch2_neon', ch: 2, kind: 'patrol', label: '新宿片鱗・巡回ロケ', lmPrefer: 'kabuki', need: 1, reward: 5,
+    bond: { town: 5, crew: 2 }, codexIds: ['qs_hayarase', 'qc_hayarase'],
+    story: '駅前　流行らせコラ！（世界の催促）　片鱗を掴む' },
+  { id: 'ch3_void', ch: 3, kind: 'collapse', label: '外縁・微粒子観測ロケ', lmPrefer: 'gaien_e', need: 5, reward: 6,
+    bond: { crew: 4, town: 4 }, codexIds: ['qs_biryushi', 'qc_obs', 'qc_naa'],
+    story: '外縁　微粒子レベルで存在している（観測）　ンアッー！が114514回木霊する' },
+];
+
+const WEEKLY_DEFS = [
+  { id: 'w_film', label: '週次・連日撮影', kind: 'film', need: 6, reward: 8,
+    bond: { crew: 6 }, codexIds: ['qs_arimasu'], flavor: 'ありますあります　週の汗' },
+  { id: 'w_sweat', label: '週次・汗の王', kind: 'sweat', need: 8, reward: 6,
+    bond: { kohai: 5, town: 2 }, codexIds: ['qs_kuun'], flavor: 'クゥーン…　汗は嘘をつく' },
+  { id: 'w_collapse', label: '週次・崩壊の片鱗', kind: 'collapse', need: 5, reward: 10,
+    bond: { town: 6, crew: 4 }, codexIds: ['qc_hayarase', 'qc_naa', 'qc_obs'], skin: 'particle',
+    flavor: '流行らせコラ！（世界の催促）　微粒子レベルで存在している' },
+];
+
+function weekKey() {
+  return 'w' + Math.floor(Math.max(0, (state.day | 0) - 1) / 7);
+}
+function weekIndex() {
+  return Math.floor(Math.max(0, (state.day | 0) - 1) / 7);
+}
+
+function missionKindsForDay() {
+  const ch = state.chapter | 0;
+  return MISSION_KINDS.filter(m => (m.chapterMin | 0) <= ch);
+}
+
+function grantMissionExtras(pack, quiet) {
+  if (!pack) return;
+  if (pack.bond) {
+    for (const k of Object.keys(pack.bond)) bumpBond(k, pack.bond[k] | 0);
+  }
+  if (pack.codexIds) {
+    for (const id of pack.codexIds) unlockCodexId(id, true);
+  }
+  if (pack.skin) {
+    ensureCollectState();
+    if (!state.towerSkins[pack.skin]) {
+      state.towerSkins[pack.skin] = true;
+      const s = TOWER_SKINS.find(x => x.id === pack.skin);
+      if (!quiet) toast('塔スキン解放　' + ((s && s.name) || pack.skin), 2.6);
+      spawnMeme(player.x, GROUND_Y - 85, '塔');
+    }
+  }
+  try { refreshTowerSkins(false); } catch (_) {}
+}
 
 function rollDaySchedule() {
   const u = unlockedLandmarks();
   state.schedule = [];
   if (!u.length) return;
-  const n = Math.min(3, 1 + Math.floor(Math.random() * 2) + (state.civilTier >= 2 ? 1 : 0));
+  const kinds = missionKindsForDay();
+  const n = Math.min(4, 1 + Math.floor(Math.random() * 2) + (state.civilTier >= 2 ? 1 : 0) + ((state.bond && state.bond.crew) >= 40 ? 1 : 0));
   const pool = u.slice();
   for (let i = 0; i < n && pool.length; i++) {
     const ix = (Math.random() * pool.length) | 0;
     const L = pool.splice(ix, 1)[0];
-    const mk = MISSION_KINDS[(state.day + i) % MISSION_KINDS.length];
-    state.schedule.push({ lmId: L.id, kind: mk.id, label: mk.label, done: false });
+    let mk = kinds[(state.day + i + (state.chapter | 0)) % kinds.length];
+    // 章2+は時々崩壊／共有語録ロケを差し込み
+    if ((state.chapter | 0) >= 2 && i === 0 && Math.random() < 0.45) {
+      mk = kinds.find(k => k.id === 'collapse') || mk;
+    } else if (i === n - 1 && Math.random() < 0.4) {
+      mk = kinds.find(k => k.id === 'collab') || mk;
+    }
+    const fl = typeof mk.flavor === 'function' ? mk.flavor() : '';
+    state.schedule.push({
+      lmId: L.id, kind: mk.id, label: mk.label, done: false,
+      flavor: fl, tier: 'day',
+    });
   }
-  // ロケ日程の語録トースト（昼開始時は dayOpen が本隊）
   if (state.schedule.length && state.panelOpen === 'mission') {
     const head = state.schedule[0];
     const L0 = landmarkById(head.lmId);
@@ -1790,22 +1903,107 @@ function rollDaySchedule() {
   }
 }
 
+function ensureWeeklyQuest() {
+  if (!state.weeklyDone) state.weeklyDone = {};
+  const wk = weekKey();
+  if (state.weeklyDone[wk]) { state.weekly = null; return; }
+  if (state.weekly && state.weekly.week === wk) return;
+  const def = WEEKLY_DEFS[weekIndex() % WEEKLY_DEFS.length];
+  state.weekly = {
+    id: def.id, week: wk, kind: def.kind, label: def.label,
+    progress: 0, need: def.need, reward: def.reward,
+    bond: def.bond, codexIds: def.codexIds, skin: def.skin || null,
+    flavor: def.flavor, done: false,
+  };
+  state._weekFilm = 0;
+}
+
+function ensureChapterQuest() {
+  if (!state.chapterQuestDone) state.chapterQuestDone = {};
+  const ch = state.chapter | 0;
+  const def = CHAPTER_MISSIONS.find(q => q.ch === ch);
+  if (!def) { state.chapterQuest = null; return; }
+  if (state.chapterQuestDone[def.id]) {
+    if (state.chapterQuest && state.chapterQuest.id === def.id) state.chapterQuest = null;
+    return;
+  }
+  if (state.chapterQuest && state.chapterQuest.id === def.id) return;
+  let lmId = def.lmPrefer;
+  const Lpref = landmarkById(lmId);
+  if (!Lpref || !state.landmarks[lmId]) {
+    const u = unlockedLandmarks().filter(L => L.chapter === ch);
+    lmId = (u[0] && u[0].id) || (unlockedLandmarks()[0] && unlockedLandmarks()[0].id) || lmId;
+  }
+  state.chapterQuest = {
+    id: def.id, ch, kind: def.kind, label: def.label, lmId,
+    progress: 0, need: def.need, reward: def.reward,
+    bond: def.bond, codexIds: def.codexIds, skin: def.skin || null,
+    story: def.story, done: false, tier: 'chapter',
+  };
+}
+
 function startMissionFromSchedule(slot) {
   if (!slot || slot.done || state.mission) return false;
   const L = landmarkById(slot.lmId);
   if (!L) return false;
   const mk = MISSION_KINDS.find(m => m.id === slot.kind) || MISSION_KINDS[0];
+  const fl = slot.flavor || (typeof mk.flavor === 'function' ? mk.flavor() : '');
   state.mission = {
     id: slot.kind + '_' + slot.lmId + '_' + state.day,
     lmId: slot.lmId, kind: slot.kind,
-    progress: 0, need: mk.need,
-    reward: mk.reward(), label: mk.label, day: state.day,
+    progress: 0, need: mk.need | 0,
+    reward: typeof mk.reward === 'function' ? mk.reward() : (mk.reward | 0),
+    label: mk.label, day: state.day,
+    bond: mk.bond || { crew: 2, town: 2 },
+    codexIds: mk.codexIds || null,
+    flavor: fl, tier: 'day',
   };
   toast(`ロケ日程　${L.short}　${mk.label}`, 2.8);
-  story(storyCompose(`【撮影】${chapterName(state.chapter)}・${L.short}へ　${mk.label}`, { bond: true, schedule: true, heat: true }), 2.8);
-  if (slot.kind === 'bus' || slot.kind === 'patrol' || slot.kind === 'film') {
+  story(storyCompose(`【撮影】${chapterName(state.chapter)}・${L.short}へ　${mk.label}　${fl}`, { bond: true, schedule: true, heat: true }), 2.8);
+  if (slot.kind === 'bus' || slot.kind === 'patrol' || slot.kind === 'film' || slot.kind === 'collab') {
     startLocationBus(0, L.id, false, 'civil');
   }
+  return true;
+}
+
+function startWeeklyAsMission() {
+  ensureWeeklyQuest();
+  const w = state.weekly;
+  if (!w || w.done || state.mission) return false;
+  const u = unlockedLandmarks();
+  if (!u.length) { toast('聖地が必要', 2.0); return false; }
+  const L = u[(state.day + weekIndex()) % u.length];
+  state.mission = {
+    id: 'weekly_' + w.id + '_' + w.week,
+    lmId: L.id, kind: w.kind, progress: w.progress | 0, need: w.need,
+    reward: w.reward | 0, label: w.label, day: state.day,
+    bond: w.bond, codexIds: w.codexIds, skin: w.skin || null,
+    flavor: w.flavor || '', tier: 'week', weeklyId: w.id, week: w.week,
+  };
+  toast('週次ロケ　' + w.label, 2.8);
+  story(storyCompose(`【週次】${w.label}　${w.flavor || ''}　${L.short}`, { bond: true, schedule: true, heat: true }), 2.8);
+  return true;
+}
+
+function startChapterQuestMission() {
+  ensureChapterQuest();
+  const q = state.chapterQuest;
+  if (!q || q.done || state.mission) return false;
+  if (!state.landmarks[q.lmId] && unlockedLandmarks().length) {
+    q.lmId = unlockedLandmarks()[0].id;
+  }
+  const L = landmarkById(q.lmId);
+  if (!L) { toast('聖地が必要', 2.0); return false; }
+  state.mission = {
+    id: 'chapter_' + q.id,
+    lmId: q.lmId, kind: q.kind, progress: q.progress | 0, need: q.need,
+    reward: q.reward | 0, label: q.label, day: state.day,
+    bond: q.bond, codexIds: q.codexIds, skin: q.skin || null,
+    flavor: q.story || '', tier: 'chapter', chapterQuestId: q.id,
+  };
+  toast('章任務　' + q.label, 2.8);
+  story(storyCompose(`【章任務】${q.label}　${q.story || ''}`, { bond: true, schedule: true, heat: true }), 3.0);
+  if (q.kind === 'film' || q.kind === 'patrol' || q.kind === 'collab') startLocationBus(0, L.id, false, 'civil');
   return true;
 }
 
@@ -1814,29 +2012,37 @@ function tickMission(dt) {
   if (!m) return;
   const L = landmarkById(m.lmId);
   if (!L) { state.mission = null; return; }
-  if (m.kind === 'film' || m.kind === 'sweat') {
+  const stayKinds = { film: 1, sweat: 1, collab: 1, collapse: 1 };
+  if (stayKinds[m.kind]) {
     if (Math.abs(player.x - L.x) < 70 && !state.isNight) {
       m._acc = (m._acc || 0) + dt;
       if (m._acc >= 0.95) {
         m._acc = 0;
         m.progress++;
-        state.filmShots = (state.filmShots|0) + 1;
-        unlockLocPhoto(m.lmId, m.kind !== 'film');
+        state.filmShots = (state.filmShots | 0) + 1;
+        unlockLocPhoto(m.lmId, m.kind !== 'film' && m.kind !== 'collab');
         if (m.kind === 'sweat') {
-          state.sweatDrops = (state.sweatDrops|0) + 1;
+          state.sweatDrops = (state.sweatDrops | 0) + 1;
           spawnMeme(L.x, GROUND_Y - 50, '汗');
+        } else if (m.kind === 'collapse') {
+          spawnMeme(L.x, GROUND_Y - 50, '観測');
+          screenFlash('rgba(180,200,255,0.14)', 0.08);
+          bumpBond('town', 1);
         } else {
-          spawnMeme(L.x, GROUND_Y - 50, 'カット');
-          // 撮影フラッシュ
+          spawnMeme(L.x, GROUND_Y - 50, m.kind === 'collab' ? '共有' : 'カット');
           screenFlash('rgba(255,255,220,0.18)', 0.08);
           bumpBond('crew', 1);
         }
+        if (m.tier === 'week' && state.weekly) state.weekly.progress = m.progress;
+        if (m.tier === 'chapter' && state.chapterQuest) state.chapterQuest.progress = m.progress;
         if (m.progress >= m.need) completeMission();
       }
     }
   } else if (m.kind === 'patrol') {
     if (Math.abs(player.x - L.x) < 55) {
       m.progress = m.need;
+      if (m.tier === 'week' && state.weekly) state.weekly.progress = m.progress;
+      if (m.tier === 'chapter' && state.chapterQuest) state.chapterQuest.progress = m.progress;
       completeMission();
     }
   } else if (m.kind === 'bus') {
@@ -1851,16 +2057,33 @@ function completeMission() {
   const m = state.mission;
   if (!m) return;
   const reward = m.reward | 0;
-  dropCoin(player.x, reward);
+  dropCoin(player.x, Math.max(1, reward));
+  // 基本関係＋任務固有
   bumpBond('town', 2);
   bumpBond('crew', 2);
-  state._missionsDone = (state._missionsDone|0) + 1;
+  grantMissionExtras(m, false);
+  state._missionsDone = (state._missionsDone | 0) + 1;
   for (const s of (state.schedule || [])) {
     if (s.lmId === m.lmId && s.kind === m.kind && !s.done) s.done = true;
   }
+  if (m.tier === 'week' && m.week) {
+    if (!state.weeklyDone) state.weeklyDone = {};
+    state.weeklyDone[m.week] = m.weeklyId || true;
+    if (state.weekly && state.weekly.week === m.week) {
+      state.weekly.done = true;
+      state.weekly.progress = m.need;
+    }
+    state.weekly = null;
+  }
+  if (m.tier === 'chapter' && m.chapterQuestId) {
+    if (!state.chapterQuestDone) state.chapterQuestDone = {};
+    state.chapterQuestDone[m.chapterQuestId] = true;
+    state.chapterQuest = null;
+  }
   toast(`ミッション完了　＋${reward}　${m.label}`, 2.8);
   const Ldone = landmarkById(m.lmId);
-  story(storyCompose(`撮影OK　${(Ldone && Ldone.short) || '聖地'}　${m.label}　やりますねぇ`, { bond: true, schedule: true, heat: true }), 2.6);
+  const fl = m.flavor ? '　' + m.flavor : '';
+  story(storyCompose(`撮影OK　${(Ldone && Ldone.short) || '聖地'}　${m.label}${fl}　やりますねぇ`, { bond: true, schedule: true, heat: true }), 2.6);
   spawnMeme(player.x, GROUND_Y - 70, 'OK');
   state.mission = null;
   checkAchievements();
@@ -1972,6 +2195,13 @@ function openBranchPanel(tab) {
       skin: '【塔スキン】',
       secret: '【章ごとの隠し】',
     })[state.collectSub] || '【収集】';
+  }
+  if (state.panelOpen === 'mission') {
+    title.textContent = ({
+      day: '【日次ロケ日程】',
+      week: '【週次ロケ】',
+      chapter: '【章別ミッション】',
+    })[state.missionSub || 'day'] || '【ロケ日程】';
   }
 
   const addBtn = (label, cost, fn, enabled=true) => {
@@ -2195,26 +2425,94 @@ function openBranchPanel(tab) {
   }
 
   if (state.panelOpen === 'mission') {
-    if (!(state.schedule||[]).length) rollDaySchedule();
-    if (!(state.schedule||[]).length) {
-      addBtn('聖地が無い　まず解放を（マップで支払い）', 0, () => { closeBranchPanel(); });
+    ensureWeeklyQuest();
+    ensureChapterQuest();
+    if (!state.missionSub) state.missionSub = 'day';
+    const msub = document.createElement('div');
+    msub.className = 'collect-sub';
+    for (const [id, label] of [
+      ['day', '日次'],
+      ['week', '週次'],
+      ['chapter', '章任務'],
+    ]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = state.missionSub === id ? 'active' : '';
+      b.textContent = label;
+      b.onclick = () => { state.missionSub = id; openBranchPanel('mission'); };
+      msub.appendChild(b);
     }
-    for (const s of (state.schedule||[])) {
-      const L = landmarkById(s.lmId);
-      const lab = `${s.done?'✓':''}${(L&&L.short)||'?'}　${s.label}`;
-      addBtn(lab, 0, () => {
-        if (s.done) { toast('済の日程', 1.5); return; }
-        if (state.mission) { toast('進行中ミッションあり', 2.0); return; }
-        startMissionFromSchedule(s);
-        closeBranchPanel();
-      }, !s.done);
-    }
+    btns.appendChild(msub);
+
     if (state.mission) {
       const m = state.mission;
       const L = landmarkById(m.lmId);
-      meta.innerHTML += `<br>進行中: ${m.label} @${(L&&L.short)||'?'} ${m.progress}/${m.need}`;
+      meta.innerHTML += `<br>進行中: ${m.label} @${(L&&L.short)||'?'} ${m.progress}/${m.need}` +
+        (m.flavor ? `<br><span style="color:#fc8">${shortenMsg(m.flavor, 40)}</span>` : '');
     }
-    addBtn('日程を振り直す', 1, () => { rollDaySchedule(); toast('ロケ日程更新', 2.0); return true; });
+
+    if (state.missionSub === 'day') {
+      if (!(state.schedule||[]).length) rollDaySchedule();
+      if (!(state.schedule||[]).length) {
+        addBtn('聖地が無い　まず解放を（マップで支払い）', 0, () => { closeBranchPanel(); });
+      }
+      for (const s of (state.schedule||[])) {
+        const L = landmarkById(s.lmId);
+        const fl = s.flavor ? '　' + shortenMsg(s.flavor, 16) : '';
+        const lab = `${s.done?'✓':''}${(L&&L.short)||'?'}　${s.label}${fl}`;
+        addBtn(lab, 0, () => {
+          if (s.done) { toast('済の日程', 1.5); return; }
+          if (state.mission) { toast('進行中ミッションあり', 2.0); return; }
+          startMissionFromSchedule(s);
+          closeBranchPanel();
+        }, !s.done);
+      }
+      addBtn('日程を振り直す', 1, () => { rollDaySchedule(); toast('ロケ日程更新　ありますあります', 2.0); return true; });
+    }
+
+    if (state.missionSub === 'week') {
+      const w = state.weekly;
+      const wk = weekKey();
+      if (state.weeklyDone && state.weeklyDone[wk]) {
+        addBtn('今週の週次は完了　おかのした', 0, () => toast('来週また　流行らせコラ！', 2.0));
+      } else if (!w) {
+        addBtn('週次を用意する', 0, () => { ensureWeeklyQuest(); openBranchPanel('mission'); });
+      } else {
+        addBtn(`${w.label}　${w.progress|0}/${w.need}　＋${w.reward}`, 0, () => {
+          if (state.mission) { toast('進行中ミッションあり', 2.0); return; }
+          if (!startWeeklyAsMission()) return;
+          closeBranchPanel();
+        });
+        if (w.flavor) addBtn('フレーバー：' + shortenMsg(w.flavor, 36), 0, () => toast(w.flavor, 2.8));
+        addBtn('報酬：関係値＋語録' + (w.skin ? '＋塔スキン' : ''), 0, () => toast('完了で図鑑・絆・スキン連動', 2.4));
+      }
+      const doneN = Object.keys(state.weeklyDone || {}).length;
+      addBtn(`週次クリア累計 ${doneN}`, 0, () => toast('週は Day7 区切り', 2.0));
+    }
+
+    if (state.missionSub === 'chapter') {
+      const q = state.chapterQuest;
+      const doneN = Object.keys(state.chapterQuestDone || {}).length;
+      if (!q) {
+        const cleared = CHAPTER_MISSIONS.filter(c => state.chapterQuestDone && state.chapterQuestDone[c.id]);
+        addBtn(cleared.length >= CHAPTER_MISSIONS.length ? '四章任務コンプ　やりますねぇ' : `章任務なし（現章クリア済 or 未解放）　累計${doneN}`, 0, () => {
+          toast(cleared.map(c => c.label).join('／') || 'まだなし', 3.0);
+        });
+        for (const c of CHAPTER_MISSIONS) {
+          const on = !!(state.chapterQuestDone && state.chapterQuestDone[c.id]);
+          addBtn(`${on?'✓':'・'}${chapterName(c.ch)}　${c.label}`, 0, () => toast(on ? '完了済' : '該当章で発生', 2.0));
+        }
+      } else {
+        const L = landmarkById(q.lmId);
+        addBtn(`${q.label}　@${(L&&L.short)||'?'}　${q.progress|0}/${q.need}　＋${q.reward}`, 0, () => {
+          if (state.mission) { toast('進行中ミッションあり', 2.0); return; }
+          if (!startChapterQuestMission()) return;
+          closeBranchPanel();
+        });
+        if (q.story) addBtn(shortenMsg(q.story, 40), 0, () => toast(q.story, 3.0));
+        addBtn('報酬：関係・語録図鑑' + (q.skin ? '・塔スキン' : ''), 0, () => toast('章任務完了で収集連動', 2.2));
+      }
+    }
   }
 
   if (state.panelOpen === 'bond') {
@@ -2318,7 +2616,7 @@ function openBranchPanel(tab) {
   const tabHint = ({
     civil: '内政：施設Lv・作業員・810銀行・ロケバス',
     mili: '軍事：西東タブで砲台・トリオ　罠・覚醒でスネア／地雷／片鱗',
-    mission: 'ロケ日程：ミッション選択で進行',
+    mission: '日次／週次／章任務　報酬は関係・語録・塔スキン連動',
     bond: '関係／実績／語録図鑑／ロケ写真／塔スキン／章隠し',
   })[state.panelOpen] || '';
   hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
@@ -3921,6 +4219,8 @@ function startDay() {
   } catch (_) {}
   // ロケ日程・真夏を先にロールし、昼語録へ織り込む
   rollDaySchedule();
+  ensureWeeklyQuest();
+  ensureChapterQuest();
   rollHeatEvent();
   // 章導入（初回）→ 昼語録（関係・ロケ・真夏連動）
   const didIntro = maybeChapterIntroStory();
@@ -4163,6 +4463,12 @@ function buildSaveBlob() {
     towerSkin: state.towerSkin || 'default',
     towerSkins: Object.assign({ default: true }, state.towerSkins || {}),
     secrets: Object.assign({}, state.secrets || {}),
+    // ロケ日程・任務（旧欠落→空）
+    schedule: Array.isArray(state.schedule) ? state.schedule.map(s => Object.assign({}, s)) : [],
+    weekly: state.weekly ? Object.assign({}, state.weekly) : null,
+    weeklyDone: Object.assign({}, state.weeklyDone || {}),
+    chapterQuest: state.chapterQuest ? Object.assign({}, state.chapterQuest) : null,
+    chapterQuestDone: Object.assign({}, state.chapterQuestDone || {}),
     savedAt: Date.now(),
   };
 }
@@ -4248,6 +4554,12 @@ function applySave(d) {
   state.bestiary = Object.assign({}, d.bestiary || {});
   state.midsummer = !!d.midsummer;
   state._missionsDone = Math.max(0, d._missionsDone | 0);
+  state.schedule = Array.isArray(d.schedule) ? d.schedule.map(s => Object.assign({}, s)) : [];
+  state.weekly = d.weekly ? Object.assign({}, d.weekly) : null;
+  state.weeklyDone = Object.assign({}, d.weeklyDone || {});
+  state.chapterQuest = d.chapterQuest ? Object.assign({}, d.chapterQuest) : null;
+  state.chapterQuestDone = Object.assign({}, d.chapterQuestDone || {});
+  state.missionSub = 'day';
   state.codexQuotes = Object.assign({}, d.codexQuotes || {});
   state.locPhotos = Object.assign({}, d.locPhotos || {});
   // 既存聖地は写真解放済み扱い（旧セーブ互換）
@@ -4260,6 +4572,7 @@ function applySave(d) {
   state.secrets = Object.assign({}, d.secrets || {});
   state.collectSub = null;
   try { refreshTowerSkins(false); } catch (_) {}
+  try { ensureWeeklyQuest(); ensureChapterQuest(); } catch (_) {}
   if (!Array.isArray(d.snares)) state.snares = state.snares || [];
   if (!Array.isArray(d.mines)) state.mines = state.mines || [];
   state.dayChoiceDone = !!d.dayChoiceDone;
@@ -4398,6 +4711,12 @@ function resetGame() {
   state.mission = null;
   state.missionCd = 0;
   state.schedule = [];
+  state.weekly = null;
+  state.weeklyDone = {};
+  state.chapterQuest = null;
+  state.chapterQuestDone = {};
+  state.missionSub = 'day';
+  state._weekFilm = 0;
   state.bond = { kohai: 0, crew: 0, town: 0 };
   state.heatEvent = null;
   state.heatEventT = 0;
