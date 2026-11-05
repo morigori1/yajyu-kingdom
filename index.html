@@ -869,22 +869,60 @@ const LORE = {
     heatwave: [
       '猛暑注意報　湿度が　測定器を殴る　動け…ぬわあああん',
       'エアコンは　そうだよ　汗が　王道を征く',
+      '熱中症の影　アイスティーしかなかったけどいいかな？',
     ],
     bbq_wind: [
       '焼肉の風　まずうちさぁ…屋上あんだけど…　あ〜いいっすね〜',
       '朝コインが　香りと一緒に　ありますあります',
+      '屋上の煙　湿度↑　ま、多少はね？',
     ],
     laundry_day: [
       '洗濯日和　ランドリーが　くさいを褒める　いいゾ〜これ',
       'コインランドリー　湿度↓　乾いた汗は　まだ嘘をつく',
+      '夕立の前に　乾かせ　おかのした',
     ],
     gaze_sun: [
       '眼光の太陽　噂の…眼光　見とけよ見とけよ〜',
       '昼なのに　眼光が　キタ！（来るな）',
+      '太陽が　迫真　熱中症リスク↑',
     ],
     '810_festival': [
       '810祭　銀行が踊る　やっと　やりますねぇ',
       '利息＋1　おかのした　財布？　あっ（察し）',
+      '祭りの汗　麦茶が　ありますあります',
+    ],
+    evening_shower: [
+      '夕立予報　雲が　こ↑こ↓　湿度が先に来る',
+      '短い雨　熱を流す　でも汗は嘘をつく',
+      '夕立のあと　自販機が光る　810',
+      '鉛色の空　撮影班がシートを被る　リスク↓　湿度↑',
+      '夕立の匂い　あり…ますあります　麦茶が欲しい',
+    ],
+    mugicha_day: [
+      '麦茶の日　麦茶は麦じゃない（迫真）　冷えてるゾ',
+      '部室の麦茶　いいかな？（念押し）　湿度↓',
+      '麦茶を淹れる音　114514　おかのした',
+      'ポットが歌う　後輩「麦茶は麦じゃない」　リスク↓',
+      '配布開始　街が琥珀色　やりますねぇ',
+    ],
+    heatstroke_warn: [
+      '熱中症注意報　動けぬわあああん　アイスティー／麦茶を',
+      '測定器が悲鳴　湿度114514　リスクが赤い',
+      '熱中症の影　クゥーン…　でも王道を征く',
+      '赤い縁　視界が揺れる　Tキーで冷やせ',
+      'リスクが92を超えると　ひるむ　茶を飲め',
+    ],
+    steam_haze: [
+      '湯気の蜃気楼　微粒子レベルで存在している　ロケが揺れる',
+      'アスファルトが　泳ぐ　すっごい綺麗…（幻覚）',
+      '湯気　あり…ますあります　撮影班がレンズを拭く',
+      '蜃気楼の中　後輩の輪郭が　こ↑こ↓',
+      'フィルムに湯気が乗る　撮影カット＋',
+    ],
+    ice_stand: [
+      'アイスの屋台　冷えてるゾ　汗が嘘をつく前に',
+      'ソフトが溶ける　湿度↓　リスク↓　いいかな？（念押し）',
+      'かき氷810　赤の縁が薄れる　おかのした',
     ],
   },
 };
@@ -1079,8 +1117,15 @@ function heatFlavorSuffix() {
     laundry_day: '　洗濯日和',
     gaze_sun: '　眼光の太陽',
     '810_festival': '　810祭',
+    evening_shower: '　夕立予報',
+    mugicha_day: '　麦茶の日',
+    heatstroke_warn: '　熱中症注意',
+    ice_stand: '　アイス屋台',
+    steam_haze: '　湯気蜃気楼',
   };
-  return map[id] || ('　真夏:' + id);
+  let s = map[id] || ('　真夏:' + id);
+  if ((state.heatRisk | 0) >= 70) s += '　熱中症↑';
+  return s;
 }
 function storyCompose(base, opts) {
   opts = opts || {};
@@ -1277,6 +1322,10 @@ const state = {
   skillStunT: 0,       // 敵スロー残り
   dayChoiceDone: false,
   icedTeaStock: 1,     // 所持アイスティー
+  mugichaStock: 0,     // 所持麦茶 0..3
+  heatRisk: 0,         // 熱中症リスク 0..100
+  heatFlags: {},       // 真夏Evt既出／熱中症など
+  heatStunT: 0,        // 熱中症ひるみ秒
   animT: 0,            // グローバルアニメ時刻
   nightSway: 0,
   shakeT: 0,
@@ -1336,6 +1385,8 @@ const state = {
   heatEvent: null,     // 真夏イベント id
   heatEventT: 0,
   midsummer: false,
+  _heatSeen: 0,        // 真夏Evt累計回数
+  _mugichaDrunk: 0,
   achievements: {},    // id -> true
   bestiary: {},        // enemy name -> kills
   filmShots: 0,        // 累計撮影カット
@@ -1523,6 +1574,14 @@ const ACH_DEFS = [
   { id: 'bank24', name: '810残高24', check: () => state.bank>=24 },
   { id: 'sweat30', name: '汗ドロップ30', check: () => (state.sweatDrops|0)>=30 },
   { id: 'midsummer', name: '真夏の王', check: () => !!state.midsummer && state.day>=5 },
+  { id: 'heat_evt3', name: '真夏Evt3種', check: () => Object.keys(state.heatFlags||{}).filter(k => String(k).indexOf('hev_')===0).length>=3 },
+  { id: 'heat_evt6', name: '真夏Evt6種', check: () => Object.keys(state.heatFlags||{}).filter(k => String(k).indexOf('hev_')===0).length>=6 },
+  { id: 'heatstroke1', name: '熱中症を越えて', check: () => !!(state.heatFlags && state.heatFlags.heatstroke_hit) },
+  { id: 'mugicha5', name: '麦茶5杯', check: () => (state._mugichaDrunk|0)>=5 },
+  { id: 'risk0_day', name: 'リスク冷却', check: () => !!(state.heatFlags && state.heatFlags.risk_cooled) },
+  { id: 'shower3', name: '夕立3回', check: () => (state.heatFlags && (state.heatFlags.shower_count|0))>=3 },
+  { id: 'ice3', name: 'アイス3回', check: () => (state.heatFlags && (state.heatFlags.ice_eaten|0))>=3 },
+  { id: 'heat_evt9', name: '真夏Evt全種', check: () => Object.keys(state.heatFlags||{}).filter(k => String(k).indexOf('hev_')===0).length>=9 },
   { id: 'mission5', name: 'ミッション5', check: () => (state._missionsDone|0)>=5 },
   { id: 'mission15', name: 'ミッション15', check: () => (state._missionsDone|0)>=15 },
   { id: 'weekly1', name: '週次ロケ1', check: () => Object.keys(state.weeklyDone||{}).length>=1 },
@@ -1589,6 +1648,17 @@ const CODEX_QUOTES = (() => {
     ['qe_genkai', 3, 'bondevt', '語録の限界集合'],
     ['qe_blackcar', 2, 'bondevt', '黒塗りの高級車が急ブレーキ'],
     ['qe_vend810', 0, 'bondevt', '810円の自販機が出現'],
+    // 真夏・天候
+    ['qh_heatwave', 0, 'heat', '猛暑注意報　動け…ぬわあああん'],
+    ['qh_shower', 0, 'heat', '夕立予報　雲が　こ↑こ↓'],
+    ['qh_mugicha', 0, 'heat', '麦茶は麦じゃない（迫真）'],
+    ['qh_stroke', 0, 'heat', '熱中症注意報　アイスティー／麦茶を'],
+    ['qh_steam', 2, 'heat', '湯気の蜃気楼　微粒子レベルで存在している'],
+    ['qh_ice', 0, 'heat', 'アイス屋台　冷えてるゾ　かき氷810'],
+    ['qh_bbq', 0, 'heat', '焼肉の風　まずうちさぁ…屋上あんだけど…'],
+    ['qh_laundry', 0, 'heat', '洗濯日和　くさいを褒める'],
+    ['qh_gaze', 1, 'heat', '眼光の太陽　見とけよ見とけよ〜'],
+    ['qh_810', 0, 'heat', '810祭　銀行が踊る　やっと'],
   ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
   return out;
 })();
@@ -1755,7 +1825,7 @@ function renderCollectBox(parent, sub) {
       rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${on ? '✓' : '・'}</span>${a.name}</div>`);
     }
   } else if (sub === 'codex') {
-    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係', share: '共有', collapse: '崩壊', bondevt: '関係Evt' };
+    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係', share: '共有', collapse: '崩壊', bondevt: '関係Evt', heat: '真夏' };
     for (const q of CODEX_QUOTES) {
       const on = !!state.codexQuotes[q.id];
       const label = on ? shortenMsg(fillDayToken(q.raw), 42) : '？？？';
@@ -1816,6 +1886,9 @@ const BOND_NPCS = [
       { id: 'towel', label: '汗の手ぬぐい', cost: 1, gain: 5, need: 0,
         line: '後輩「すっごい綺麗…」　手ぬぐいが光る',
         codexIds: ['qs_kirei', 'qb_kohai2'] },
+      { id: 'mugicha', label: '麦茶を渡す', cost: 1, gain: 6, need: 5,
+        line: '後輩「麦茶は麦じゃない」　いいかな？（念押し）　湿度↓',
+        codexIds: ['qh_mugicha', 'qs_iikana'] },
     ],
     joints: [
       { id: 'jk_kitazawa', label: '部室〜北沢共同ロケ', lmId: 'kitazawa', needBond: 20, need: 2, reward: 1, bondGain: 6,
@@ -2037,6 +2110,12 @@ function doBondGift(key, giftId) {
   state.bondGiftDay[gk] = state.day | 0;
   state._bondGifts = (state._bondGifts | 0) + 1;
   bumpBond(key, g.gain | 0);
+  if (g.id === 'mugicha' || g.id === 'tea') {
+    ensureHeatState();
+    state.humidity = clamp(state.humidity - 10, 0, 100);
+    state.heatRisk = clamp((state.heatRisk | 0) - 8, 0, 100);
+    updateHumidityHud();
+  }
   if (g.codexIds) for (const id of g.codexIds) unlockCodexId(id, true);
   toast('ギフト　' + g.label, 2.2);
   story(storyCompose(g.line, { bond: true, schedule: true, heat: true }), 2.6);
@@ -2129,6 +2208,9 @@ const MISSION_KINDS = [
     bond: { town: 3 }, flavor: () => pick(['クゥーン…', 'ま、多少はね？', 'おかのした']) },
   { id: 'sweat', label: '汗集めロケ', need: 3, reward: () => 1,
     bond: { kohai: 2 }, flavor: () => pick(['微粒子レベルで存在している', '汗系ですか', 'クゥーン…', 'すっごい綺麗…']) },
+  { id: 'summer', label: '真夏密着ロケ', need: 3, reward: () => 2 + (state.midsummer ? 1 : 0),
+    bond: { kohai: 2, town: 2 }, codexIds: ['qh_heatwave', 'qh_mugicha'], chapterMin: 0,
+    flavor: () => pick(['猛暑注意報', '麦茶は麦じゃない', '夕立予報', '熱中症注意報']) },
   { id: 'bus', label: 'ロケバス往復', need: 1, reward: () => 3,
     bond: { crew: 3 }, flavor: () => pick(['ありますあります', 'おかのした', 'いいよ！こいよ！']) },
   { id: 'collab', label: '共有語録ロケ', need: 3, reward: () => 3 + (state.chapter | 0),
@@ -2160,6 +2242,9 @@ const WEEKLY_DEFS = [
     bond: { crew: 6 }, codexIds: ['qs_arimasu'], flavor: 'ありますあります　週の汗' },
   { id: 'w_sweat', label: '週次・汗の王', kind: 'sweat', need: 8, reward: 6,
     bond: { kohai: 5, town: 2 }, codexIds: ['qs_kuun'], flavor: 'クゥーン…　汗は嘘をつく' },
+  { id: 'w_summer', label: '週次・真夏の王', kind: 'summer', need: 7, reward: 7,
+    bond: { kohai: 4, town: 4 }, codexIds: ['qh_stroke', 'qh_shower', 'qh_mugicha'],
+    flavor: '真夏を征く　熱中症を越えて　夕立と麦茶' },
   { id: 'w_collapse', label: '週次・崩壊の片鱗', kind: 'collapse', need: 5, reward: 10,
     bond: { town: 6, crew: 4 }, codexIds: ['qc_hayarase', 'qc_naa', 'qc_obs'], skin: 'particle',
     flavor: '流行らせコラ！（世界の催促）　微粒子レベルで存在している' },
@@ -2336,7 +2421,7 @@ function tickMission(dt) {
   if (!m) return;
   const L = landmarkById(m.lmId);
   if (!L) { state.mission = null; return; }
-  const stayKinds = { film: 1, sweat: 1, collab: 1, collapse: 1 };
+  const stayKinds = { film: 1, sweat: 1, collab: 1, collapse: 1, summer: 1 };
   if (stayKinds[m.kind]) {
     if (Math.abs(player.x - L.x) < 70 && !state.isNight) {
       m._acc = (m._acc || 0) + dt;
@@ -2348,6 +2433,17 @@ function tickMission(dt) {
         if (m.kind === 'sweat') {
           state.sweatDrops = (state.sweatDrops | 0) + 1;
           spawnMeme(L.x, GROUND_Y - 50, '汗');
+        } else if (m.kind === 'summer') {
+          ensureHeatState();
+          state.sweatDrops = (state.sweatDrops | 0) + 1;
+          state.heatRisk = clamp((state.heatRisk | 0) + 3, 0, 100);
+          spawnMeme(L.x, GROUND_Y - 50, '真夏');
+          if (state.heatEvent === 'mugicha_day') unlockCodexId('qh_mugicha', true);
+          else if (state.heatEvent === 'evening_shower') unlockCodexId('qh_shower', true);
+          else if (state.heatEvent === 'heatstroke_warn') unlockCodexId('qh_stroke', true);
+          else if (state.heatEvent === 'steam_haze') unlockCodexId('qh_steam', true);
+          else if (state.heatEvent === 'ice_stand') unlockCodexId('qh_ice', true);
+          else unlockCodexId('qh_heatwave', true);
         } else if (m.kind === 'collapse') {
           spawnMeme(L.x, GROUND_Y - 50, '観測');
           screenFlash('rgba(180,200,255,0.14)', 0.08);
@@ -2414,36 +2510,144 @@ function completeMission() {
   saveGame(true);
 }
 
+const HEAT_EVENT_DEFS = [
+  { id: 'heatwave', name: '猛暑注意報', humid: 18, risk: 12, desc: '湿度急上昇　移動↓', codex: 'qh_heatwave' },
+  { id: 'bbq_wind', name: '焼肉の風', humid: 8, risk: 4, desc: '朝コイン微増　湿度↑', codex: 'qh_bbq' },
+  { id: 'laundry_day', name: '洗濯日和', humid: -12, risk: -6, desc: 'ランドリー聖地収入↑', codex: 'qh_laundry' },
+  { id: 'gaze_sun', name: '眼光の太陽', humid: 10, risk: 8, desc: '夜の眼光敵が増えやすい', codex: 'qh_gaze' },
+  { id: '810_festival', name: '810祭', humid: 0, risk: 0, desc: '銀行利息一時＋1', codex: 'qh_810' },
+  { id: 'evening_shower', name: '夕立予報', humid: 4, risk: -2, desc: '昼終盤に夕立が来やすい', codex: 'qh_shower' },
+  { id: 'mugicha_day', name: '麦茶の日', humid: -8, risk: -8, desc: '麦茶配布　湿度↓', codex: 'qh_mugicha' },
+  { id: 'heatstroke_warn', name: '熱中症注意報', humid: 22, risk: 22, desc: 'リスク急上昇　冷却必須', codex: 'qh_stroke' },
+  { id: 'steam_haze', name: '湯気の蜃気楼', humid: 14, risk: 10, desc: '視界ゆらぎ　撮影↑', codex: 'qh_steam' },
+  { id: 'ice_stand', name: 'アイス屋台', humid: -14, risk: -16, desc: 'ソフト／かき氷　冷却', codex: 'qh_ice' },
+];
+
+function heatEventDef(id) {
+  return HEAT_EVENT_DEFS.find(e => e.id === id) || null;
+}
+
+function ensureHeatState() {
+  if (state.mugichaStock == null) state.mugichaStock = 0;
+  if (state.heatRisk == null) state.heatRisk = 0;
+  if (!state.heatFlags) state.heatFlags = {};
+  if (state.heatStunT == null) state.heatStunT = 0;
+  if (state._heatSeen == null) state._heatSeen = 0;
+  if (state._mugichaDrunk == null) state._mugichaDrunk = 0;
+}
+
 function rollHeatEvent() {
-  // 真夏イベント（昼開始時）
+  ensureHeatState();
   state.heatEvent = null;
   state.heatEventT = 0;
   if (state.day < 2) return;
   const roll = Math.random();
-  if (state.humidity >= 70 || roll < 0.28) {
-    state.midsummer = true;
-    const evs = [
-      { id: 'heatwave', name: '猛暑注意報', humid: 18, desc: '湿度急上昇　移動↓' },
-      { id: 'bbq_wind', name: '焼肉の風', humid: 8, desc: '朝コイン微増　湿度↑' },
-      { id: 'laundry_day', name: '洗濯日和', humid: -12, desc: 'ランドリー聖地収入↑' },
-      { id: 'gaze_sun', name: '眼光の太陽', humid: 10, desc: '夜の眼光敵が増えやすい' },
-      { id: '810_festival', name: '810祭', humid: 0, desc: '銀行利息一時＋1' },
-    ];
-    const ev = evs[(state.day + state.weatherSeed) % evs.length];
-    state.heatEvent = ev.id;
-    state.heatEventT = state.dayLength;
-    state.humidity = clamp(state.humidity + (ev.humid || 0), 0, 100);
-    const hs = (LORE.heatStory && LORE.heatStory[ev.id]) ? pick(LORE.heatStory[ev.id]) : (ev.name + '　' + ev.desc);
-    toast(`真夏イベント　${ev.name}　${ev.desc}`, 3.4);
-    state._heatStoryPending = storyCompose(hs + '　' + chapterName(state.chapter), { bond: true, schedule: true, heat: false });
-    if (ev.id === 'bbq_wind') state.coins += 1;
-    if (ev.id === '810_festival') state.bank += 1;
+  const force = state.humidity >= 68 || (state.heatRisk | 0) >= 55;
+  if (!(force || roll < 0.34 + Math.min(0.2, (state.day | 0) * 0.01))) return;
+  state.midsummer = true;
+  // 湿度・リスク帯で候補を寄せる
+  let pool = HEAT_EVENT_DEFS.slice();
+  if ((state.humidity | 0) >= 75) pool = pool.filter(e => e.humid >= 0 || e.id === 'evening_shower' || e.id === 'laundry_day');
+  if ((state.heatRisk | 0) >= 60) pool = pool.filter(e => e.id === 'heatstroke_warn' || e.id === 'evening_shower' || e.id === 'mugicha_day' || e.id === 'laundry_day' || e.id === 'ice_stand');
+  if (!pool.length) pool = HEAT_EVENT_DEFS.slice();
+  const ev = pool[(state.day + state.weatherSeed + (state._heatSeen | 0)) % pool.length];
+  state.heatEvent = ev.id;
+  state.heatEventT = state.dayLength;
+  state.humidity = clamp(state.humidity + (ev.humid || 0), 0, 100);
+  state.heatRisk = clamp((state.heatRisk | 0) + (ev.risk || 0), 0, 100);
+  state.heatFlags['hev_' + ev.id] = true;
+  state._heatSeen = (state._heatSeen | 0) + 1;
+  if (ev.codex) unlockCodexId(ev.codex, true);
+  const hs = (LORE.heatStory && LORE.heatStory[ev.id]) ? pick(LORE.heatStory[ev.id]) : (ev.name + '　' + ev.desc);
+  toast(`真夏イベント　${ev.name}　${ev.desc}`, 3.4);
+  state._heatStoryPending = storyCompose(hs + '　' + chapterName(state.chapter), { bond: true, schedule: true, heat: false });
+  if (ev.id === 'bbq_wind') state.coins += 1;
+  if (ev.id === '810_festival') { state.bank += 1; state.mugichaStock = Math.min(3, (state.mugichaStock | 0) + 1); }
+  if (ev.id === 'mugicha_day') state.mugichaStock = Math.min(3, (state.mugichaStock | 0) + 2);
+  if (ev.id === 'steam_haze') state.filmShots = (state.filmShots | 0) + 1;
+  if (ev.id === 'evening_shower') state.rainCool = Math.min(state.rainCool | 0, 6);
+  if (ev.id === 'ice_stand') {
+    state.heatRisk = clamp((state.heatRisk | 0) - 8, 0, 100);
+    state.sweatDrops = (state.sweatDrops | 0) + 1;
   }
+  try { checkAchievements(); } catch (_) {}
 }
 
 function heatExtraInterest() {
   return state.heatEvent === '810_festival' ? 1 : 0;
 }
+
+function heatHumidTickMul() {
+  const id = state.heatEvent;
+  if (id === 'heatwave' || id === 'heatstroke_warn') return 1.45;
+  if (id === 'steam_haze' || id === 'gaze_sun') return 1.2;
+  if (id === 'bbq_wind') return 1.12;
+  if (id === 'laundry_day' || id === 'mugicha_day' || id === 'ice_stand') return 0.72;
+  if (id === 'evening_shower') return 0.9;
+  return 1;
+}
+
+function tickHeatRisk(dt, moving) {
+  ensureHeatState();
+  if (state.heatStunT > 0) state.heatStunT = Math.max(0, state.heatStunT - dt);
+  const h = state.humidity | 0;
+  let d = 0;
+  if (h >= 85) d += moving ? 7 : 3.5;
+  else if (h >= 70) d += moving ? 4 : 1.5;
+  else if (h >= 55) d += moving ? 1.6 : 0.2;
+  else if (h <= 35) d -= 4;
+  else d -= 1.2;
+  if (state.heatEvent === 'heatstroke_warn') d += 3;
+  if (state.heatEvent === 'heatwave') d += 2;
+  if (state.heatEvent === 'mugicha_day' || state.heatEvent === 'laundry_day' || state.heatEvent === 'ice_stand') d -= 1.5;
+  if (state.rainT > 0) d -= 5;
+  state.heatRisk = clamp((state.heatRisk | 0) + d * dt, 0, 100);
+  if ((state.heatRisk | 0) >= 92 && !state.heatStunT) {
+    triggerHeatstroke();
+  }
+  if ((state.heatRisk | 0) <= 15 && (state.heatFlags && state.heatFlags.heatstroke_hit) && !state.heatFlags.risk_cooled) {
+    state.heatFlags.risk_cooled = true;
+    try { checkAchievements(); } catch (_) {}
+  }
+}
+
+function triggerHeatstroke() {
+  ensureHeatState();
+  if (state.heatFlags._strokeCdDay === (state.day | 0)) return;
+  state.heatFlags._strokeCdDay = state.day | 0;
+  state.heatFlags.heatstroke_hit = true;
+  state.heatStunT = 2.4;
+  state.heatRisk = clamp((state.heatRisk | 0) - 18, 40, 100);
+  state.humidity = clamp(state.humidity + 4, 0, 100);
+  unlockCodexId('qh_stroke', true);
+  toast('熱中症…！　動けぬわ　アイスティー／麦茶！', 3.2);
+  story(storyCompose('熱中症注意報　クゥーン…　でも王道を征く　茶を飲め', { bond: true, schedule: true, heat: true }), 2.8);
+  spawnMeme(player.x, GROUND_Y - 70, 'ぬわあああん');
+  shake(4, 0.35);
+  screenFlash('rgba(255,80,60,0.28)', 0.35);
+  try { checkAchievements(); } catch (_) {}
+}
+
+function tryDrinkMugicha() {
+  ensureHeatState();
+  if (!state.running || state.over) return false;
+  if ((state.mugichaStock | 0) <= 0) {
+    toast('麦茶切れ…部室で淹れよ　麦茶は麦じゃない', 2.2);
+    return false;
+  }
+  state.mugichaStock--;
+  state._mugichaDrunk = (state._mugichaDrunk | 0) + 1;
+  state.humidity = clamp(state.humidity - 24, 0, 100);
+  state.heatRisk = clamp((state.heatRisk | 0) - 28, 0, 100);
+  unlockCodexId('qh_mugicha', true);
+  toast('麦茶は麦じゃない（迫真）　湿度↓　リスク↓', 2.6);
+  spawnMeme(player.x, GROUND_Y - 50, '麦茶');
+  story(storyCompose('麦茶を飲む　冷えてるゾ　いいかな？（念押し）', { bond: true, schedule: false, heat: true }), 2.2);
+  updateHumidityHud();
+  try { checkAchievements(); } catch (_) {}
+  return true;
+}
+
 
 function closeBranchPanel() {
   const panel = document.getElementById('choice-panel');
@@ -2503,7 +2707,9 @@ function openBranchPanel(tab) {
   if (!state.bond) state.bond = { kohai:0, crew:0, town:0 };
   ensureCollectState();
   const _cc = collectCounts();
-  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}　隠し${_cc.secret}`;
+  ensureHeatState();
+  const _hev = heatEventDef(state.heatEvent);
+  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}<br>収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}　隠し${_cc.secret}`;
   btns.appendChild(meta);
   title.textContent = ({
     civil: '【内政パネル】施設・作業員・バス',
@@ -3402,10 +3608,16 @@ function updateHumidityHud() {
   const v = document.getElementById('humid-val');
   const b = document.getElementById('humid-bar');
   if (!v || !b) return;
+  ensureHeatState();
   const h = Math.round(state.humidity);
-  v.textContent = h;
-  v.style.color = humidColor(h);
+  const r = state.heatRisk | 0;
+  v.textContent = h + (r >= 50 ? ('/' + r) : '');
+  v.style.color = r >= 80 ? '#ff4466' : humidColor(h);
   b.style.width = clamp(h, 0, 100) + '%';
+  b.style.background = r >= 70
+    ? 'linear-gradient(90deg,#f84,#f66)'
+    : (state.heatEvent === 'evening_shower' ? 'linear-gradient(90deg,#6af,#9cf)'
+      : (state.heatEvent === 'mugicha_day' ? 'linear-gradient(90deg,#c9a227,#6a4)' : ''));
 }
 
 function trySkill() {
@@ -3431,17 +3643,22 @@ function trySkill() {
 }
 
 function tryDrinkTea() {
+  ensureHeatState();
   if (!state.running || state.over) return;
   if (state.icedTeaStock <= 0) {
-    toast('アイスティー切れ…部室で補給せよ');
+    // アイスティー切れ→麦茶へフォールバック
+    if ((state.mugichaStock | 0) > 0) { tryDrinkMugicha(); return; }
+    toast('アイスティー切れ…部室で補給／麦茶を');
     spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?');
     return;
   }
   state.icedTeaStock--;
   state.humidity = clamp(state.humidity - 32, 0, 100);
+  state.heatRisk = clamp((state.heatRisk | 0) - 22, 0, 100);
   structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 4);
-  toast('アイスティーしかなかったけどいいかな？　湿度↓', 2.6);
+  toast('アイスティーしかなかったけどいいかな？　湿度↓　リスク↓', 2.6);
   spawnMeme(player.x, GROUND_Y - 50, 'Foo↑');
+  unlockCodexId('qs_iikana', true);
   updateHumidityHud();
 }
 
@@ -3475,7 +3692,8 @@ function openDayChoice() {
   const panel = document.getElementById('choice-panel');
   const title = document.getElementById('choice-title');
   const btns = document.getElementById('choice-btns');
-  title.textContent = `Day${state.day}　昼の選択　湿度 ${Math.round(state.humidity)}%`;
+  ensureHeatState();
+  title.textContent = `Day${state.day}　昼の選択　湿度 ${Math.round(state.humidity)}%　熱中症${state.heatRisk|0}` + (state.heatEvent ? '　'+heatFlavorSuffix().trim() : '');
   const options = [
     {
       label: '屋上で焼肉　あ〜いいっすね〜（＋コイン／湿度↑）',
@@ -3489,15 +3707,52 @@ function openDayChoice() {
       }
     },
     {
-      label: '部室でアイスティー（湿度↓／在庫+1）',
+      label: '部室でアイスティー（湿度↓／在庫+1／リスク↓）',
       run() {
+        ensureHeatState();
         state.humidity = clamp(state.humidity - 22, 0, 100);
+        state.heatRisk = clamp((state.heatRisk | 0) - 16, 0, 100);
         state.icedTeaStock = Math.min(3, state.icedTeaStock + 1);
         structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 8);
         bumpBond('kohai', 2);
-        toast('アイスティー補給　湿度下がった', 2.6);
-        story('アイスティーしかなかったけどいいかな？', 2.6);
+        unlockCodexId('qs_iikana', true);
+        toast('アイスティー補給　湿度・リスク↓', 2.6);
+        story(storyCompose('アイスティーしかなかったけどいいかな？', { bond: true, schedule: false, heat: true }), 2.6);
         spawnMeme(0, GROUND_Y - 70, 'Foo↑');
+      }
+    },
+    {
+      label: '麦茶を淹れる（麦茶+2／湿度↓／リスク↓）',
+      run() {
+        ensureHeatState();
+        state.humidity = clamp(state.humidity - 18, 0, 100);
+        state.heatRisk = clamp((state.heatRisk | 0) - 20, 0, 100);
+        state.mugichaStock = Math.min(3, (state.mugichaStock | 0) + 2);
+        bumpBond('kohai', 1); bumpBond('town', 1);
+        unlockCodexId('qh_mugicha', true);
+        toast('麦茶は麦じゃない　在庫' + state.mugichaStock, 2.6);
+        story(storyCompose('麦茶を淹れる　冷えてるゾ　おかのした', { bond: true, schedule: false, heat: true }), 2.6);
+        spawnMeme(0, GROUND_Y - 70, '麦茶');
+      }
+    },
+    {
+      label: 'アイスを買う（1🪙　湿度↓／リスク↓／汗＋）',
+      needCoins: 1,
+      run() {
+        ensureHeatState();
+        if (state.coins < 1) { toast('コイン不足…アイスは810の夢', 2.2); return; }
+        state.coins -= 1;
+        state.humidity = clamp(state.humidity - 20, 0, 100);
+        state.heatRisk = clamp((state.heatRisk | 0) - 22, 0, 100);
+        state.sweatDrops = (state.sweatDrops | 0) + 1;
+        state.heatFlags.ice_eaten = (state.heatFlags.ice_eaten | 0) + 1;
+        bumpBond('kohai', 2); bumpBond('town', 1);
+        unlockCodexId('qh_ice', true);
+        toast('アイス　冷えてるゾ　リスク↓', 2.6);
+        story(storyCompose('アイス屋台　かき氷810　いいかな？（念押し）', { bond: true, schedule: false, heat: true }), 2.6);
+        spawnMeme(0, GROUND_Y - 70, 'アイス');
+        updateHumidityHud();
+        try { checkAchievements(); } catch (_) {}
       }
     },
     {
@@ -3526,6 +3781,7 @@ function openDayChoice() {
   ];
   btns.innerHTML = '';
   for (const opt of options) {
+    if ((opt.needCoins | 0) > 0 && (state.coins | 0) < (opt.needCoins | 0)) continue;
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = opt.label;
@@ -3590,8 +3846,12 @@ function morningCivilIncome() {
 }
 
 function playerSpeedMul() {
+  if ((state.heatStunT || 0) > 0) return 0.15;
   let m = 1;
   if (state.humidity >= 80) m *= 0.78;
+  if (state.heatEvent === 'heatstroke_warn') m *= 0.82;
+  if (state.heatEvent === 'heatwave') m *= 0.9;
+  if (state.heatEvent === 'steam_haze') m *= 0.94;
   else if (state.humidity >= 65) m *= 0.9;
   if (state.humidity <= 18) m *= 0.92; // 乾きすぎても微妙に鈍い
   if (state.gazeT > 0) m *= 0.82;
@@ -4326,12 +4586,60 @@ function shopSpots() {
     branch: 'civil',
     label: `【内政】アイスティー補給（${state.icedTeaStock}/3）`,
     buy() {
+      ensureHeatState();
       if (state.icedTeaStock >= 3) return false;
       state.icedTeaStock++;
       state.humidity = clamp(state.humidity - 12, 0, 100);
+      state.heatRisk = clamp((state.heatRisk | 0) - 10, 0, 100);
       toast('アイスティーしかなかったけどいいかな？');
       spawnMeme(-55, GROUND_Y - 55, 'Foo↑');
       updateHumidityHud();
+      return true;
+    }
+  });
+  // 麦茶を淹れる（部室）
+  spots.push({
+    id: 'mugicha',
+    x: -20,
+    r: 36,
+    cost: 1,
+    can: (state.mugichaStock | 0) < 3,
+    branch: 'civil',
+    label: `【内政】麦茶を淹れる（${state.mugichaStock|0}/3）`,
+    buy() {
+      ensureHeatState();
+      if ((state.mugichaStock | 0) >= 3) return false;
+      state.mugichaStock = Math.min(3, (state.mugichaStock | 0) + 1);
+      state.humidity = clamp(state.humidity - 8, 0, 100);
+      state.heatRisk = clamp((state.heatRisk | 0) - 12, 0, 100);
+      unlockCodexId('qh_mugicha', true);
+      toast('麦茶は麦じゃない（迫真）　在庫' + state.mugichaStock);
+      spawnMeme(-20, GROUND_Y - 55, '麦茶');
+      updateHumidityHud();
+      return true;
+    }
+  });
+  // アイス屋台（部室前）
+  spots.push({
+    id: 'ice-stand',
+    x: -55,
+    r: 36,
+    cost: 1,
+    can: state.coins >= 1 && (state.humidity | 0) >= 40,
+    label: `【内政】アイスを買う（1🪙　湿度${state.humidity|0}／熱中症${state.heatRisk|0}）`,
+    do() {
+      ensureHeatState();
+      if (state.coins < 1) return false;
+      state.coins -= 1;
+      state.humidity = clamp(state.humidity - 16, 0, 100);
+      state.heatRisk = clamp((state.heatRisk | 0) - 18, 0, 100);
+      state.sweatDrops = (state.sweatDrops | 0) + 1;
+      state.heatFlags.ice_eaten = (state.heatFlags.ice_eaten | 0) + 1;
+      unlockCodexId('qh_ice', true);
+      toast('アイス　冷えてるゾ　リスク↓');
+      spawnMeme(-20, GROUND_Y - 55, 'アイス');
+      updateHumidityHud();
+      try { checkAchievements(); } catch (_) {}
       return true;
     }
   });
@@ -4496,9 +4804,16 @@ function startNight() {
   saveGame(true);
   screenFlash('rgba(40,20,80,0.35)', 0.35);
   shake(2, 0.2);
-  if (state.midsummer || state.heatEvent === 'heatwave') {
+  ensureHeatState();
+  if (state.midsummer || state.heatEvent === 'heatwave' || state.heatEvent === 'heatstroke_warn') {
     state.humidity = clamp(state.humidity + 6, 0, 100);
+    state.heatRisk = clamp((state.heatRisk | 0) + 5, 0, 100);
   }
+  if (state.heatEvent === 'evening_shower') {
+    state.humidity = clamp(state.humidity + 3, 0, 100);
+    state.heatRisk = clamp((state.heatRisk | 0) - 4, 0, 100);
+  }
+  if (state.heatEvent === 'steam_haze') state.humidity = clamp(state.humidity + 4, 0, 100);
   const nline = nightOpenLine();
   toast(`Night ${state.day} — ${shortenMsg(nline, 48)}`, 3.4);
   story(nline, 3.6);
@@ -4605,6 +4920,9 @@ function startDay() {
     if (((state.bond && state.bond.town) | 0) >= 40) bonus += 1;
     if (state.heatEvent === 'bbq_wind') bonus += 1;
     if (state.heatEvent === '810_festival') bonus += 1;
+    if (state.heatEvent === 'mugicha_day') bonus += 1;
+    if (state.heatEvent === 'steam_haze') { bonus += 1; state.sweatDrops = (state.sweatDrops|0)+1; }
+    if (state.heatEvent === 'heatstroke_warn' && (state.heatRisk|0) >= 70) bonus = Math.max(1, bonus - 1);
     state.coins += bonus;
     const mline = pick(LORE.morning) + (state.heatEvent ? heatFlavorSuffix() : '');
     toast(`${mline} ＋${bonus}コイン`, 3.2);
@@ -4775,6 +5093,12 @@ function buildSaveBlob() {
     bank: state.bank,
     humidity: state.humidity,
     icedTeaStock: state.icedTeaStock,
+    mugichaStock: state.mugichaStock | 0,
+    heatRisk: state.heatRisk | 0,
+    heatFlags: Object.assign({}, state.heatFlags || {}),
+    heatEvent: state.heatEvent || null,
+    _heatSeen: state._heatSeen | 0,
+    _mugichaDrunk: state._mugichaDrunk | 0,
     landmarks: Object.assign({}, state.landmarks),
     facility: Object.assign({}, state.facility),
     island: 0,
@@ -4880,6 +5204,14 @@ function applySave(d) {
   state.bank = Math.max(0, d.bank | 0);
   state.humidity = clamp(+d.humidity || 42, 0, 100);
   state.icedTeaStock = clamp(d.icedTeaStock | 0, 0, 3);
+  state.mugichaStock = clamp(d.mugichaStock | 0, 0, 3);
+  state.heatRisk = clamp(d.heatRisk | 0, 0, 100);
+  state.heatFlags = Object.assign({}, d.heatFlags || {});
+  state.heatEvent = d.heatEvent || null;
+  state.heatEventT = 0;
+  state.heatStunT = 0;
+  state._heatSeen = Math.max(0, d._heatSeen | 0);
+  state._mugichaDrunk = Math.max(0, d._mugichaDrunk | 0);
   state.landmarks = migrateIslandSave(d);
   state.facility = Object.assign({}, d.facility || {});
   for (const id of Object.keys(state.landmarks)) {
@@ -5096,6 +5428,12 @@ function resetGame() {
   state.heatEvent = null;
   state.heatEventT = 0;
   state.midsummer = false;
+  state.mugichaStock = 0;
+  state.heatRisk = 0;
+  state.heatFlags = {};
+  state.heatStunT = 0;
+  state._heatSeen = 0;
+  state._mugichaDrunk = 0;
   state.achievements = {};
   state.bestiary = {};
   state.filmShots = 0;
@@ -5291,15 +5629,17 @@ function update(dt) {
   // 壁の内側に制限しすぎない（探索可）。ワールド端のみ
   player.x = clamp(player.x, world.leftBound + 40, world.rightBound - 40);
 
-  // 湿度本計算
-  if (Math.abs(input) > 0) state.humidity += humidRate * dt * (state.isNight ? 1.35 : 1);
-  else if (nearCamp) state.humidity -= 3.2 * dt;
+  // 湿度本計算（真夏Evt倍率）
+  const hMul = heatHumidTickMul();
+  if (Math.abs(input) > 0) state.humidity += humidRate * dt * (state.isNight ? 1.35 : 1) * hMul;
+  else if (nearCamp) state.humidity -= 3.2 * dt * (state.heatEvent === 'mugicha_day' ? 1.3 : 1);
   else state.humidity -= 0.35 * dt;
   // 敵近接で汗
   for (const e of enemies) {
-    if (Math.abs(e.x - player.x) < 90) { state.humidity += 2.2 * dt; break; }
+    if (Math.abs(e.x - player.x) < 90) { state.humidity += 2.2 * dt * hMul; break; }
   }
   state.humidity = clamp(state.humidity, 0, 100);
+  tickHeatRisk(dt, Math.abs(input) > 0);
   if ((Math.floor(state.animT * 4) % 4) === 0) updateHumidityHud();
 
   // カメラ（向き先読み＋微呼吸）
@@ -5601,16 +5941,19 @@ function update(dt) {
   const iTag = unlockedCount() ? ` 聖地${unlockedCount()}` : '';
   const busTag = state.bus ? (state.bus.mode === 'raid' ? ' <span style="color:#f84">侵攻</span>' : ' <span style="color:#fc8">バス</span>') : '';
   const misTag = state.mission ? ` <span style="color:#fc8">撮${state.mission.progress}/${state.mission.need}</span>` : '';
-  const heatTag = state.heatEvent ? ' <span style="color:#f66">真夏</span>' : '';
+  ensureHeatState();
+  const hev = heatEventDef(state.heatEvent);
+  const heatTag = state.heatEvent ? ` <span style="color:#f66">${hev ? hev.name : '真夏'}</span>` : '';
+  const riskTag = (state.heatRisk | 0) >= 50 ? ` <span style="color:${(state.heatRisk|0)>=80?'#f44':'#fa8'}">熱${state.heatRisk|0}</span>` : '';
   const chTag = ` ${chapterName(state.chapter)}`;
   const asTag = state.assault ? ' <span style="color:#f96">攻勢</span>' : '';
   const cmTag = ` <span style="color:#8cf">内政${state.civilTier|0}</span>/<span style="color:#fa8">軍事${state.miliTier|0}</span>`;
-  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock}`;
+  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
   const spot = nearestSpot();
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
   right.innerHTML = spot
     ? `<span class="meme">支払い可</span><br>${spot.label}<br><span class="gold">コスト ${spot.cost}</span>`
-    : `${sk}<br>T＝アイスティー／湿度に注意`;
+    : `${sk}<br>T＝アイス／麦茶　湿度・熱中症に注意`;
 }
 
 
@@ -5625,17 +5968,25 @@ function tickWindWeather(dt) {
   state.wind = base + state.windGust;
   // 雲影スクロール
   state.cloudX = (state.cloudX || 0) + (18 + state.wind * 6) * dt;
-  // 夕立（昼終盤／夕のみ・短い）
+  // 夕立（昼終盤／夕のみ・短い／予報日は高確率）
   if (state.rainT > 0) state.rainT -= dt;
   if (state.rainCool > 0) state.rainCool -= dt;
   if (state.running && !state.isNight && state.rainT <= 0 && state.rainCool <= 0) {
     const phase = dayPhase();
-    if (phase >= 0.52 && phase <= 0.7 && Math.random() < 0.004 * dt * 60) {
-      state.rainT = rand(3.2, 6.5);
-      state.rainCool = 28;
-      if (Math.random() < 0.55) toast('夕立…湿度が上がる', 2.2);
-      state.humidity = Math.min(100, state.humidity + 6);
+    const showerDay = state.heatEvent === 'evening_shower';
+    const windowOk = showerDay ? (phase >= 0.42 && phase <= 0.78) : (phase >= 0.52 && phase <= 0.7);
+    const chance = (showerDay ? 0.014 : 0.004) * dt * 60;
+    if (windowOk && Math.random() < chance) {
+      state.rainT = showerDay ? rand(5.5, 9.5) : rand(3.2, 6.5);
+      state.rainCool = showerDay ? 18 : 28;
+      ensureHeatState();
+      state.heatFlags.shower_count = (state.heatFlags.shower_count | 0) + 1;
+      unlockCodexId('qh_shower', true);
+      if (Math.random() < 0.7 || showerDay) toast(showerDay ? '夕立！　熱が流れる　リスク↓' : '夕立…湿度が上がる', 2.4);
+      state.humidity = Math.min(100, state.humidity + (showerDay ? 10 : 6));
+      state.heatRisk = clamp((state.heatRisk | 0) - (showerDay ? 14 : 6), 0, 100);
       updateHumidityHud();
+      try { checkAchievements(); } catch (_) {}
     }
   }
 }
@@ -6051,6 +6402,64 @@ function drawWeatherLayers(phase) {
     ctx.fillStyle = '#ff2244';
     ctx.fillRect(0, 0, W, 8);
     ctx.fillRect(0, GROUND_Y - 4, W, 4);
+  }
+  // 7) 夕立予報：鉛色の空帯
+  if (state.heatEvent === 'evening_shower' && !nightish) {
+    ctx.globalAlpha = 0.1 + (state.rainT > 0 ? 0.08 : 0);
+    ctx.fillStyle = '#4a6080';
+    ctx.fillRect(0, 0, W, 48);
+  }
+  // 8) 麦茶の日：琥珀色の柔らか光
+  if (state.heatEvent === 'mugicha_day' && !nightish) {
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = '#c9a227';
+    ctx.fillRect(0, GROUND_Y - 80, W, 80);
+  }
+  // 9) 熱中症注意：脈打つ赤ヴィネット
+  if (state.heatEvent === 'heatstroke_warn' || (state.heatRisk | 0) >= 85) {
+    ctx.globalAlpha = 0.07 + Math.sin(state.animT * 6) * 0.04;
+    ctx.fillStyle = '#ff2200';
+    ctx.fillRect(0, 0, W, 12);
+    ctx.fillRect(0, H - 12, W, 12);
+  }
+  // 10) 湯気蜃気楼：追加ゆらぎ帯
+  if (state.heatEvent === 'steam_haze' && !low) {
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#ffe8d0';
+    for (let i = 0; i < 6; i++) {
+      const y = GROUND_Y - 40 - i * 8 + Math.sin(state.animT * 4 + i * 1.7) * 5;
+      ctx.fillRect(Math.sin(state.animT * 2.2 + i) * 6, y, W, 2);
+    }
+  }
+  // 11) 810祭：金縁フラッシュ薄
+  if (state.heatEvent === '810_festival') {
+    ctx.globalAlpha = 0.05 + Math.sin(state.animT * 3) * 0.02;
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(0, 0, W, 6);
+  }
+  // 12) アイス屋台：水色の涼帯
+  if (state.heatEvent === 'ice_stand' && !nightish) {
+    ctx.globalAlpha = 0.07 + Math.sin(state.animT * 2.5) * 0.02;
+    ctx.fillStyle = '#7ec8ff';
+    ctx.fillRect(0, GROUND_Y - 70, W, 70);
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = '#e8f8ff';
+    ctx.fillRect(0, 0, W, 24);
+  }
+  // 13) 洗濯日和：白い乾き帯
+  if (state.heatEvent === 'laundry_day' && !nightish) {
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = '#f5f0e6';
+    ctx.fillRect(0, GROUND_Y - 90, W, 90);
+  }
+  // 14) 焼肉の風：薄煙オレンジ
+  if (state.heatEvent === 'bbq_wind' && !nightish) {
+    ctx.globalAlpha = 0.05 + Math.sin(state.animT * 2) * 0.02;
+    ctx.fillStyle = '#ff9944';
+    for (let i = 0; i < 4; i++) {
+      const x = ((i * 90 + state.animT * 30) % (W + 40)) - 20;
+      ctx.fillRect(x, GROUND_Y - 100 - i * 8, 28, 3);
+    }
   }
   ctx.restore();
 }
