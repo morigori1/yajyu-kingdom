@@ -1,0 +1,1971 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>野獣キングダム — 王道を征く</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  :root {
+    --pad-h: clamp(108px, 22vh, 160px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --hud-fs: clamp(11px, 2.8vw, 14px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    height: 100dvh;
+    background: #0a0a12;
+    color: #f5e6c8;
+    font-family: "Press Start 2P", "Hiragino Kaku Gothic ProN", "Segoe UI", Meiryo, monospace;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  #wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-top: var(--safe-t);
+    padding-left: var(--safe-l);
+    padding-right: var(--safe-r);
+    touch-action: none;
+  }
+  #stage {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    touch-action: none;
+  }
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #1a1a2e;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border: 3px solid #3d2b1f;
+    box-shadow: 0 0 0 2px #8b6914;
+    cursor: crosshair;
+    touch-action: none;
+    display: block;
+  }
+  #hud {
+    position: absolute;
+    top: calc(8px + var(--safe-t));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(960px, calc(100% - 12px));
+    pointer-events: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    text-shadow: 2px 2px 0 #000;
+    font-size: var(--hud-fs);
+    line-height: 1.55;
+    z-index: 5;
+  }
+  #hud .box {
+    background: rgba(20,12,8,.82);
+    border: 2px solid #8b6914;
+    padding: 8px 10px;
+    max-width: 48%;
+  }
+  #toast {
+    position: absolute;
+    bottom: calc(var(--pad-h) + var(--safe-b) + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(40,16,16,.92);
+    border: 2px solid #c44;
+    padding: 12px 16px;
+    font-size: clamp(11px, 3vw, 13px);
+    max-width: min(92vw, 520px);
+    text-align: center;
+    opacity: 0;
+    transition: opacity .2s;
+    pointer-events: none;
+    z-index: 6;
+    line-height: 1.5;
+  }
+  #toast.show { opacity: 1; }
+
+  #story {
+    position: absolute;
+    top: calc(52px + var(--safe-t));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(920px, calc(100% - 16px));
+    pointer-events: none;
+    z-index: 5;
+    text-align: center;
+    font-size: clamp(10px, 2.6vw, 12px);
+    line-height: 1.55;
+    color: #ffe8c8;
+    text-shadow: 2px 2px 0 #000;
+    background: rgba(20,10,16,.72);
+    border: 2px solid #ff6b9d;
+    padding: 8px 12px;
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  #story.show { opacity: 1; }
+  @media (orientation: landscape) and (max-height: 500px) {
+    #story { top: calc(40px + var(--safe-t)); font-size: clamp(9px, 2.2vh, 11px); padding: 6px 10px; }
+  }
+
+  #overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.84);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; z-index: 20; text-align: center;
+    padding: max(24px, var(--safe-t)) 20px calc(24px + var(--safe-b));
+    overflow: auto;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  #overlay h1 {
+    font-size: clamp(16px, 5vw, 24px);
+    color: #ffd700;
+    line-height: 1.7;
+  }
+  #overlay p {
+    font-size: clamp(11px, 3.2vw, 13px);
+    line-height: 1.85;
+    color: #ddd;
+    max-width: 520px;
+  }
+  #overlay button {
+    font-family: inherit;
+    font-size: clamp(13px, 3.5vw, 15px);
+    background: #5a2a1a; color: #ffd700;
+    border: 3px solid #ffd700;
+    padding: 16px 28px;
+    cursor: pointer;
+    min-height: 52px;
+    touch-action: manipulation;
+  }
+  #overlay button:hover { background: #7a3a2a; }
+  #overlay.hidden { display: none; }
+
+  #choice-panel {
+    position: absolute; inset: 0; z-index: 25;
+    background: rgba(0,0,0,.78);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 20px; text-align: center;
+    touch-action: manipulation;
+  }
+  #choice-panel.show { display: flex; }
+  #choice-panel h2 {
+    font-size: clamp(12px, 3.5vw, 16px); color: #ffd700; line-height: 1.6; max-width: 520px;
+  }
+  #choice-panel .choice-btns { display: flex; flex-direction: column; gap: 8px; width: min(420px, 92vw); }
+  #choice-panel button {
+    font-family: inherit; font-size: clamp(11px, 3vw, 13px);
+    background: #5a2a1a; color: #ffe8c8; border: 2px solid #ff6b9d;
+    padding: 12px 14px; cursor: pointer; min-height: 48px; touch-action: manipulation;
+    line-height: 1.45;
+  }
+  #choice-panel button:hover { background: #7a3a2a; border-color: #ffd700; }
+  #hud-humid {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(8px + var(--safe-t));
+    width: min(220px, 46vw); z-index: 7; pointer-events: none;
+    font-size: 8px; color: #9cf; text-align: center; text-shadow: 1px 1px 0 #000;
+  }
+  #hud-humid .bar {
+    margin-top: 3px; height: 8px; background: #1a2030; border: 1px solid #446;
+    image-rendering: pixelated;
+  }
+  #hud-humid .bar > i {
+    display: block; height: 100%; background: linear-gradient(90deg,#4af,#ff6b9d 70%,#f44);
+    width: 40%;
+  }
+  #btn-skill { border-color: #ff6b9d !important; color: #ffb0d0; }
+  #btn-skill small { color: #ff8; }
+
+  #hint {
+    display: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #hint {
+      display: block;
+      position: absolute;
+      bottom: calc(var(--pad-h) + var(--safe-b) + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(9px, 1.5vw, 11px);
+      color: #888;
+      text-align: center;
+      width: 96vw;
+      pointer-events: none;
+      z-index: 4;
+    }
+    /* デスクトップではパッドをコンパクト表示（キーボード優先だが残す） */
+  }
+  /* 仮想パッド */
+  #touch-pad {
+    flex: 0 0 auto;
+    height: calc(var(--pad-h) + var(--safe-b));
+    padding: 10px 14px calc(10px + var(--safe-b));
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(180deg, #12101a 0%, #1a1210 100%);
+    border-top: 3px solid #8b6914;
+    z-index: 8;
+    touch-action: none;
+  }
+  .pad-group {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .pad-btn {
+    font-family: inherit;
+    min-width: clamp(72px, 22vw, 110px);
+    min-height: 72px;
+    border: 3px solid #8b6914;
+    border-radius: 14px;
+    background: #2a2018;
+    color: #ffd700;
+    font-size: clamp(22px, 7vw, 32px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    box-shadow: inset 0 -4px 0 #1a1008;
+  }
+  .pad-btn small {
+    font-size: clamp(9px, 2.4vw, 11px);
+    color: #cbb;
+    line-height: 1.2;
+  }
+  .pad-btn:active, .pad-btn.active {
+    background: #5a3a1a;
+    border-color: #ffd700;
+    transform: translateY(2px);
+    box-shadow: inset 0 2px 0 #1a1008;
+  }
+  #btn-pay {
+    min-width: clamp(110px, 34vw, 168px);
+    background: #4a1828;
+    border-color: #ff6b9d;
+    color: #ffd700;
+  }
+  #btn-pay:active, #btn-pay.active {
+    background: #7a2840;
+    border-color: #ffd700;
+  }
+  .meme { color: #ff6b9d; }
+  .gold { color: #ffd700; }
+  .night { color: #8af; }
+
+  /* 横向き: パッドやや低く、ボタン横並び維持 */
+  @media (orientation: landscape) and (max-height: 500px) {
+    :root { --pad-h: clamp(72px, 28vh, 96px); --hud-fs: clamp(10px, 2.2vh, 12px); }
+    .pad-btn { min-height: 56px; min-width: clamp(64px, 16vw, 96px); border-radius: 10px; }
+    #btn-pay { min-width: clamp(96px, 24vw, 140px); }
+    #hud .box { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="hud">
+      <div class="box" id="hud-left"></div>
+      <div class="box" id="hud-right"></div>
+    </div>
+    <canvas id="c" width="960" height="540"></canvas>
+    <div id="hud-humid">湿度 <span id="humid-val">40</span>%<div class="bar"><i id="humid-bar"></i></div></div>
+  <div id="toast"></div>
+    <div id="story" aria-live="polite"></div>
+    <div id="hint">PC: A/D・←→ 移動 ／ スペース・クリックで支払い　｜　スマホ: 下のパッド</div>
+    <div id="overlay">
+      <h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span></h1>
+      <p>
+        下北沢（自称）　湿度114514　真夏（汗）<br>
+        王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
+        いいよ！こいよ！　バリケード　先輩砲台<br>
+        まずうちさぁ…屋上あんだけど…焼いてかない？<br>
+        <span style="color:#888">パッド／キーボード　おかのした</span>
+      </p>
+      <div id="title-faces" style="display:flex;gap:12px;justify-content:center;align-items:flex-end;margin:8px 0;">
+        <div style="text-align:center"><img src="assets/senpai_pixel.png" alt="先輩" width="72" height="72" style="image-rendering:pixelated;border:2px solid #ffd700;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
+        <div style="text-align:center"><img src="assets/kohai_pixel.png" alt="後輩" width="56" height="56" style="image-rendering:pixelated;border:2px solid #ff6b9d;background:#222"/><div style="font-size:9px;color:#ff6b9d;margin-top:4px">後輩</div></div>
+      </div>
+      <button id="startBtn" type="button">いいよ！こいよ！</button>
+      <p style="font-size:clamp(9px,2.5vw,11px);color:#666;margin-top:8px">著作権素材不使用・自作簡易アセット</p>
+    </div>
+  </div>
+  <div id="choice-panel" aria-live="polite">
+    <h2 id="choice-title">昼の選択</h2>
+    <div class="choice-btns" id="choice-btns"></div>
+  </div>
+  <div id="touch-pad" aria-label="タッチ操作">
+    <div class="pad-group">
+      <button type="button" class="pad-btn" id="btn-left" aria-label="左へ移動">◀<small>左</small></button>
+      <button type="button" class="pad-btn" id="btn-right" aria-label="右へ移動">▶<small>右</small></button>
+    </div>
+    <div class="pad-group">
+      <button type="button" class="pad-btn" id="btn-pay" aria-label="コイン支払い">🪙<small>支払う</small></button>
+      <button type="button" class="pad-btn" id="btn-skill" aria-label="括弧ツッコミ">（）<small>迫真</small></button>
+    </div>
+  </div>
+</div>
+<script>
+/* =========================================================
+   野獣キングダム — Kingdom Two Crowns 風最小プロトタイプ
+   自作 canvas / 絵文字 / ドット描画のみ（外部画像なし）
+   ========================================================= */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+const SPR = { senpai: null, kohai: null, icon: null, ready: 0 };
+function loadSpr(key, src) {
+  const im = new Image();
+  im.onload = () => { SPR[key] = im; SPR.ready++; };
+  im.onerror = () => { SPR.ready++; };
+  im.src = src;
+}
+loadSpr('senpai', 'assets/senpai_pixel.png');
+loadSpr('kohai', 'assets/kohai_pixel.png');
+loadSpr('icon', 'assets/senpai_icon.png');
+
+const W = canvas.width, H = canvas.height;
+const GROUND_Y = 380;
+const PIX = 4; // ドット感
+
+// ---------- ユーティリティ ----------
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function rand(a, b) { return a + Math.random() * (b - a); }
+function irand(a, b) { return (a + Math.floor(Math.random() * (b - a + 1))); }
+
+let toastTimer = 0;
+function toast(msg, sec = 2.2) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  toastTimer = sec;
+}
+
+
+// ---------- 淫夢語録ストーリー（Wiki + 野獣TD共有整合 / PG-13） ----------
+// Kingdom対応: 王=野獣先輩(王冠) / 民=後輩・帰宅部 / 弓=先輩砲台 / 壁=バリケード
+// たき火=部室 / 銀行ネタ=810 / 夜敵=たかり後輩・覗き・嫌がらせ先輩・部室の主
+// ボス夜=野獣の眼光 or 迫真の淫獣 / Day=TD章寄せ
+const LORE = {
+  sacred: [114514, 810, 24],
+  dayOpen: {
+    1: 'Day1　24歳、学生です（迫真）　†悔い改めて†　湿度114514　王道を征く',
+    2: 'Day2　まずうちさぁ…屋上あんだけど…焼いてかない？　あ〜いいっすね〜',
+    3: 'Day3　キタ！（来るな）　見とけよ見とけよ〜　ファッ！？',
+    4: 'Day4　ま、多少はね？　いいゾ〜これ　やりますねぇ！',
+    5: 'Day5　810…そうだよ　あり…ますあります　財布？　あっ（察し）',
+    6: 'Day6　じゃけん夜行きましょうね　部室の主…？　こ↑こ↓',
+    7: 'Day7　王道を征く、汗系ですか　しょうがねぇなぁ　王冠（外さない）',
+    8: 'Day8　眼光…噂の…眼光　ファッ！？　114514',
+    9: 'Day9　いいよ！こいよ！　野獣の眼光　イキスギィ！',
+  },
+  dayOpenFallback: [
+    'いいゾ〜これ（汗）',
+    'おまたせ　おかのした',
+    '当たり前だよなぁ？　114514',
+    'ぬわあああん疲れたもおおおん…やる',
+    'そんな装備で大丈夫か？　大丈夫だ問題ない',
+    'こ↑こ↓　やりますねぇ',
+  ],
+  night: [
+    'じゃけん夜行きましょうね　キタ！（来るな）',
+    'ファッ！？　たかり…？　810',
+    '見とけよ見とけよ〜　なに！？',
+    'いや〜キツイっす（迫真）　消えんな火',
+    'あっ（察し）　眼光…？',
+  ],
+  nightSpawn: ['キタ!', 'ファッ!?', '見とけよ', '114514', 'ンアッー'],
+  morning: [
+    '生きてるゥ〜　やったぜ',
+    'いいゾ〜これ　＋？　やりますねぇ',
+    'おっ大丈夫か大丈夫か？　問題ない',
+    'はっきりわかんだね　おかのした',
+    'あっ（察し）　810降ってきた',
+  ],
+  wallBuild: [
+    'いいゾ〜これ（杭）',
+    'こ↑こ↓　やりますねぇ',
+    'おかのした　バリケード',
+  ],
+  wallUpgrade: [
+    '王道を征く（石）',
+    'はっきりわかんだね',
+    '見とけよ見とけよ〜',
+  ],
+  hire: [
+    'いいよ！こいよ！　砲台',
+    'やりますねぇ！　連射',
+    '俺も仲間に…　あっ（察し）',
+    'あ〜いいっすね〜　114514',
+  ],
+  hireMeme: ['やりますねぇ', '114514', 'いいよこいよ', 'キタ!', 'ンアッー'],
+  heal: [
+    'アイスティーしかなかったけどいいかな？',
+    'ありますあります　Foo↑',
+    '生きてるゥ〜（火）',
+  ],
+  scout: [
+    'ありますあります',
+    'あっ（察し）　コイン',
+    'いいゾ〜これ　810?',
+  ],
+  payEmpty: ['これもうわかんねぇな', 'ぬわあああん疲れたもおおおん'],
+  payShort: ['ファッ！？　足りん', '痛いですねこれは痛い'],
+  payDrop: ['いいよ！こいよ！', 'おかのした', 'おまたせ'],
+  coinPickup: ['やったぜ', 'いいゾ〜', '810', 'あります'],
+  enemyDown: ['やったぜ', 'いいゾ〜これ', 'イキスギィ!', 'キタ!', 'おかのした'],
+  wallHit: ['ガタッ', '痛い…', 'ファッ!?'],
+  wallBreak: [
+    'ファッ！？　バリケード…（壊）',
+    'なに！？　しょうがねぇなぁ',
+    'これもうわかんねぇな',
+  ],
+  campHit: [
+    'おっ大丈夫か大丈夫か？',
+    '痛いですねこれは痛い',
+    'あっ（察し）　部室…',
+  ],
+  win: {
+    title: '王道を征く　やったぜ',
+    body: 'やりますねぇ！<br>いいゾ〜これ　多少はね？<br>終わり！閉廷！以上！皆解散！<br>王冠（外れてない）　湿度114514<br><br>',
+    btn: 'いいよ！こいよ！',
+  },
+  lose: {
+    title: 'ファッ！？　消灯',
+    body: 'ぬわあああん疲れたもおおおん<br>†悔い改めて†　王道を征く…？<br><br>',
+    btn: '†悔い改めて†',
+  },
+};
+
+let storyTimer = 0;
+function story(msg, sec = 3.5) {
+  const el = document.getElementById('story');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  storyTimer = sec;
+}
+function dayOpenLine(day) {
+  return LORE.dayOpen[day] || pick(LORE.dayOpenFallback);
+}
+
+// ---------- 入力（キーボード維持 + 仮想パッド） ----------
+const keys = Object.create(null);
+const touchMove = { left: false, right: false };
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Space') tryPay();
+  if (e.code === 'KeyQ' || e.code === 'KeyE') trySkill();
+  if (e.code === 'KeyT') tryDrinkTea();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// デスクトップ: キャンバスクリックで支払い（タッチは仮想パッドへ）
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') return;
+  if (!state.running) return;
+  tryPay();
+});
+
+function bindHold(el, on, off) {
+  const start = ev => {
+    ev.preventDefault();
+    el.classList.add('active');
+    on();
+  };
+  const end = ev => {
+    if (ev) ev.preventDefault();
+    el.classList.remove('active');
+    off();
+  };
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointerleave', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('contextmenu', ev => ev.preventDefault());
+}
+
+bindHold(document.getElementById('btn-left'),
+  () => { touchMove.left = true; },
+  () => { touchMove.left = false; });
+bindHold(document.getElementById('btn-right'),
+  () => { touchMove.right = true; },
+  () => { touchMove.right = false; });
+
+document.getElementById('btn-pay').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  document.getElementById('btn-pay').classList.add('active');
+  tryPay();
+});
+document.getElementById('btn-pay').addEventListener('pointerup', e => {
+  e.preventDefault();
+  document.getElementById('btn-pay').classList.remove('active');
+});
+document.getElementById('btn-pay').addEventListener('pointerleave', () => {
+  document.getElementById('btn-pay').classList.remove('active');
+});
+document.getElementById('btn-pay').addEventListener('pointercancel', () => {
+  document.getElementById('btn-pay').classList.remove('active');
+});
+document.getElementById('btn-pay').addEventListener('contextmenu', e => e.preventDefault());
+
+document.getElementById('btn-skill').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  document.getElementById('btn-skill').classList.add('active');
+  trySkill();
+});
+document.getElementById('btn-skill').addEventListener('pointerup', e => {
+  e.preventDefault();
+  document.getElementById('btn-skill').classList.remove('active');
+});
+document.getElementById('btn-skill').addEventListener('pointerleave', () => {
+  document.getElementById('btn-skill').classList.remove('active');
+});
+document.getElementById('btn-skill').addEventListener('pointercancel', () => {
+  document.getElementById('btn-skill').classList.remove('active');
+});
+document.getElementById('btn-skill').addEventListener('contextmenu', e => e.preventDefault());
+
+// ページ全体のスクロール・ピンチ干渉を抑制
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('touchmove', e => {
+  if (e.target.closest && e.target.closest('#overlay') && !document.getElementById('overlay').classList.contains('hidden')) return;
+  if (e.target.closest && e.target.closest('#choice-panel') && document.getElementById('choice-panel').classList.contains('show')) return;
+  e.preventDefault();
+}, { passive: false });
+
+function fitCanvas() {
+  const stage = document.getElementById('stage');
+  if (!stage) return;
+  const aw = stage.clientWidth;
+  const ah = stage.clientHeight;
+  const scale = Math.min(aw / W, ah / H);
+  const dw = Math.floor(W * scale);
+  const dh = Math.floor(H * scale);
+  canvas.style.width = dw + 'px';
+  canvas.style.height = dh + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 120));
+setTimeout(fitCanvas, 0);
+
+// ---------- ゲーム状態 ----------
+const state = {
+  running: false,
+  over: false,
+  won: false,
+  day: 1,
+  isNight: false,
+  dayTimer: 0,
+  dayLength: 48,   // 秒（昼）
+  nightLength: 36, // 秒（夜）
+  coins: 10,
+  cameraX: 0,
+  messageLog: [],
+  // --- 独自メカニクス ---
+  humidity: 42,        // 湿度・汗 0-100
+  bank: 0,             // 810銀行預金額
+  killCombo: 0,        // 夜の撃破コンボ
+  comboTimer: 0,       // コンボ猶予
+  sacredBonusReady: false,
+  gazeT: 0,            // 眼光デバフ残り秒
+  skillCd: 0,          // 括弧ツッコミCD
+  skillStunT: 0,       // 敵スロー残り
+  dayChoiceDone: false,
+  icedTeaStock: 1,     // 所持アイスティー
+  animT: 0,            // グローバルアニメ時刻
+  nightSway: 0,
+};
+
+// ワールド座標: キャンプが x=0
+const world = {
+  leftBound: -2200,
+  rightBound: 2200,
+  campX: 0,
+};
+
+const player = {
+  x: 0, y: GROUND_Y,
+  vx: 0,
+  facing: 1,
+  w: 20, h: 36,
+  speed: 140,
+  name: '野獣先輩',
+};
+
+/** 落ちてるコイン */
+const coinsOnGround = [];
+/** 飛んでる矢 */
+const arrows = [];
+/** 敵 */
+const enemies = [];
+/** パーティクル（テキスト/ドット） */
+const fx = [];
+
+/** 建築・ユニット */
+const structures = {
+  // 左右の壁（領地境界）。upgrade: 0=なし 1=木 2=石
+  leftWall:  { x: -180, hp: 0, maxHp: 0, level: 0 },
+  rightWall: { x:  180, hp: 0, maxHp: 0, level: 0 },
+  // たき火（コア）
+  campfire:  { x: 0, hp: 100, maxHp: 100 },
+};
+
+/** 雇った後輩（射手） */
+const units = [];
+
+
+// =========================================================
+// 独自メカニクス（Kingdom骨格＋淫夢固有）
+// =========================================================
+function humidColor(h) {
+  if (h >= 80) return '#f66';
+  if (h <= 20) return '#6af';
+  return '#9cf';
+}
+
+function updateHumidityHud() {
+  const v = document.getElementById('humid-val');
+  const b = document.getElementById('humid-bar');
+  if (!v || !b) return;
+  const h = Math.round(state.humidity);
+  v.textContent = h;
+  v.style.color = humidColor(h);
+  b.style.width = clamp(h, 0, 100) + '%';
+}
+
+function trySkill() {
+  if (!state.running || state.over) return;
+  if (state.skillCd > 0) {
+    toast(`括弧ツッコミ CD ${state.skillCd.toFixed(1)}s`);
+    return;
+  }
+  state.skillCd = 11;
+  state.skillStunT = 2.6;
+  state.humidity = clamp(state.humidity + 6, 0, 100);
+  spawnMeme(player.x, GROUND_Y - 70, 'あっ（察し）');
+  spawnMeme(player.x + 30, GROUND_Y - 90, '（迫真）');
+  toast('括弧ツッコミ！　周囲のたかりが鈍る', 2.4);
+  story('あっ（察し）　見とけよ見とけよ〜', 2.0);
+  for (const e of enemies) {
+    if (Math.abs(e.x - player.x) < 160) {
+      e.stunned = Math.max(e.stunned || 0, 2.6);
+      fx.push({ type: 'dot', x: e.x, y: GROUND_Y - 30, vx: rand(-30,30), vy: -80, life: 0.5, color: '#ff6b9d' });
+    }
+  }
+}
+
+function tryDrinkTea() {
+  if (!state.running || state.over) return;
+  if (state.icedTeaStock <= 0) {
+    toast('アイスティー切れ…部室で補給せよ');
+    spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?');
+    return;
+  }
+  state.icedTeaStock--;
+  state.humidity = clamp(state.humidity - 32, 0, 100);
+  structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 4);
+  toast('アイスティーしかなかったけどいいかな？　湿度↓', 2.6);
+  spawnMeme(player.x, GROUND_Y - 50, 'Foo↑');
+  updateHumidityHud();
+}
+
+function onSacredKill() {
+  state.killCombo++;
+  state.comboTimer = 4.5;
+  if (state.killCombo === 5) {
+    state.coins += 2;
+    toast('114514コンボ！　＋2コイン', 2.8);
+    spawnMeme(player.x, GROUND_Y - 80, '114514');
+    story('いいゾ〜これ　114514', 2.2);
+  } else if (state.killCombo === 8 || state.killCombo === 10) {
+    state.coins += 1;
+    toast(`聖数コンボ ${state.killCombo}！　＋1`, 2.2);
+    spawnMeme(player.x, GROUND_Y - 80, String(state.killCombo === 8 ? 810 : 114514).slice(0, 6));
+  }
+  // コインが聖数っぽいとき
+  if ([8, 10, 24, 81].includes(state.coins)) {
+    state.coins += 1;
+    spawnMeme(player.x + 16, GROUND_Y - 55, '聖数+1');
+  }
+}
+
+function openDayChoice() {
+  if (state.dayChoiceDone || state.isNight || !state.running) return;
+  state.dayChoiceDone = true;
+  state.running = false; // 一時停止
+  const panel = document.getElementById('choice-panel');
+  const title = document.getElementById('choice-title');
+  const btns = document.getElementById('choice-btns');
+  title.textContent = `Day${state.day}　昼のミニ選択　湿度 ${Math.round(state.humidity)}%`;
+  const options = [
+    {
+      label: '屋上で焼肉　あ〜いいっすね〜（＋コイン／湿度↑）',
+      run() {
+        state.coins += 3 + (state.day >= 4 ? 1 : 0);
+        state.humidity = clamp(state.humidity + 18, 0, 100);
+        toast('屋上焼肉！　おかのした　＋コイン', 2.8);
+        story('まずうちさぁ…屋上あんだけど…焼いてかない？', 3.0);
+        spawnMeme(0, GROUND_Y - 90, 'あ〜いいっすね〜');
+      }
+    },
+    {
+      label: '部室でアイスティー（湿度↓／在庫+1）',
+      run() {
+        state.humidity = clamp(state.humidity - 22, 0, 100);
+        state.icedTeaStock = Math.min(3, state.icedTeaStock + 1);
+        structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 8);
+        toast('アイスティー補給　湿度下がった', 2.6);
+        story('アイスティーしかなかったけどいいかな？', 2.6);
+        spawnMeme(0, GROUND_Y - 70, 'Foo↑');
+      }
+    },
+    {
+      label: '草むらを漁る（810？　運次第）',
+      run() {
+        const n = Math.random() < 0.35 ? 3 : 1;
+        dropCoin(player.x + rand(-80, 80), n);
+        if (Math.random() < 0.2) { state.bank += 1; toast('草むらから810銀行へ＋1預け…？', 2.4); }
+        else toast('ありますあります', 2.0);
+        spawnMeme(player.x, GROUND_Y - 50, pick(['810', '114514', 'やったぜ']));
+      }
+    },
+  ];
+  btns.innerHTML = '';
+  for (const opt of options) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = opt.label;
+    b.onclick = () => {
+      opt.run();
+      panel.classList.remove('show');
+      state.running = true;
+      updateHumidityHud();
+    };
+    btns.appendChild(b);
+  }
+  panel.classList.add('show');
+}
+
+function applyBankInterest() {
+  if (state.bank <= 0) return;
+  // 810銀行: 約10%（最低1、上限3）＋聖数味付け
+  let interest = Math.min(3, Math.max(1, Math.floor(state.bank * 0.12)));
+  if (state.bank >= 8) interest += 1;
+  state.bank += interest;
+  toast(`810銀行利息 +${interest}（残高 ${state.bank}）`, 3.0);
+  spawnMeme(80, GROUND_Y - 70, '810');
+}
+
+function playerSpeedMul() {
+  let m = 1;
+  if (state.humidity >= 80) m *= 0.78;
+  else if (state.humidity >= 65) m *= 0.9;
+  if (state.humidity <= 18) m *= 0.92; // 乾きすぎても微妙に鈍い
+  if (state.gazeT > 0) m *= 0.82;
+  return m;
+}
+
+function archerCdMul() {
+  let m = 1;
+  if (state.humidity >= 80) m *= 1.22;
+  if (state.gazeT > 0) m *= 1.35;
+  return m;
+}
+
+// =========================================================
+// CRONWS風・微細ドット／フレームアニメ
+// nearest-neighbor 拡大、歩き／攻撃／夜揺らぎ
+// =========================================================
+const PX = {
+  // 1マス=1論理px。描画時 scale で nearest 拡大
+  scale: 3,
+};
+
+function blitPixels(ox, oy, grid, palette, scale, flipX) {
+  // grid: 文字列配列。palette: char->css
+  const s = scale || PX.scale;
+  const h = grid.length;
+  const w = grid[0].length;
+  for (let y = 0; y < h; y++) {
+    const row = grid[y];
+    for (let x = 0; x < w; x++) {
+      const ch = row[x];
+      if (ch === '.' || ch === ' ') continue;
+      const col = palette[ch];
+      if (!col) continue;
+      const dx = flipX ? (w - 1 - x) : x;
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.floor(ox + dx * s), Math.floor(oy + y * s), s, s);
+    }
+  }
+}
+
+const PAL_BODY = {
+  K: '#1a1a1a', B: '#2e2e2e', S: '#e8b898', D: '#c49a78',
+  G: '#ffd700', R: '#ff6b9d', W: '#f4f4f4', N: '#111111',
+  A: '#3a5a8a', C: '#5a3a20', F: '#ff6600', Y: '#ffcc33',
+  U: '#fff2a8', M: '#6a4060', E: '#2a1030', Z: '#f44',
+  T: '#8b5a2b', H: '#7a7a7a', P: '#4a4a4a', L: '#c8a060',
+  O: '#446688', X: '#ff88aa',
+};
+
+// 先輩歩き 2フレ（体のみ・顔はSPR）
+const FR_WALK = [
+  [
+    '..GGGGGG..',
+    '.G.GGGG.G.',
+    '..SSSSSS..',
+    '.SSSSSSSS.',
+    '..BBBBBB..',
+    '..BBBBBB..',
+    '..BB..BB..',
+    '..BB..BB..',
+  ],
+  [
+    '..GGGGGG..',
+    '.G.GGGG.G.',
+    '..SSSSSS..',
+    '.SSSSSSSS.',
+    '..BBBBBB..',
+    '..BBBBBB..',
+    '.BB....BB.',
+    'BB......BB',
+  ],
+];
+const FR_IDLE = [
+  [
+    '..GGGGGG..',
+    '.G.GGGG.G.',
+    '..SSSSSS..',
+    '.SSSSSSSS.',
+    '..BBBBBB..',
+    '..BBBBBB..',
+    '..BB..BB..',
+    '..BB..BB..',
+  ],
+];
+const FR_ARCH = [
+  [
+    '...AAAA...',
+    '..AAAAAA..',
+    '..SSSSSS..',
+    '..AAAAAA..',
+    '..AA..AA..',
+  ],
+  [
+    '...AAAA...',
+    '..AAAAAA..',
+    '..SSSSSS..',
+    '.LAAAAAA..',
+    '..AA..AA..',
+  ],
+];
+const FR_ENEMY = [
+  [
+    '..MMMMMM..',
+    '.MMMMMMMM.',
+    '.M.Z..Z.M.',
+    '..EEEEEE..',
+    '..EE..EE..',
+  ],
+  [
+    '..MMMMMM..',
+    '.MMMMMMMM.',
+    '.M.Z..Z.M.',
+    '..EEEEEE..',
+    '.EE....EE.',
+  ],
+];
+const FR_TAKA = [
+  [
+    '..XXXXXX..',
+    '.XXRRRRXX.',
+    '.X.Z..Z.X.',
+    '..EEEEEE..',
+    '..EE..EE..',
+  ],
+  [
+    '..XXXXXX..',
+    '.XXRRRRXX.',
+    '.X.Z..Z.X.',
+    '..EEEEEE..',
+    'EE......EE',
+  ],
+];
+const FR_GAZE = [
+  [
+    '..MMMMMM..',
+    'M.ZZZZZZ.M',
+    '.M.Z..Z.M.',
+    '..EEEEEE..',
+    '..EE..EE..',
+  ],
+  [
+    'R.MMMMMM.R',
+    'M.ZZZZZZ.M',
+    '.M.Z..Z.M.',
+    '..EEEEEE..',
+    '.EE....EE.',
+  ],
+];
+const FR_FLAME = [
+  ['..F.', '.FYF', 'FUYU', '.FY.'],
+  ['.F..', 'FYF.', 'UYUF', '..Y.'],
+  ['..F.', 'FYYF', '.UF.', 'FYF.'],
+];
+
+function frameIndex(speed, count) {
+  return Math.floor(state.animT * speed) % count;
+}
+
+/** ショップスポット（壁前・キャンプ周辺） */
+function shopSpots() {
+  const spots = [];
+  // 左右壁アップグレード / 建設
+  for (const side of ['left', 'right']) {
+    const wall = side === 'left' ? structures.leftWall : structures.rightWall;
+    const label = wall.level === 0 ? 'バリケード建設（いいゾ〜）' : wall.level === 1 ? '石バリケード強化（王道を征く）' : 'バリケード最大…いいゾ〜これ';
+    const cost = wall.level === 0 ? 3 : wall.level === 1 ? 6 : 99;
+    const can = wall.level < 2;
+    spots.push({
+      id: 'wall-' + side,
+      x: wall.x,
+      r: 48,
+      cost,
+      can,
+      label: (side === 'left' ? '◀西の' : '東の▶') + label,
+      buy() {
+        if (wall.level >= 2) return false;
+        wall.level++;
+        wall.maxHp = wall.level === 1 ? 40 : 90;
+        wall.hp = wall.maxHp;
+        if (side === 'left') wall.x -= 70;
+        else wall.x += 70;
+        const sideJa = side === 'left' ? '西' : '東';
+        if (wall.level === 1) {
+          toast(sideJa + 'の壁！ ' + pick(LORE.wallBuild));
+          spawnMeme(wall.x, GROUND_Y - 40, pick(['いいゾ～これ', 'やりますねぇ', 'こ↑こ↓']));
+        } else {
+          toast(sideJa + '・石壁！ ' + pick(LORE.wallUpgrade));
+          spawnMeme(wall.x, GROUND_Y - 40, pick(['王道を征く', 'はっきりわかんだね', '見とけよ']));
+        }
+        story(sideJa + '　IKZO　王道を征く', 2.0);
+        return true;
+      }
+    });
+  }
+  // 射手雇用（壁付近に配置）
+  for (const side of ['left', 'right']) {
+    const wall = side === 'left' ? structures.leftWall : structures.rightWall;
+    if (wall.level < 1) continue;
+    const count = units.filter(u => u.side === side).length;
+    const cost = 4 + count * 2;
+    const can = count < 3;
+    spots.push({
+      id: 'archer-' + side,
+      x: wall.x + (side === 'left' ? 28 : -28),
+      r: 40,
+      cost,
+      can,
+      label: `先輩砲台を設置 (${count}/3)`,
+      buy() {
+        if (units.filter(u => u.side === side).length >= 3) return false;
+        const line = pick(LORE.hire);
+        units.push({
+          side,
+          x: wall.x + (side === 'left' ? 20 : -20) + rand(-8, 8),
+          y: GROUND_Y,
+          cooldown: rand(0.5, 1.5),
+          hp: 1,
+          meme: pick(LORE.hireMeme),
+        });
+        toast(line);
+        spawnMeme(wall.x, GROUND_Y - 50, units[units.length - 1].meme);
+        story('砲台　' + units[units.length - 1].meme + '　いいよ！こいよ！', 2.2);
+        return true;
+      }
+    });
+  }
+  // たき火回復
+  spots.push({
+    id: 'heal',
+    x: 0,
+    r: 56,
+    cost: 2,
+    can: structures.campfire.hp < structures.campfire.maxHp,
+    label: '部室の火をくべる（回復）',
+    buy() {
+      structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 25);
+      toast(pick(LORE.heal));
+      spawnMeme(0, GROUND_Y - 60, pick(['Foo↑', '生きてるゥ', 'いいゾ～']));
+      return true;
+    }
+  });
+  // アイスティー補給（部室）
+  spots.push({
+    id: 'icedtea',
+    x: -55,
+    r: 40,
+    cost: 2,
+    can: state.icedTeaStock < 3,
+    label: `アイスティー補給（在庫 ${state.icedTeaStock}/3）`,
+    buy() {
+      if (state.icedTeaStock >= 3) return false;
+      state.icedTeaStock++;
+      state.humidity = clamp(state.humidity - 12, 0, 100);
+      toast('アイスティーしかなかったけどいいかな？');
+      spawnMeme(-55, GROUND_Y - 55, 'Foo↑');
+      updateHumidityHud();
+      return true;
+    }
+  });
+  // 810銀行（預ける）
+  spots.push({
+    id: 'bank-in',
+    x: 95,
+    r: 38,
+    cost: Math.min(5, Math.max(1, state.coins - 2)),
+    can: state.coins >= 3,
+    label: `810銀行へ預ける（残高 ${state.bank}）`,
+    buy() {
+      const amt = Math.min(5, state.coins); // cost already deducted in tryPay — fix: buy runs after deduct
+      // tryPay already subtracted spot.cost; credit that amount
+      // re-read: cost was taken from coins already. Add that cost to bank.
+      return true;
+    },
+    afterPay(cost) {
+      state.bank += cost;
+      toast(`810銀行 ＋${cost}（残高 ${state.bank}）`);
+      spawnMeme(95, GROUND_Y - 55, '810');
+      story('810…そうだよ　あり…ますあります', 2.2);
+    }
+  });
+  // 810銀行（引き出す）
+  spots.push({
+    id: 'bank-out',
+    x: 130,
+    r: 34,
+    cost: 0,
+    can: state.bank >= 1,
+    label: `810引出（残高 ${state.bank}）`,
+    buy() {
+      const take = Math.min(3, state.bank);
+      state.bank -= take;
+      state.coins += take;
+      toast(`引出 ＋${take}（残高 ${state.bank}）`);
+      spawnMeme(130, GROUND_Y - 50, '+' + take);
+      return true;
+    }
+  });
+  // 領地スカウト
+  spots.push({
+    id: 'scout',
+    x: 60,
+    r: 36,
+    cost: 1,
+    can: true,
+    label: '草むら漁り（810コイン？）',
+    buy() {
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      const wx = player.x + dir * rand(120, 280);
+      dropCoin(wx, 1 + (Math.random() < 0.3 ? 1 : 0));
+      toast(pick(LORE.scout));
+      spawnMeme(wx, GROUND_Y - 40, pick(['あります', 'やったぜ', '114514']));
+      return true;
+    }
+  });
+  return spots;
+}
+
+function nearestSpot() {
+  const spots = shopSpots().filter(s => s.can && Math.abs(player.x - s.x) <= s.r);
+  if (!spots.length) return null;
+  spots.sort((a, b) => Math.abs(player.x - a.x) - Math.abs(player.x - b.x));
+  return spots[0];
+}
+
+function tryPay() {
+  if (!state.running || state.over) return;
+  const spot = nearestSpot();
+  if (!spot) {
+    // コインを地面に落とす（Kingdom風）
+    if (state.coins <= 0) { toast(pick(LORE.payEmpty)); spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?'); return; }
+    state.coins--;
+    dropCoin(player.x + player.facing * 18, 1, true);
+    spawnMeme(player.x, GROUND_Y - 40, pick(LORE.payDrop));
+    return;
+  }
+  if (state.coins < spot.cost) {
+    toast(pick(LORE.payShort) + ` ${spot.cost}枚必要（今 ${state.coins}）`);
+    spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?');
+    return;
+  }
+  state.coins -= spot.cost;
+  // 支払演出：コイン飛んで消える
+  for (let i = 0; i < spot.cost; i++) {
+    fx.push({
+      type: 'pay',
+      x: player.x, y: GROUND_Y - 20,
+      tx: spot.x, ty: GROUND_Y - 30,
+      t: 0, life: 0.35 + i * 0.05,
+      life: 0.4,
+    });
+  }
+  setTimeout(() => {
+    const ok = spot.buy();
+    if (ok && typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
+  }, 200);
+}
+
+function dropCoin(x, n = 1, fromPlayer = false) {
+  for (let i = 0; i < n; i++) {
+    coinsOnGround.push({
+      x: x + rand(-10, 10),
+      y: GROUND_Y - 8,
+      vy: fromPlayer ? -80 : -40,
+      bounce: 0,
+      age: 0,
+      pickupDelay: fromPlayer ? 0.45 : 0,
+    });
+  }
+}
+
+function spawnMeme(x, y, text) {
+  fx.push({ type: 'meme', x, y, text, t: 0, life: 1.2 });
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ---------- 昼夜・敵 ----------
+const ENEMY_NAMES_JP = [
+  'たかり後輩', '覗き見学者', '嫌がらせ先輩', '俊足後輩',
+  '部室の主', 'ちび後輩', '盾持ち後輩', 'もぐり後輩',
+  '応援後輩', '跳び後輩', '鉄壁の見学者'
+];
+const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '迫真の淫獣'];
+
+function startNight() {
+  state.isNight = true;
+  state.dayTimer = 0;
+  const nline = pick(LORE.night);
+  toast(`Night ${state.day} — ${nline}`, 3.2);
+  story(nline, 3.2);
+  spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
+  const waves = 3 + state.day;
+  const perSide = Math.ceil(waves / 2);
+  for (let i = 0; i < waves; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const wall = side < 0 ? structures.leftWall : structures.rightWall;
+    const spawnX = side < 0
+      ? (wall.level > 0 ? wall.x - 220 - i * 30 : -400 - i * 40)
+      : (wall.level > 0 ? wall.x + 220 + i * 30 : 400 + i * 40);
+    setTimeout(() => {
+      if (!state.running || !state.isNight) return;
+      const isBoss = state.day >= 8 && i === 0;
+      let name = isBoss ? pick(BOSS_NAMES)
+        : (state.day >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
+        : pick(ENEMY_NAMES_JP);
+      // たかり後輩を夜ごとに最低1体混ぜる
+      if (!isBoss && i === 1) name = 'たかり後輩';
+      const isTaka = name.indexOf('たかり') >= 0;
+      const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
+      enemies.push({
+        x: spawnX,
+        y: GROUND_Y,
+        hp: isBoss ? (12 + state.day) : (isTaka ? 3 + Math.floor(state.day / 3) : (2 + Math.floor(state.day / 2))),
+        maxHp: isBoss ? (12 + state.day) : (isTaka ? 3 + Math.floor(state.day / 3) : (2 + Math.floor(state.day / 2))),
+        speed: (isTaka ? 36 : 28) + state.day * 3 + rand(0, 10),
+        side,
+        name,
+        isBoss,
+        isTaka,
+        isGaze,
+        attackCd: 0,
+        stealCd: 0,
+        stunned: 0,
+        anim: rand(0, 3),
+        w: 18, h: 28,
+      });
+      if (i === 0) spawnMeme(spawnX, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
+    }, i * 1800);
+  }
+}
+
+function startDay() {
+  state.isNight = false;
+  state.dayTimer = 0;
+  state.dayChoiceDone = false;
+  state.killCombo = 0;
+  state.comboTimer = 0;
+  state.gazeT = 0;
+  const open = dayOpenLine(state.day);
+  story(open, 4.2);
+  if (state.day > 1) {
+    let bonus = 2 + Math.floor(state.day / 2);
+    // 湿度低すぎ→収入減／高すぎはペナルティなし（夜の機動力で既に不利）
+    if (state.humidity < 20) {
+      bonus = Math.max(1, bonus - 2);
+      toast('汗が足りない…朝の収入減', 2.4);
+    } else if (state.humidity >= 35 && state.humidity <= 70) {
+      bonus += 1; // 適湿ボーナス
+    }
+    state.coins += bonus;
+    const mline = pick(LORE.morning);
+    toast(`${mline} ＋${bonus}コイン`, 3.2);
+    spawnMeme(0, GROUND_Y - 80, pick(['生きてるゥ', 'やったぜ', 'いいゾ～これ']));
+    applyBankInterest();
+  } else {
+    toast(open, 3.5);
+    spawnMeme(0, GROUND_Y - 80, '王道を征く');
+  }
+  // 朝は少し涼む
+  state.humidity = clamp(state.humidity - 8, 5, 100);
+  updateHumidityHud();
+  for (let i = 0; i < 3; i++) {
+    dropCoin(rand(-500, 500) + (Math.random() < 0.5 ? -200 : 200), 1);
+  }
+}
+
+function winCheck() {
+  // 5日生き延び＆両側石壁でクリア
+  if (state.day >= 7 && structures.leftWall.level >= 2 && structures.rightWall.level >= 2 && !state.isNight) {
+    state.won = true;
+    state.over = true;
+    state.running = false;
+    showEnd(true);
+  }
+}
+
+function showEnd(win) {
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  const pack = win ? LORE.win : LORE.lose;
+  ov.innerHTML = `<h1 class="meme">${pack.title}</h1>
+       <p>${pack.body}Day ${state.day} ／ コイン ${state.coins}</p>
+       <button id="startBtn" type="button">${pack.btn}</button>`;
+  document.getElementById('startBtn').onclick = resetGame;
+}
+
+// ---------- リセット ----------
+function resetGame() {
+  document.getElementById('overlay').classList.add('hidden');
+  fitCanvas();
+  state.running = true;
+  state.over = false;
+  state.won = false;
+  state.day = 1;
+  state.isNight = false;
+  state.dayTimer = 0;
+  state.coins = 10;
+  player.x = 0;
+  player.vx = 0;
+  coinsOnGround.length = 0;
+  arrows.length = 0;
+  enemies.length = 0;
+  fx.length = 0;
+  units.length = 0;
+  structures.leftWall = { x: -180, hp: 0, maxHp: 0, level: 0 };
+  structures.rightWall = { x: 180, hp: 0, maxHp: 0, level: 0 };
+  structures.campfire = { x: 0, hp: 100, maxHp: 100 };
+  state.humidity = 42;
+  state.bank = 0;
+  state.killCombo = 0;
+  state.comboTimer = 0;
+  state.gazeT = 0;
+  state.skillCd = 0;
+  state.skillStunT = 0;
+  state.dayChoiceDone = false;
+  state.icedTeaStock = 1;
+  state.animT = 0;
+  // 初期コイン配置
+  dropCoin(-80, 2);
+  dropCoin(90, 2);
+  dropCoin(-250, 1);
+  dropCoin(260, 1);
+  startDay();
+  spawnMeme(player.x, GROUND_Y - 60, 'やりますねぇ!');
+  updateHumidityHud();
+}
+
+document.getElementById('startBtn').onclick = resetGame;
+
+// ---------- 更新 ----------
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (state.running && !state.over) update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function update(dt) {
+  // 昼夜
+  state.dayTimer += dt;
+  const len = state.isNight ? state.nightLength : state.dayLength;
+  if (state.dayTimer >= len) {
+    if (state.isNight) {
+      // 朝へ
+      enemies.length = 0; // 残敵逃走
+      state.day++;
+      startDay();
+      winCheck();
+    } else {
+      startNight();
+    }
+  }
+
+  if (toastTimer > 0) {
+    toastTimer -= dt;
+    if (toastTimer <= 0) document.getElementById('toast').classList.remove('show');
+  }
+  if (storyTimer > 0) {
+    storyTimer -= dt;
+    if (storyTimer <= 0) {
+      const s = document.getElementById('story');
+      if (s) s.classList.remove('show');
+    }
+  }
+
+  // 独自メカ＆アニメ時刻
+  state.animT += dt;
+  state.nightSway = state.isNight ? Math.sin(state.animT * 1.7) * 1.5 : 0;
+  if (state.skillCd > 0) state.skillCd -= dt;
+  if (state.skillStunT > 0) state.skillStunT -= dt;
+  if (state.gazeT > 0) state.gazeT -= dt;
+  if (state.comboTimer > 0) {
+    state.comboTimer -= dt;
+    if (state.comboTimer <= 0) state.killCombo = 0;
+  }
+  // 昼ミニ選択（昼の中盤・1回）
+  if (!state.isNight && !state.dayChoiceDone && state.dayTimer >= 18 && state.dayTimer < 19.2) {
+    openDayChoice();
+    return; // 選択中は世界を止める
+  }
+  // 湿度：移動で上昇、静止＋部室近傍で低下、夜は上昇速め
+  const nearCamp = Math.abs(player.x) < 70;
+  const moving = Math.abs(player.vx) > 10 || (keys['ArrowLeft']||keys['KeyA']||touchMove.left||keys['ArrowRight']||keys['KeyD']||touchMove.right);
+  // note: player.vx set below — use input preview
+  let humidRate = state.isNight ? 1.8 : 1.1;
+  // 仮: 下で再計算するためフラグのみ。本計算は移動後
+
+  // 移動
+  let input = 0;
+  if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
+  if (keys['ArrowRight'] || keys['KeyD'] || touchMove.right) input += 1;
+  player.vx = input * player.speed * playerSpeedMul();
+  if (input) player.facing = input;
+  player.x += player.vx * dt;
+  // 壁の内側に制限しすぎない（探索可）。ワールド端のみ
+  player.x = clamp(player.x, world.leftBound + 40, world.rightBound - 40);
+
+  // 湿度本計算
+  if (Math.abs(input) > 0) state.humidity += humidRate * dt * (state.isNight ? 1.35 : 1);
+  else if (nearCamp) state.humidity -= 3.2 * dt;
+  else state.humidity -= 0.35 * dt;
+  // 敵近接で汗
+  for (const e of enemies) {
+    if (Math.abs(e.x - player.x) < 90) { state.humidity += 2.2 * dt; break; }
+  }
+  state.humidity = clamp(state.humidity, 0, 100);
+  if ((Math.floor(state.animT * 4) % 4) === 0) updateHumidityHud();
+
+  // カメラ
+  const targetCam = player.x - W / 2;
+  state.cameraX += (targetCam - state.cameraX) * Math.min(1, dt * 6);
+
+  // ambientミーム（たき火周辺）
+  if (!state._memeCd) state._memeCd = 0;
+  state._memeCd -= dt;
+  if (state._memeCd <= 0) {
+    state._memeCd = state.isNight ? 4.5 : 7;
+    const lines = state.isNight
+      ? ['見とけよ', 'ファッ!?', 'ンアッー', 'キタ!', '114514', '来るな']
+      : ['いいゾ〜これ', 'やりますねぇ', '王道を征く', '114514', '810', 'こ↑こ↓', 'おかのした', 'あっ（察し）'];
+    spawnMeme(rand(-40, 40), GROUND_Y - 70, pick(lines));
+  }
+
+  // コイン物理＆拾い
+  for (let i = coinsOnGround.length - 1; i >= 0; i--) {
+    const c = coinsOnGround[i];
+    c.age += dt;
+    c.pickupDelay = Math.max(0, c.pickupDelay - dt);
+    c.vy += 400 * dt;
+    c.y += c.vy * dt;
+    if (c.y >= GROUND_Y - 8) {
+      c.y = GROUND_Y - 8;
+      if (Math.abs(c.vy) > 30) c.vy *= -0.35;
+      else c.vy = 0;
+    }
+    if (c.pickupDelay <= 0 && Math.abs(c.x - player.x) < 22 && Math.abs(c.y - (GROUND_Y - 10)) < 30) {
+      state.coins++;
+      coinsOnGround.splice(i, 1);
+      spawnMeme(player.x, GROUND_Y - 36, '+1');
+      if (Math.random() < 0.35) spawnMeme(player.x + 20, GROUND_Y - 50, pick(LORE.coinPickup));
+    }
+  }
+
+  // 射手
+  for (const u of units) {
+    if (u._shotFlash > 0) u._shotFlash -= dt;
+    const wall = u.side === 'left' ? structures.leftWall : structures.rightWall;
+    // 壁に追従
+    const ideal = wall.x + (u.side === 'left' ? 16 : -16);
+    u.x += (ideal - u.x) * dt * 2;
+    u.cooldown -= dt;
+    if (u.cooldown <= 0 && state.isNight) {
+      // 最も近い敵
+      let best = null, bestD = 280;
+      for (const e of enemies) {
+        const d = Math.abs(e.x - u.x);
+        if (d < bestD && ((u.side === 'left' && e.x <= u.x + 40) || (u.side === 'right' && e.x >= u.x - 40) || d < 200)) {
+          // だいたい外側向き優先だが近い敵なら撃つ
+          best = e; bestD = d;
+        }
+      }
+      // 緩和: 単に近い敵
+      if (!best) {
+        for (const e of enemies) {
+          const d = Math.abs(e.x - u.x);
+          if (d < bestD) { best = e; bestD = d; }
+        }
+      }
+      if (best) {
+        arrows.push({
+          x: u.x, y: GROUND_Y - 28,
+          vx: (best.x - u.x) > 0 ? 220 : -220,
+          life: 1.2,
+        });
+        u.cooldown = 1.1 + rand(0, 0.4);
+      } else {
+        u.cooldown = 0.4;
+      }
+    }
+  }
+
+  // 矢
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    a.x += a.vx * dt;
+    a.life -= dt;
+    let hit = false;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      if (Math.abs(a.x - e.x) < 14 && Math.abs((GROUND_Y - 20) - (e.y - 14)) < 24) {
+        e.hp--;
+        hit = true;
+        fx.push({ type: 'dot', x: e.x, y: GROUND_Y - 24, vx: rand(-40,40), vy: -60, life: 0.4, color: '#c44' });
+        if (e.hp <= 0) {
+          spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
+          // ドロップ
+          if (Math.random() < 0.55) dropCoin(e.x, 1);
+          enemies.splice(j, 1);
+        }
+        break;
+      }
+    }
+    if (hit || a.life <= 0) arrows.splice(i, 1);
+  }
+
+  // 敵
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.anim = (e.anim || 0) + dt;
+    if (e.stunned > 0) e.stunned -= dt;
+    // 眼光デバフ：近距離で視線
+    if (e.isGaze && Math.abs(e.x - player.x) < 220) {
+      state.gazeT = Math.max(state.gazeT, 0.6);
+    }
+    // たかり後輩：壁より先輩のコインを優先して寄る／近接で窃盗
+    if (e.isTaka && state.coins > 0 && Math.abs(e.x - player.x) < 280) {
+      const dir = Math.sign(player.x - e.x) || e.side;
+      const slow = e.stunned > 0 ? 0.25 : 1;
+      e.x += dir * e.speed * 1.15 * slow * dt;
+      e.stealCd = (e.stealCd || 0) - dt;
+      if (Math.abs(e.x - player.x) < 36 && e.stealCd <= 0) {
+        state.coins = Math.max(0, state.coins - 1);
+        e.stealCd = 2.2;
+        dropCoin(e.x + rand(-20, 20), 1, true); // 奪って落とす演出（回収可）
+        spawnMeme(e.x, GROUND_Y - 50, 'たかり!');
+        toast('たかり後輩にコインを…あっ（察し）', 2.0);
+        state.humidity = clamp(state.humidity + 4, 0, 100);
+      }
+      // たかり中は通常壁AIスキップ
+      continue;
+    }
+    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+    let targetX = 0; // たき火
+    let blocking = false;
+    if (wall.level > 0 && wall.hp > 0) {
+      // 壁の外側から近づく
+      if (e.side < 0 && e.x < wall.x - 10) { targetX = wall.x - 12; }
+      else if (e.side > 0 && e.x > wall.x + 10) { targetX = wall.x + 12; }
+      else if (e.side < 0 && e.x >= wall.x - 14) { blocking = true; targetX = wall.x; }
+      else if (e.side > 0 && e.x <= wall.x + 14) { blocking = true; targetX = wall.x; }
+      else targetX = 0;
+    }
+    if (!blocking) {
+      const dir = Math.sign(targetX - e.x) || e.side;
+      // 壁を超えたらキャンプへ
+      if (wall.level === 0 || wall.hp <= 0) {
+        e.x += Math.sign(0 - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * dt;
+      } else if ((e.side < 0 && e.x < wall.x - 12) || (e.side > 0 && e.x > wall.x + 12)) {
+        e.x += Math.sign((wall.x - e.side * 12) - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * dt;
+      } else {
+        blocking = true;
+      }
+    }
+    // 攻撃判定
+    e.attackCd -= dt;
+    if (wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20) {
+      if (e.attackCd <= 0) {
+        wall.hp -= 4 + state.day;
+        e.attackCd = 0.9;
+        spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
+        if (wall.hp <= 0) {
+          wall.hp = 0;
+          wall.level = 0;
+          const bl = pick(LORE.wallBreak);
+          toast((e.side < 0 ? '西' : '東') + 'の壁崩壊！ ' + bl, 3);
+          story(bl, 2.8);
+          spawnMeme(wall.x, GROUND_Y - 60, pick(['あ゛あ゛っ', 'ファッ!?', 'なに!?']));
+        }
+      }
+    } else if (Math.abs(e.x - 0) < 28) {
+      // たき火ダメージ
+      if (e.attackCd <= 0) {
+        structures.campfire.hp -= 8 + state.day;
+        e.attackCd = 0.8;
+        const cl = pick(LORE.campHit);
+        spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
+        if (structures.campfire.hp < 40) {
+          toast(cl, 2);
+          story(cl, 2.2);
+        }
+        if (structures.campfire.hp <= 0) {
+          structures.campfire.hp = 0;
+          state.over = true;
+          state.running = false;
+          showEnd(false);
+        }
+      }
+    }
+  }
+
+  // FX
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    f.t += dt;
+    if (f.type === 'pay') {
+      const p = Math.min(1, f.t / f.life);
+      f.x = f.x + (f.tx - f.x) * p; // will be overwritten below better
+    }
+    if (f.type === 'dot') {
+      f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 120 * dt;
+    }
+    if (f.t >= (f.life || 1)) fx.splice(i, 1);
+  }
+
+  // HUD
+  const left = document.getElementById('hud-left');
+  const right = document.getElementById('hud-right');
+  const remain = Math.max(0, (state.isNight ? state.nightLength : state.dayLength) - state.dayTimer);
+  const gaze = state.gazeT > 0 ? ' <span style="color:#f88">眼光…</span>' : '';
+  const combo = state.killCombo >= 2 ? ` <span class="meme">×${state.killCombo}</span>` : '';
+  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}／茶×${state.icedTeaStock}${gaze}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span>`;
+  const spot = nearestSpot();
+  const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
+  right.innerHTML = spot
+    ? `<span class="meme">支払い可</span><br>${spot.label}<br><span class="gold">コスト ${spot.cost}</span>`
+    : `${sk}<br>T＝アイスティー／湿度に注意`;
+}
+
+// ---------- 描画（ドット絵ベース + ミーム文字） ----------
+function wx(x) { return Math.floor(x - state.cameraX); }
+
+function drawPixelRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
+}
+
+function draw() {
+  ctx.imageSmoothingEnabled = false;
+  // 空
+  const night = state.isNight || (!state.running && state.over && !state.won);
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  if (state.isNight) {
+    skyGrad.addColorStop(0, '#0b1020');
+    skyGrad.addColorStop(1, '#1a1530');
+  } else {
+    skyGrad.addColorStop(0, '#6ec6ff');
+    skyGrad.addColorStop(0.55, '#c8e8ff');
+    skyGrad.addColorStop(1, '#8fbc6a');
+  }
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 星
+  if (state.isNight) {
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 40; i++) {
+      const sx = ((i * 97 + 30) - state.cameraX * 0.1) % W;
+      const sy = (i * 53) % (GROUND_Y - 40);
+      if (sy > 10) ctx.fillRect(sx, sy, 2, 2);
+    }
+  } else {
+    // 太陽
+    drawPixelRect(W - 100, 40, 28, 28, '#ffe566');
+  }
+
+  // 遠景丘（パララックス）
+  ctx.fillStyle = state.isNight ? '#1e2a1a' : '#5a8f4a';
+  for (let i = -3; i < 8; i++) {
+    const hx = wx(i * 280) * 0.4 + i * 100;
+    ctx.beginPath();
+    ctx.ellipse(hx + 200, GROUND_Y - 20, 160, 50, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 地面
+  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, state.isNight ? '#2a2118' : '#5c4030');
+  drawPixelRect(0, GROUND_Y, W, 8, state.isNight ? '#3a3020' : '#6b8f3a');
+  // ドット草
+  ctx.fillStyle = state.isNight ? '#2f4a28' : '#4a7a35';
+  for (let x = -((state.cameraX | 0) % 16); x < W; x += 16) {
+    ctx.fillRect(x, GROUND_Y - 4, 3, 4);
+    ctx.fillRect(x + 7, GROUND_Y - 6, 2, 6);
+  }
+
+  // 領地床の色（壁の内側）
+  const lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
+  const rx = structures.rightWall.level > 0 ? structures.rightWall.x : 40;
+  const territoryAlpha = state.isNight ? 0.15 : 0.12;
+  ctx.fillStyle = `rgba(255, 215, 0, ${territoryAlpha})`;
+  ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
+
+  // たき火
+  drawCampfire(wx(0), GROUND_Y);
+
+  // 壁
+  drawWall(structures.leftWall, true);
+  drawWall(structures.rightWall, false);
+
+  // ショップヒント円
+  if (state.running) {
+    for (const s of shopSpots()) {
+      if (!s.can) continue;
+      const near = Math.abs(player.x - s.x) <= s.r;
+      ctx.strokeStyle = near ? '#ffd700' : 'rgba(255,215,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(wx(s.x), GROUND_Y - 4, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      if (near) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = '8px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText(`[SPACE] ${s.cost}🪙`, wx(s.x), GROUND_Y - 70);
+        ctx.fillStyle = '#ff6b9d';
+        ctx.fillText(s.label, wx(s.x), GROUND_Y - 84);
+      }
+    }
+  }
+
+  // コイン
+  for (const c of coinsOnGround) drawCoin(wx(c.x), c.y);
+
+  // ユニット（弓後輩）
+  for (const u of units) drawArcher(wx(u.x), GROUND_Y, u);
+
+  // 敵
+  for (const e of enemies) drawEnemy(wx(e.x), GROUND_Y, e);
+
+  // 矢
+  ctx.fillStyle = '#ddd';
+  for (const a of arrows) {
+    ctx.fillRect(wx(a.x), a.y, 8, 2);
+  }
+
+  // プレイヤー（野獣先輩）
+  drawYajyu(wx(player.x), GROUND_Y, player.facing);
+
+  // FX ミーム文字
+  for (const f of fx) {
+    if (f.type === 'meme') {
+      const a = 1 - f.t / f.life;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ff6b9d';
+      ctx.font = '10px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.text, wx(f.x), f.y - f.t * 30);
+      ctx.globalAlpha = 1;
+    } else if (f.type === 'burst') {
+      const p = f.t / f.life;
+      for (let k = 0; k < 6; k++) {
+        const ang = k / 6 * Math.PI * 2;
+        drawPixelRect(wx(f.x) + Math.cos(ang) * p * 18, f.y + Math.sin(ang) * p * 12, 3, 3, '#ff6b9d');
+      }
+    } else if (f.type === 'dot') {
+      ctx.fillStyle = f.color || '#fff';
+      ctx.fillRect(wx(f.x), f.y, 3, 3);
+    } else if (f.type === 'pay') {
+      const p = Math.min(1, f.t / f.life);
+      const px = f.x + (f.tx - f.x) * p; // initial f.x was start - bug: we mutate
+      // use stored - actually we need start positions. simplify:
+      drawCoin(wx(f.tx - (1 - p) * (f.tx - player.x)), GROUND_Y - 20 - Math.sin(p * Math.PI) * 40);
+    }
+  }
+
+  // 名前プレート
+  ctx.fillStyle = '#ff6b9d';
+  ctx.font = '8px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('野獣先輩', wx(player.x), GROUND_Y - 72);
+  ctx.fillStyle = '#ffd700';
+  ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 84);
+
+  // 夜間ヴィネット
+  if (state.isNight) {
+    const g = ctx.createRadialGradient(W/2, GROUND_Y - 40, 80, W/2, GROUND_Y, 420);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // たき火の灯り
+    const light = ctx.createRadialGradient(wx(0), GROUND_Y - 20, 10, wx(0), GROUND_Y - 20, 160);
+    light.addColorStop(0, 'rgba(255,180,60,0.25)');
+    light.addColorStop(1, 'rgba(255,180,60,0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // キャンプHPバー
+  drawBar(wx(-30), GROUND_Y + 18, 60, 6, structures.campfire.hp / structures.campfire.maxHp, '#e85', '#333');
+  ctx.fillStyle = '#ccc';
+  ctx.font = '7px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('部室', wx(0), GROUND_Y + 36);
+}
+
+function drawBar(x, y, w, h, ratio, fg, bg) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = fg;
+  ctx.fillRect(x, y, w * clamp(ratio, 0, 1), h);
+  ctx.strokeStyle = '#000';
+  ctx.strokeRect(x, y, w, h);
+}
+
+function drawCampfire(x, y) {
+  ctx.imageSmoothingEnabled = false;
+  const sway = state.nightSway;
+  drawPixelRect(x - 14, y - 6, 28, 8, '#666');
+  drawPixelRect(x - 10, y - 10, 8, 8, '#5a3a20');
+  drawPixelRect(x + 2, y - 12, 8, 10, '#4a2a10');
+  // CRONWS風・炎3フレ
+  const fi = frameIndex(8, FR_FLAME.length);
+  blitPixels(x - 6 + sway * 0.3, y - 36, FR_FLAME[fi], PAL_BODY, 3, false);
+  // 夜の火粉
+  if (state.isNight) {
+    for (let i = 0; i < 4; i++) {
+      const px = x + Math.sin(state.animT * 3 + i) * 10;
+      const py = y - 28 - ((state.animT * 40 + i * 13) % 36);
+      drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
+    }
+  }
+  ctx.fillStyle = '#3d2b1f';
+  ctx.fillRect(x + 18, y - 40, 4, 40);
+  ctx.fillStyle = '#5a2a1a';
+  ctx.fillRect(x + 10, y - 64, 78, 30);
+  ctx.strokeStyle = '#ffd700';
+  ctx.strokeRect(x + 10, y - 64, 78, 30);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '7px "Press Start 2P"';
+  ctx.textAlign = 'left';
+  ctx.fillText('王道を征く', x + 14, y - 50);
+  ctx.fillStyle = '#ff6b9d';
+  ctx.fillText('部室・IKZO', x + 14, y - 38);
+  if (SPR.icon) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(SPR.icon, x - 36, y - 48, 24, 24);
+  }
+}
+
+function drawWall(wall, isLeft) {
+  ctx.imageSmoothingEnabled = false;
+  if (wall.level <= 0) {
+    const x = wx(wall.x);
+    const bob = Math.sin(state.animT * 2 + wall.x) * 1;
+    drawPixelRect(x - 2, GROUND_Y - 16 + bob, 4, 16, '#5a4030');
+    ctx.fillStyle = 'rgba(255,215,0,0.5)';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('バリケード', x, GROUND_Y - 22);
+    return;
+  }
+  const x = wx(wall.x);
+  const h = wall.level === 1 ? 48 : 72;
+  const color = wall.level === 1 ? '#8b5a2b' : '#7a7a7a';
+  const dark = wall.level === 1 ? '#5a3a1a' : '#4a4a4a';
+  const sway = state.isNight ? state.nightSway * 0.4 : 0;
+  // 微細ドット積み上げ
+  const brickW = 5, brickH = 4;
+  for (let row = 0; row < Math.ceil(h / brickH); row++) {
+    for (let col = 0; col < 4; col++) {
+      const ox = x - 10 + col * brickW + (row % 2) * 2;
+      const oy = GROUND_Y - (row + 1) * brickH;
+      const shade = (row + col) % 3 === 0 ? dark : color;
+      drawPixelRect(ox + sway, oy, brickW - 1, brickH - 1, shade);
+    }
+  }
+  for (let i = 0; i < 3; i++) {
+    drawPixelRect(x - 10 + i * 7 + sway, GROUND_Y - h - 8, 5, 8, color);
+  }
+  // 旗はためアニメ
+  const flagWave = Math.sin(state.animT * 6 + (isLeft ? 0 : 1)) * 2;
+  drawPixelRect(x + (isLeft ? -2 : 0), GROUND_Y - h - 28, 3, 28, '#333');
+  drawPixelRect(x + (isLeft ? -20 : 3) + flagWave, GROUND_Y - h - 28, 18, 12, '#ff6b9d');
+  ctx.fillStyle = '#fff';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'left';
+  ctx.fillText('IKZO', x + (isLeft ? -18 : 5) + flagWave, GROUND_Y - h - 19);
+  drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, '#4c4', '#333');
+}
+
+function drawCoin(x, y) {
+  const spin = frameIndex(6, 2);
+  if (spin === 0) {
+    drawPixelRect(x - 5, y - 5, 10, 10, '#c9a000');
+    drawPixelRect(x - 3, y - 3, 6, 6, '#ffe566');
+    drawPixelRect(x - 1, y - 2, 2, 4, '#c9a000');
+  } else {
+    drawPixelRect(x - 2, y - 5, 4, 10, '#c9a000');
+    drawPixelRect(x - 1, y - 3, 2, 6, '#ffe566');
+  }
+}
+
+function drawYajyu(x, y, facing) {
+  ctx.imageSmoothingEnabled = false;
+  const walking = Math.abs(player.vx) > 10;
+  const fi = walking ? frameIndex(7, FR_WALK.length) : 0;
+  const bob = walking ? (fi === 1 ? 1 : 0) : Math.sin(state.animT * 2) * 0.5;
+  const flip = facing < 0;
+  const body = walking ? FR_WALK[fi] : FR_IDLE[0];
+  blitPixels(x - 15, y - 40 + bob, body, PAL_BODY, 3, flip);
+  // Wiki顔（nearest-neighbor拡大）
+  if (SPR.senpai) {
+    ctx.imageSmoothingEnabled = false;
+    const fw = 32, fh = 32;
+    ctx.drawImage(SPR.senpai, x - 16, y - 56 + bob, fw, fh);
+  }
+  // 王冠（常時・王道を征く）微細ドット
+  const cy = y - 60 + bob;
+  drawPixelRect(x - 9, cy, 18, 5, '#ffd700');
+  drawPixelRect(x - 9, cy - 4, 4, 4, '#ffd700');
+  drawPixelRect(x - 2, cy - 6, 4, 6, '#ffe566');
+  drawPixelRect(x + 5, cy - 4, 4, 4, '#ffd700');
+  drawPixelRect(x - 1, cy - 8, 2, 2, '#fff2a8'); // 宝石
+  // 高湿度の汗パーティクル
+  if (state.humidity >= 70 && Math.sin(state.animT * 9) > 0.4) {
+    drawPixelRect(x + (flip ? -10 : 8), y - 30, 2, 3, '#8cf');
+  }
+  // 眼光デバフ時の輪郭
+  if (state.gazeT > 0) {
+    ctx.strokeStyle = 'rgba(255,80,80,0.55)';
+    ctx.strokeRect(x - 18, y - 62, 36, 62);
+  }
+}
+
+function drawArcher(x, y, u) {
+  ctx.imageSmoothingEnabled = false;
+  const shooting = (u._shotFlash || 0) > 0;
+  const fi = shooting ? 1 : frameIndex(3, FR_ARCH.length);
+  const bob = Math.sin(state.animT * 3 + (u.x || 0)) * 0.6 + state.nightSway * 0.2;
+  blitPixels(x - 12, y - 30 + bob, FR_ARCH[fi], PAL_BODY, 3, u.side === 'left');
+  if (SPR.kohai) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(SPR.kohai, x - 12, y - 44 + bob, 24, 24);
+  }
+  // 弓の線
+  ctx.strokeStyle = '#c8a060';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const bowX = u.side === 'left' ? x - 10 : x + 10;
+  ctx.arc(bowX, y - 20 + bob, 8, -1, 1);
+  ctx.stroke();
+  if (shooting) {
+    drawPixelRect(bowX - 2, y - 22 + bob, 6, 2, '#fff');
+  }
+  ctx.fillStyle = '#8af';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('砲台', x, y - 48 + bob);
+}
+
+function drawEnemy(x, y, e) {
+  ctx.imageSmoothingEnabled = false;
+  const fi = frameIndex(5, 2);
+  const stunBob = e.stunned > 0 ? Math.sin(state.animT * 20) * 2 : 0;
+  const frames = e.isGaze ? FR_GAZE : e.isTaka ? FR_TAKA : FR_ENEMY;
+  blitPixels(x - 12, y - 32 + stunBob, frames[fi], PAL_BODY, 3, e.side > 0);
+  if (e.isGaze) {
+    // 眼光ビーム風
+    ctx.globalAlpha = 0.25 + Math.sin(state.animT * 8) * 0.15;
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(x - 40, y - 28, 80, 2);
+    ctx.globalAlpha = 1;
+  }
+  if (e.stunned > 0) {
+    ctx.fillStyle = '#ff6b9d';
+    ctx.font = '7px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('（）', x, y - 48);
+  }
+  ctx.fillStyle = e.isTaka ? '#ff8' : '#f88';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText(e.name, x, y - 42 + stunBob);
+  drawBar(x - 12, y + 4, 24, 3, e.hp / e.maxHp, '#f44', '#333');
+}
+</script>
+</body>
+</html>
