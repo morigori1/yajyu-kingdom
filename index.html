@@ -1792,6 +1792,10 @@ function raidFormMul() {
 function ensureCivilMiliExt() {
   if (state.supplyStock == null) state.supplyStock = 0;
   if (state.supplyLmId === undefined) state.supplyLmId = null;
+  if (state.supplyLmId && !(state.landmarks && state.landmarks[state.supplyLmId])) {
+    state.supplyLmId = null;
+  }
+  state.supplyStock = clamp(state.supplyStock | 0, 0, 5);
   if (!state.raidForm) state.raidForm = 'std';
   if (!state.civilSub) state.civilSub = 'people';
   if (state._nightKills == null) state._nightKills = 0;
@@ -1858,12 +1862,12 @@ const ACH_DEFS = [
   { id: 'lm_all_ch0', name: '下北コンプ', check: () => landmarksForChapter(0).every(L => state.landmarks[L.id]) },
   { id: 'film10', name: '撮影10カット', check: () => state.filmShots>=10 },
   { id: 'film50', name: '撮影50カット', check: () => state.filmShots>=50 },
-  { id: 'bond_kohai', name: '後輩と絆', check: () => (state.bond.kohai|0)>=40 },
-  { id: 'bond_crew', name: '撮影班と絆', check: () => (state.bond.crew|0)>=40 },
-  { id: 'bond_town', name: '街と絆', check: () => (state.bond.town|0)>=40 },
-  { id: 'bond_kohai80', name: '後輩と深絆', check: () => (state.bond.kohai|0)>=80 },
-  { id: 'bond_crew80', name: '撮影班と深絆', check: () => (state.bond.crew|0)>=80 },
-  { id: 'bond_town80', name: '街と深絆', check: () => (state.bond.town|0)>=80 },
+  { id: 'bond_kohai', name: '後輩と絆', check: () => ((state.bond&&state.bond.kohai)|0)>=40 },
+  { id: 'bond_crew', name: '撮影班と絆', check: () => ((state.bond&&state.bond.crew)|0)>=40 },
+  { id: 'bond_town', name: '街と絆', check: () => ((state.bond&&state.bond.town)|0)>=40 },
+  { id: 'bond_kohai80', name: '後輩と深絆', check: () => ((state.bond&&state.bond.kohai)|0)>=80 },
+  { id: 'bond_crew80', name: '撮影班と深絆', check: () => ((state.bond&&state.bond.crew)|0)>=80 },
+  { id: 'bond_town80', name: '街と深絆', check: () => ((state.bond&&state.bond.town)|0)>=80 },
   { id: 'bond_evt3', name: '関係イベント3', check: () => Object.keys(state.bondFlags||{}).filter(k => String(k).indexOf('evt_')===0).length>=3 },
   { id: 'bond_gift5', name: 'ギフト5回', check: () => (state._bondGifts|0)>=5 },
   { id: 'bond_joint3', name: '共同ロケ3', check: () => (state._bondJoints|0)>=3 },
@@ -2176,7 +2180,7 @@ function renderCollectBox(parent, sub) {
 
 const BOND_NPCS = [
   {
-    key: 'kohai', name: '後輩', talkGain: 4, humidity: -6,
+    key: 'kohai', name: '後輩', talkGain: 5, humidity: -6,
     branches: [
       { min: 0, lines: [
         '後輩「やりますねぇ」　湿度が下がる　おかのした',
@@ -2197,27 +2201,27 @@ const BOND_NPCS = [
       ], codexIds: ['qs_kuun'], flag: 'talk_kohai_deep' },
     ],
     gifts: [
-      { id: 'tea', label: 'アイスティー差し入れ', cost: 2, gain: 8, need: 10,
+      { id: 'tea', label: 'アイスティー差し入れ', cost: 2, gain: 8, need: 6,
         line: '後輩「いいかな？（念押し）」　冷えてるゾ　おかのした',
         codexIds: ['qs_iikana', 'qb_kohai3'] },
       { id: 'towel', label: '汗の手ぬぐい', cost: 1, gain: 5, need: 0,
         line: '後輩「すっごい綺麗…」　手ぬぐいが光る',
         codexIds: ['qs_kirei', 'qb_kohai2'] },
-      { id: 'mugicha', label: '麦茶を渡す', cost: 1, gain: 6, need: 5,
+      { id: 'mugicha', label: '麦茶を渡す', cost: 1, gain: 6, need: 3,
         line: '後輩「麦茶は麦じゃない」　いいかな？（念押し）　湿度↓',
         codexIds: ['qh_mugicha', 'qs_iikana'] },
     ],
     joints: [
-      { id: 'jk_kitazawa', label: '部室〜北沢共同ロケ', lmId: 'kitazawa', needBond: 20, need: 2, reward: 1, bondGain: 6,
+      { id: 'jk_kitazawa', label: '部室〜北沢共同ロケ', lmId: 'kitazawa', needBond: 15, need: 2, reward: 1, bondGain: 6,
         line: '共同ロケ　後輩「すっごい綺麗…」　北沢公園',
         codexIds: ['qs_kirei', 'qb_kohai2'], photo: 'kitazawa' },
-      { id: 'jk_laundry', label: 'ランドリー共同ロケ', lmId: 'laundry', needBond: 45, need: 2, reward: 2, bondGain: 8,
+      { id: 'jk_laundry', label: 'ランドリー共同ロケ', lmId: 'laundry', needBond: 38, need: 2, reward: 2, bondGain: 8,
         line: '共同ロケ　後輩「いいかな？（念押し）」　コインランドリー',
         codexIds: ['qs_iikana', 'qb_kohai3'], photo: 'laundry' },
     ],
   },
   {
-    key: 'crew', name: '撮影班', talkGain: 5, humidity: 0,
+    key: 'crew', name: '撮影班', talkGain: 6, humidity: 0,
     branches: [
       { min: 0, lines: [
         '撮影班「あり…ますあります」　カット割り　114514',
@@ -2238,7 +2242,7 @@ const BOND_NPCS = [
       ], codexIds: ['qe_genkai'], flag: 'talk_crew_deep' },
     ],
     gifts: [
-      { id: 'bento', label: 'ロケ弁（350円相当）', cost: 2, gain: 7, need: 15,
+      { id: 'bento', label: 'ロケ弁（350円相当）', cost: 2, gain: 7, need: 10,
         line: '班長「1日…350円！」　弁当代　あり…ますあります',
         codexIds: ['qs_350', 'qb_crew1'] },
       { id: 'tape', label: '予備テープ', cost: 1, gain: 4, need: 0,
@@ -2246,16 +2250,16 @@ const BOND_NPCS = [
         codexIds: ['qs_hayarase', 'qb_crew2'] },
     ],
     joints: [
-      { id: 'jc_azuma', label: 'あずま寿し共同ロケ', lmId: 'azuma', needBond: 25, need: 2, reward: 1, bondGain: 6,
+      { id: 'jc_azuma', label: 'あずま寿し共同ロケ', lmId: 'azuma', needBond: 18, need: 2, reward: 1, bondGain: 6,
         line: '共同ロケ　班長「1日…350円！」　あずま寿し',
         codexIds: ['qs_350', 'qb_crew1'], photo: 'azuma' },
-      { id: 'jc_kabuki', label: '歌舞伎町共同ロケ', lmId: 'kabuki', needBond: 50, need: 3, reward: 2, bondGain: 9,
+      { id: 'jc_kabuki', label: '歌舞伎町共同ロケ', lmId: 'kabuki', needBond: 42, need: 3, reward: 2, bondGain: 9,
         line: '共同ロケ　撮影班「流行らせコラ！」　歌舞伎町の片鱗',
         codexIds: ['qs_hayarase', 'qb_crew2'], photo: 'kabuki' },
     ],
   },
   {
-    key: 'town', name: '街', talkGain: 6, humidity: 0,
+    key: 'town', name: '街', talkGain: 7, humidity: 0,
     branches: [
       { min: 0, lines: [
         '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
@@ -2276,7 +2280,7 @@ const BOND_NPCS = [
       ], codexIds: ['qe_genkai'], flag: 'talk_town_deep' },
     ],
     gifts: [
-      { id: 'vend', label: '自販機コイン（810）', cost: 3, gain: 9, need: 20,
+      { id: 'vend', label: '自販機コイン（810）', cost: 3, gain: 9, need: 14,
         line: '街の自販機　ありますあります　810円が光る',
         codexIds: ['qe_vend810', 'qs_arimasu', 'qb_town1'] },
       { id: 'flyer', label: '聖地チラシ', cost: 1, gain: 4, need: 0,
@@ -2284,10 +2288,10 @@ const BOND_NPCS = [
         codexIds: ['qb_town0'] },
     ],
     joints: [
-      { id: 'jt_setagaya', label: '世田谷共同ロケ', lmId: 'setagaya', needBond: 30, need: 2, reward: 1, bondGain: 7,
+      { id: 'jt_setagaya', label: '世田谷共同ロケ', lmId: 'setagaya', needBond: 22, need: 2, reward: 1, bondGain: 7,
         line: '共同ロケ　街の自販機　ありますあります　世田谷公園',
         codexIds: ['qs_arimasu', 'qb_town1'], photo: 'setagaya' },
-      { id: 'jt_yamanote', label: '新宿交差点共同ロケ', lmId: 'yamanote', needBond: 55, need: 3, reward: 2, bondGain: 10,
+      { id: 'jt_yamanote', label: '新宿交差点共同ロケ', lmId: 'yamanote', needBond: 48, need: 3, reward: 2, bondGain: 10,
         line: '共同ロケ　黒塗りの高級車が急ブレーキ　新宿交差点',
         codexIds: ['qe_blackcar', 'qb_town2'], photo: 'yamanote' },
     ],
@@ -2295,22 +2299,22 @@ const BOND_NPCS = [
 ];
 
 const BOND_THRESH_EVENTS = [
-  { id: 'evt_vend810', key: 'town', min: 35, title: '810円の自販機が出現',
+  { id: 'evt_vend810', key: 'town', min: 28, title: '810円の自販機が出現',
     story: '路地の角　810円の自販機が出現　ありますあります　街がざわつく',
     codexIds: ['qe_vend810', 'qs_arimasu', 'qb_town1'], skinHint: 'vending', coins: 1 },
-  { id: 'evt_kohai_kirei', key: 'kohai', min: 40, title: '部室の窓が光る',
+  { id: 'evt_kohai_kirei', key: 'kohai', min: 35, title: '部室の窓が光る',
     story: '後輩「すっごい綺麗…」　部室の窓　汗が光る　湿度が下がる',
     codexIds: ['qs_kirei', 'qb_kohai2'], coins: 1 },
-  { id: 'evt_crew_350', key: 'crew', min: 40, title: 'ロケ弁の請求書',
+  { id: 'evt_crew_350', key: 'crew', min: 35, title: 'ロケ弁の請求書',
     story: '班長「1日…350円！」　ロケ弁の請求書　ま、多少はね？　ありますあります',
     codexIds: ['qs_350', 'qb_crew1'], coins: 1 },
-  { id: 'evt_iikana', key: 'kohai', min: 55, title: '念押しのアイスティー',
+  { id: 'evt_iikana', key: 'kohai', min: 50, title: '念押しのアイスティー',
     story: '後輩「いいかな？（念押し）」　アイスティー　冷えてるゾ　おかのした',
     codexIds: ['qs_iikana', 'qb_kohai3'], coins: 1 },
-  { id: 'evt_blackcar', key: 'town', min: 60, title: '黒塗りの高級車が急ブレーキ',
+  { id: 'evt_blackcar', key: 'town', min: 55, title: '黒塗りの高級車が急ブレーキ',
     story: '黒塗りの高級車が急ブレーキ　街がざわつく　汗が飛び散る　やりますねぇ',
     codexIds: ['qe_blackcar', 'qb_town2'], skinHint: 'blackcar', coins: 2 },
-  { id: 'evt_genkai', key: 'crew', min: 70, title: '語録の限界集合',
+  { id: 'evt_genkai', key: 'crew', min: 65, title: '語録の限界集合',
     story: '語録の限界集合　レンズが割れる　微粒子レベルで存在している　流行らせコラ！',
     codexIds: ['qe_genkai', 'qs_biryushi', 'qs_hayarase', 'qc_naa'], coins: 3, chapterMin: 2 },
 ];
@@ -2507,6 +2511,7 @@ function unlockAch(id) {
 
 function checkAchievements() {
   if (!state.achievements) state.achievements = {};
+  try { ensureBondState(); ensureHeatState(); ensureCivilMiliExt(); } catch (_) {}
   try { refreshTowerSkins(true); } catch (_) {}
   for (const a of ACH_DEFS) {
     try { if (!state.achievements[a.id] && a.check()) unlockAch(a.id); } catch (_) {}
@@ -2909,17 +2914,24 @@ function tickHeatRisk(dt, moving) {
   if (state.heatStunT > 0) state.heatStunT = Math.max(0, state.heatStunT - dt);
   const h = state.humidity | 0;
   let d = 0;
-  if (h >= 85) d += moving ? 7 : 3.5;
-  else if (h >= 70) d += moving ? 4 : 1.5;
-  else if (h >= 55) d += moving ? 1.6 : 0.2;
+  if (h >= 85) d += moving ? 5.5 : 2.6;
+  else if (h >= 70) d += moving ? 3.2 : 1.1;
+  else if (h >= 55) d += moving ? 1.2 : 0.15;
   else if (h <= 35) d -= 4;
-  else d -= 1.2;
-  if (state.heatEvent === 'heatstroke_warn') d += 3;
-  if (state.heatEvent === 'heatwave') d += 2;
-  if (state.heatEvent === 'mugicha_day' || state.heatEvent === 'laundry_day' || state.heatEvent === 'ice_stand') d -= 1.5;
+  else d -= 1.4;
+  if (state.heatEvent === 'heatstroke_warn') d += 2.2;
+  if (state.heatEvent === 'heatwave') d += 1.5;
+  if (state.heatEvent === 'mugicha_day' || state.heatEvent === 'laundry_day' || state.heatEvent === 'ice_stand') d -= 1.8;
   if (state.rainT > 0) d -= 5;
+  // 補給線：配置人数＋物資で熱中症上昇を抑制
+  try {
+    const sw = workers.filter(w => w.job === 'supply').length;
+    if (sw > 0) d -= 0.7 + sw * 0.4;
+    if ((state.supplyStock | 0) >= 2) d -= 0.6;
+    if ((state.supplyStock | 0) >= 4) d -= 0.4;
+  } catch (_) {}
   state.heatRisk = clamp((state.heatRisk | 0) + d * dt, 0, 100);
-  if ((state.heatRisk | 0) >= 92 && !state.heatStunT) {
+  if ((state.heatRisk | 0) >= 94 && !state.heatStunT) {
     triggerHeatstroke();
   }
   if ((state.heatRisk | 0) <= 15 && (state.heatFlags && state.heatFlags.heatstroke_hit) && !state.heatFlags.risk_cooled) {
@@ -2933,9 +2945,9 @@ function triggerHeatstroke() {
   if (state.heatFlags._strokeCdDay === (state.day | 0)) return;
   state.heatFlags._strokeCdDay = state.day | 0;
   state.heatFlags.heatstroke_hit = true;
-  state.heatStunT = 2.4;
-  state.heatRisk = clamp((state.heatRisk | 0) - 18, 40, 100);
-  state.humidity = clamp(state.humidity + 4, 0, 100);
+  state.heatStunT = 1.85;
+  state.heatRisk = clamp((state.heatRisk | 0) - 30, 18, 100);
+  state.humidity = clamp(state.humidity + 3, 0, 100);
   unlockCodexId('qh_stroke', true);
   toast('熱中症…！　動けぬわ　アイスティー／麦茶！', 3.2);
   try { if (typeof audPlay === 'function') audPlay('heat'); } catch (_) {}
@@ -3044,7 +3056,8 @@ function openBranchPanel(tab) {
     f: workers.filter(w => w.job==='film').length,
     c: workers.filter(w => w.job==='cheer').length,
   };
-  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}　補給${state.supplyStock|0}/5<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>民 集金${_jr.g}／補給${_jr.s}／撮影${_jr.f}／応援${_jr.c}　編成${raidFormName(state.raidForm||'std').split('（')[0]}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}　収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}`;
+  const _b = state.bond || {};
+  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}　補給${state.supplyStock|0}/5<br>関係 後輩${_b.kohai|0}／班${_b.crew|0}／街${_b.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>民 集金${_jr.g}／補給${_jr.s}／撮影${_jr.f}／応援${_jr.c}　編成${raidFormName(state.raidForm||'std').split('（')[0]}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}　収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}`;
   btns.appendChild(meta);
   title.textContent = ({
     civil: '【内政】民の役割／補給線／施設',
@@ -4623,6 +4636,7 @@ function openDayChoice() {
         try { syncPanelChrome(false); } catch (_) {}
         updateHumidityHud();
         checkAchievements();
+        try { saveGame(true); } catch (_) {}
       }
     };
     btns.appendChild(b);
@@ -4677,15 +4691,17 @@ function morningCivilIncome() {
 }
 
 function playerSpeedMul() {
-  if ((state.heatStunT || 0) > 0) return 0.15;
+  if ((state.heatStunT || 0) > 0) return 0.32;
   let m = 1;
-  if (state.humidity >= 80) m *= 0.78;
-  if (state.heatEvent === 'heatstroke_warn') m *= 0.82;
-  if (state.heatEvent === 'heatwave') m *= 0.9;
-  if (state.heatEvent === 'steam_haze') m *= 0.94;
-  else if (state.humidity >= 65) m *= 0.9;
-  if (state.humidity <= 18) m *= 0.92; // 乾きすぎても微妙に鈍い
-  if (state.gazeT > 0) m *= 0.82;
+  if (state.humidity >= 80) m *= 0.82;
+  if (state.heatEvent === 'heatstroke_warn') m *= 0.86;
+  if (state.heatEvent === 'heatwave') m *= 0.92;
+  if (state.heatEvent === 'steam_haze') m *= 0.95;
+  else if (state.humidity >= 65) m *= 0.92;
+  if (state.humidity <= 18) m *= 0.94; // 乾きすぎても微妙に鈍い
+  if (state.gazeT > 0) m *= 0.84;
+  // 補給物資があると真夏でもわずかに動きやすい
+  if ((state.supplyStock | 0) >= 3) m *= 1.04;
   return m;
 }
 
@@ -5673,9 +5689,34 @@ const ENEMY_NAMES_JP = [
 ];
 const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '迫真の淫獣', 'MUR・真'];
 
+function combatDayScale() {
+  // 攻勢長期化で敵が無限に強くなるのをソフトキャップ
+  const d = state.day | 0;
+  if (!state.assault) return d;
+  return Math.min(d, 10 + (state.chapter | 0) * 3);
+}
+
+function nightWaveCount() {
+  const d = combatDayScale();
+  if (d <= 2) return 2 + d;
+  return Math.min(14, 3 + d + (state.assault ? 1 + (state.chapter | 0) : 0));
+}
+
+function syncCycleLengths() {
+  const d = state.day | 0;
+  // 昼: 序盤は長め（学習）、攻勢はわずかにタイト
+  if (d <= 2) state.dayLength = 58;
+  else if (d <= 6) state.dayLength = 54;
+  else state.dayLength = state.assault ? 48 : 50;
+  const waves = nightWaveCount();
+  const spawnSpan = Math.max(0, waves - 1) * 1.8;
+  state.nightLength = clamp(Math.round(spawnSpan + (state.assault ? 14 : 12)), 30, 56);
+}
+
 function startNight() {
   state.isNight = true;
   state.dayTimer = 0;
+  syncCycleLengths();
   ensureCivilMiliExt();
   state._nightKills = 0;
   state._nightCoin0 = state.coins | 0;
@@ -5699,9 +5740,9 @@ function startNight() {
   toast(`Night ${state.day} — ${shortenMsg(nline, 48)}`, 3.4);
   story(nline, 3.6);
   spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
-  // 序盤は学習用に波を抑え、中盤から本領
-  const waves = state.day <= 2 ? 2 + state.day
-    : Math.min(14, 3 + state.day + (state.assault ? 1 + state.chapter : 0));
+  // 序盤は学習用に波を抑え、攻勢は combatDayScale でソフトキャップ
+  const waves = nightWaveCount();
+  const scaleDay = combatDayScale();
   const nightGen = state.fxGen;
   for (let i = 0; i < waves; i++) {
     const side = i % 2 === 0 ? -1 : 1;
@@ -5711,15 +5752,15 @@ function startNight() {
       : (wall.level > 0 ? wall.x + 220 + i * 30 : 400 + i * 40);
     setTimeout(() => {
       if (!state.running || !state.isNight || state.fxGen !== nightGen) return;
-      const isBoss = state.day >= 8 && i === 0;
+      const isBoss = scaleDay >= 8 && i === 0;
       let name = isBoss ? pick(BOSS_NAMES)
-        : (state.day >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
+        : (scaleDay >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
         : pick(ENEMY_NAMES_JP);
       // たかり後輩を夜ごとに最低1体混ぜる
       if (!isBoss && i === 1) name = 'たかり後輩';
       // TD v29寄せ：遠野笑顔／ンギモ／こ↑こ↓／MUR を中盤以降に混ぜる
-      if (!isBoss && state.day >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
-      if (!isBoss && state.day >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
+      if (!isBoss && scaleDay >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
+      if (!isBoss && scaleDay >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
       const isTaka = name.indexOf('たかり') >= 0;
       if (!isBoss && state.heatEvent === 'gaze_sun' && i === 3) name = pick(['野獣の眼光', '迫真の淫獣', name]);
       const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
@@ -5727,12 +5768,13 @@ function startNight() {
       const isNgimo = name.indexOf('ンギモ') >= 0;
       const isKoko = name.indexOf('こ↑こ↓') >= 0;
       const isMur = name.indexOf('MUR') >= 0;
-      let hp = isBoss ? (12 + state.day) : (2 + Math.floor(state.day / 2));
-      if (isTaka) hp = 3 + Math.floor(state.day / 3);
-      if (isMur) hp = 5 + state.day;
-      if (isNgimo) hp = 4 + Math.floor(state.day / 2);
-      let spd = (isTaka ? 34 : 26) + state.day * 2.4 + rand(0, 8);
-      if (state.day <= 2) spd *= 0.85;
+      let hp = isBoss ? (12 + scaleDay) : (2 + Math.floor(scaleDay / 2));
+      if (isTaka) hp = 3 + Math.floor(scaleDay / 3);
+      if (isMur) hp = 5 + Math.min(scaleDay, 14);
+      if (isNgimo) hp = 4 + Math.floor(scaleDay / 2);
+      let spd = (isTaka ? 34 : 26) + scaleDay * 2.2 + rand(0, 8);
+      if (scaleDay <= 2) spd *= 0.82;
+      if (state.assault) spd *= 0.96;
       if (isKoko) spd += 10;
       if (isMur) spd *= 0.85;
       enemies.push({
@@ -5758,6 +5800,7 @@ function startNight() {
 function startDay() {
   state.isNight = false;
   state.dayTimer = 0;
+  syncCycleLengths();
   try { if (typeof audPlay === 'function') audPlay('day'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   spawnDawnFx();
   state.dayChoiceDone = false;
@@ -5790,7 +5833,10 @@ function startDay() {
     }, 3200);
   }
   if (state.day > 1) {
-    let bonus = 2 + Math.floor(state.day / 2);
+    // 日数成長はソフトキャップ。序盤＋攻勢はわずかに厚め
+    let bonus = 2 + Math.floor(Math.min(state.day, 14) / 2);
+    if ((state.day | 0) <= 3) bonus += 1;
+    if (state.assault) bonus += 1;
     // 湿度低すぎ→収入減／高すぎはペナルティなし（夜の機動力で既に不利）
     if (state.humidity < 20) {
       bonus = Math.max(1, bonus - 2);
@@ -5805,6 +5851,8 @@ function startDay() {
     if (state.heatEvent === 'mugicha_day') bonus += 1;
     if (state.heatEvent === 'steam_haze') { bonus += 1; state.sweatDrops = (state.sweatDrops|0)+1; }
     if (state.heatEvent === 'heatstroke_warn' && (state.heatRisk|0) >= 70) bonus = Math.max(1, bonus - 1);
+    // 補給線稼働で朝の安定収入
+    if (workers.some(w => w.job === 'supply') && (state.supplyStock | 0) >= 1) bonus += 1;
     state.coins += bonus;
     const mline = pick(LORE.morning) + (state.heatEvent ? heatFlavorSuffix() : '');
     toast(`${mline} ＋${bonus}コイン`, 3.2);
@@ -6052,7 +6100,13 @@ function buildSaveBlob() {
 function saveGame(quiet) {
   // タイトル／章カット中は基本書かない（攻勢セーブは saveGameCampaign）
   if (state.won && !state.assault) return;
-  if (!state.running && !state.assault) return;
+  // パネル／昼選択中も panelPay 等でセーブ必要（running=false でも可）
+  let panelish = !!state.panelOpen;
+  try {
+    const cp = document.getElementById('choice-panel');
+    if (cp && cp.classList.contains('show')) panelish = true;
+  } catch (_) {}
+  if (!state.running && !state.assault && !panelish) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(buildSaveBlob()));
     if (!quiet) toast('セーブした　おかのした', 1.6);
@@ -6234,6 +6288,9 @@ function applySave(d) {
   // 選択パネルが残っていたら閉じる
   const cp = document.getElementById('choice-panel');
   if (cp) cp.classList.remove('show');
+  state.panelOpen = null;
+  try { syncPanelChrome(false); } catch (_) {}
+  try { ensureBondState(); ensureHeatState(); ensureCivilMiliExt(); syncCycleLengths(); } catch (_) {}
   updateHumidityHud();
   const ov = document.getElementById('overlay');
   ov.classList.add('hidden');
@@ -6524,10 +6581,13 @@ function update(dt) {
     state.comboTimer -= dt;
     if (state.comboTimer <= 0) state.killCombo = 0;
   }
-  // 昼ミニ選択（昼の中盤・1回）
-  if (!state.isNight && !state.dayChoiceDone && state.dayTimer >= 18 && state.dayTimer < 19.2) {
-    openDayChoice();
-    return; // 選択中は世界を止める
+  // 昼ミニ選択（昼の中盤・1回・フレーム飛びでも取りこぼさない）
+  if (!state.isNight && !state.dayChoiceDone) {
+    const choiceAt = Math.max(14, Math.min(24, (state.dayLength || 52) * 0.34));
+    if (state.dayTimer >= choiceAt) {
+      openDayChoice();
+      return; // 選択中は世界を止める
+    }
   }
   // 湿度：移動で上昇、静止＋部室近傍で低下、夜は上昇速め
   const nearCamp = Math.abs(player.x) < 70;
@@ -6634,12 +6694,12 @@ function update(dt) {
           const tgtLm = state.supplyLmId || w.lmId;
           if (tgtLm) w.lmId = tgtLm;
           for (const wall of [structures.leftWall, structures.rightWall]) {
-            if (wall.level >= 1 && wall.hp < wall.maxHp && Math.random() < 0.35) {
-              wall.hp = Math.min(wall.maxHp, wall.hp + 2);
+            if (wall.level >= 1 && wall.hp < wall.maxHp && Math.random() < 0.45) {
+              wall.hp = Math.min(wall.maxHp, wall.hp + 3);
             }
           }
-          if (Math.random() < 0.3) {
-            state.heatRisk = clamp((state.heatRisk | 0) - 1, 0, 100);
+          if (Math.random() < 0.42) {
+            state.heatRisk = clamp((state.heatRisk | 0) - 2, 0, 100);
           }
           if (Math.random() < 0.2) bumpBond('town', 1);
         } else if (job === 'film') {
@@ -6845,12 +6905,12 @@ function update(dt) {
     e.attackCd -= dt;
     if (wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20) {
       if (e.attackCd <= 0) {
-        let wd = 3 + Math.floor(state.day * 0.85);
+        let wd = 3 + Math.floor(combatDayScale() * 0.8);
         try { wd = Math.max(1, Math.round(wd / (raidFormMul().wall || 1))); } catch (_) {}
         // 補給物資があれば被弾軽減
-        if ((state.supplyStock | 0) > 0 && Math.random() < 0.2) {
+        if ((state.supplyStock | 0) > 0 && Math.random() < 0.28) {
           state.supplyStock--;
-          wd = Math.max(1, Math.floor(wd * 0.7));
+          wd = Math.max(1, Math.floor(wd * 0.62));
           spawnMeme(wall.x, GROUND_Y - 62, '補給防');
         }
         wall.hp -= wd;
