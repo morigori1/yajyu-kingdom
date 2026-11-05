@@ -439,7 +439,7 @@
         下北沢（自称）　湿度114514　真夏（汗）<br>
         王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
         いいよ！こいよ！　バリケード　先輩砲台<br>
-        下北横断　ロケバスで聖地巡り（北沢公園／あずま寿し…）<br>
+        下北横断→攻勢　内政／軍事　ロケバスで隣の聖地へ<br>
         <span style="color:#888">パッド／キーボード　おかのした</span>
       </p>
       <div id="title-faces" style="display:flex;gap:12px;justify-content:center;align-items:flex-end;margin:8px 0;">
@@ -589,6 +589,36 @@ const LORE = {
     '到着　ありますあります',
     'ロケ地着　湿度114514',
     '聖地　王道を征く',
+  ],
+  assaultOpen: [
+    '平定だけでは終わらない　攻勢開始',
+    '隣の聖地へ　ロケバス侵攻！',
+    '王道を征く　次のロケだ',
+  ],
+  outpostHit: [
+    '敵拠点にヒット　やりますねぇ',
+    '侵攻成功　おかのした',
+    '拠点耐久↓　いいゾ〜',
+  ],
+  outpostDown: [
+    '敵拠点破壊　終わり！閉廷！（この拠点だけ）',
+    '次エリア解放　王道を征く',
+    'はっきりわかんだね　進軍',
+  ],
+  civilUp: [
+    '内政強化　聖地施設アップ',
+    '収入ルート整備　ありますあります',
+    '810運用　いいゾ〜これ',
+  ],
+  miliUp: [
+    '軍事強化　砲台／壁／編成',
+    '部隊編成　いいよ！こいよ！',
+    '防衛線厚く　王道を征く',
+  ],
+  chapterClear: [
+    'このロケは平定した　が、隣がある',
+    '章クリア　攻勢で先へ',
+    '下北の平和は一時　次の汗へ',
   ],
   ending: [
     '終わり！閉廷！以上！皆解散！',
@@ -798,17 +828,54 @@ const state = {
   bossCineX: 0,
   weatherSeed: 1,
   landmarks: {},      // id -> true（解放済み聖地）
-  bus: null,          // {x,tx,fromId,toId,t,cargo} ロケバス走行中
-  endCut: -1,         // エンディング語録 index（-1=非表示）
+  facility: {},       // id -> 0..2 聖地施設Lv（内政）
+  bus: null,          // ロケバス {mode:'civil'|'raid',...}
+  busAutoT: 0,        // 内政：自動巡回クールダウン
+  chapter: 0,         // 現在章
+  chapterBeat: {},    // 章クリア済み
+  assault: false,     // 攻勢モード（平定後も継続）
+  outposts: [],       // 敵拠点
+  miliTier: 0,        // 軍事全体ボーナス（0..3）
+  civilTier: 0,       // 内政全体ボーナス（0..3）
+  bankTier: 0,        // 810運用Lv（利息）
+  endCut: -1,
   workerTimer: 0,
 };
 
-/** 下北沢マップ横断：左右の聖地（島渡りではなくロケバスで巡る） */
+/** 章連鎖：下北沢 → 井の頭ロケ → 新宿片鱗 → エンドレス外縁 */
+const CHAPTERS = [
+  { id: 'shimokita', name: '下北沢', short: '下北' },
+  { id: 'inokashira', name: '井の頭ロケ', short: '井の頭' },
+  { id: 'shinjuku', name: '新宿ロケ片鱗', short: '新宿' },
+  { id: 'endless', name: '外縁ロケ', short: '外縁' },
+];
+
+/** 聖地（chapter で解放可否。施設Lvは state.facility[id]） */
 const LANDMARKS = [
-  { id: 'kitazawa',  name: '北沢公園',           short: '北沢公園',   side: -1, x: -340, cost: 4, needLv: 1, kind: 'park' },
-  { id: 'azuma',     name: 'あずま寿し',         short: 'あずま寿し', side:  1, x:  320, cost: 4, needLv: 1, kind: 'sushi' },
-  { id: 'laundry',   name: 'コインランドリー',   short: 'ランドリー', side: -1, x: -520, cost: 5, needLv: 2, kind: 'laundry' },
-  { id: 'setagaya',  name: '世田谷公園の片鱗',   short: '世田谷公園', side:  1, x:  500, cost: 6, needLv: 2, kind: 'park2' },
+  // ch0 下北沢
+  { id: 'kitazawa',  name: '北沢公園',         short: '北沢公園',   side: -1, x: -340, cost: 4, needLv: 1, kind: 'park',    chapter: 0 },
+  { id: 'azuma',     name: 'あずま寿し',       short: 'あずま寿し', side:  1, x:  320, cost: 4, needLv: 1, kind: 'sushi',   chapter: 0 },
+  { id: 'laundry',   name: 'コインランドリー', short: 'ランドリー', side: -1, x: -520, cost: 5, needLv: 2, kind: 'laundry', chapter: 0 },
+  { id: 'setagaya',  name: '世田谷公園の片鱗', short: '世田谷公園', side:  1, x:  500, cost: 6, needLv: 2, kind: 'park2',   chapter: 0 },
+  // ch1 井の頭
+  { id: 'inokashira', name: '井の頭公園の片鱗', short: '井の頭公園', side: -1, x: -740, cost: 7, needLv: 2, kind: 'park',  chapter: 1 },
+  { id: 'kichijoji',  name: '吉祥寺駅前の影',   short: '吉祥寺',     side:  1, x:  720, cost: 7, needLv: 2, kind: 'sushi', chapter: 1 },
+  // ch2 新宿
+  { id: 'kabuki',    name: '歌舞伎町の片鱗',   short: '歌舞伎町',   side: -1, x: -960, cost: 9, needLv: 2, kind: 'laundry', chapter: 2 },
+  { id: 'yamanote',  name: '新宿交差点の汗',   short: '新宿交差点', side:  1, x:  940, cost: 9, needLv: 2, kind: 'park2',   chapter: 2 },
+  // ch3 外縁
+  { id: 'gaien_w', name: '外縁ロケ西の汗', short: '外縁西ロケ', side: -1, x: -1180, cost: 11, needLv: 2, kind: 'park',    chapter: 3 },
+  { id: 'gaien_e', name: '外縁ロケ東の汗', short: '外縁東ロケ', side:  1, x: 1160, cost: 11, needLv: 2, kind: 'sushi',   chapter: 3 },
+];
+
+/** 敵拠点テンプレ（攻勢で破壊→次章聖地が買える） */
+const OUTPOST_DEFS = [
+  { id: 'op_w1', name: 'たかり拠点・西', short: '西拠点', side: -1, x: -620, hp: 36, unlockChapter: 1 },
+  { id: 'op_e1', name: 'たかり拠点・東', short: '東拠点', side:  1, x:  600, hp: 36, unlockChapter: 1 },
+  { id: 'op_w2', name: '井の頭裏拠点',   short: '裏拠点西', side: -1, x: -860, hp: 52, unlockChapter: 2 },
+  { id: 'op_e2', name: '吉祥寺裏拠点',   short: '裏拠点東', side:  1, x:  840, hp: 52, unlockChapter: 2 },
+  { id: 'op_w3', name: '外縁要塞・西',   short: '外縁西', side: -1, x: -1100, hp: 70, unlockChapter: 3 },
+  { id: 'op_e3', name: '外縁要塞・東',   short: '外縁東', side:  1, x: 1080, hp: 70, unlockChapter: 3 },
 ];
 
 function landmarkById(id) {
@@ -820,18 +887,57 @@ function unlockedLandmarks() {
 function unlockedCount() {
   return unlockedLandmarks().length;
 }
+function chapterName(i) {
+  return (CHAPTERS[Math.min(i, CHAPTERS.length - 1)] || CHAPTERS[0]).short;
+}
+function landmarksForChapter(ch) {
+  return LANDMARKS.filter(l => l.chapter === ch);
+}
+function facilityLv(id) {
+  return clamp((state.facility[id] | 0), 0, 2);
+}
+function activeOutposts() {
+  return (state.outposts || []).filter(o => !o.cleared);
+}
 function migrateIslandSave(d) {
-  // 旧セーブ island: -1/1 → 対応側の初期聖地を1つ解放
   const out = Object.assign({}, (d && d.landmarks) || {});
   if (d && d.island === -1 && !out.kitazawa) out.kitazawa = true;
   if (d && d.island === 1 && !out.azuma) out.azuma = true;
   return out;
 }
+function ensureOutpostsForAssault() {
+  if (!state.assault) return;
+  const targetCh = Math.min(state.chapter + 1, 3);
+  for (const def of OUTPOST_DEFS) {
+    if (def.unlockChapter !== targetCh) continue;
+    if ((state.outposts || []).some(o => o.id === def.id)) continue;
+    // 片側ずつ：既に片側クリアならもう片側だけ
+    state.outposts.push({
+      id: def.id, name: def.name, short: def.short, side: def.side, x: def.x,
+      hp: def.hp + state.chapter * 8, maxHp: def.hp + state.chapter * 8,
+      cleared: false, unlockChapter: def.unlockChapter,
+    });
+  }
+  // エンドレス：外縁をさらに外側へ複製
+  if (state.chapter >= 3) {
+    const n = 1 + Math.floor((state.chapter - 3) / 1);
+    for (const side of [-1, 1]) {
+      const id = 'op_end_' + state.chapter + '_' + (side > 0 ? 'e' : 'w');
+      if (state.outposts.some(o => o.id === id)) continue;
+      const x = side * (1100 + (state.chapter - 2) * 160);
+      state.outposts.push({
+        id, name: '外縁たかり要塞', short: side > 0 ? '外縁東' : '外縁西',
+        side, x, hp: 60 + state.chapter * 12, maxHp: 60 + state.chapter * 12,
+        cleared: false, unlockChapter: state.chapter + 1,
+      });
+    }
+  }
+}
 
 // ワールド座標: キャンプが x=0
 const world = {
-  leftBound: -2600,
-  rightBound: 2600,
+  leftBound: -3200,
+  rightBound: 3200,
   campX: 0,
 };
 
@@ -1260,12 +1366,46 @@ function openDayChoice() {
 
 function applyBankInterest() {
   if (state.bank <= 0) return;
-  // 810銀行: 約10%（最低1、上限3）＋聖数味付け
-  let interest = Math.min(3, Math.max(1, Math.floor(state.bank * 0.12)));
+  // 内政：810運用Lvで利率上昇（課金表現なし・ゲーム内コインのみ）
+  const rate = 0.12 + (state.bankTier | 0) * 0.04 + (state.civilTier | 0) * 0.01;
+  let interest = Math.min(5 + (state.bankTier | 0), Math.max(1, Math.floor(state.bank * rate)));
   if (state.bank >= 8) interest += 1;
+  if (state.bank >= 24) interest += 1;
+  if (state.bank >= 81) interest += 1;
   state.bank += interest;
-  toast(`810銀行利息 +${interest}（残高 ${state.bank}）`, 3.0);
+  toast(`810銀行利息 +${interest}（残高 ${state.bank}／運用Lv${state.bankTier|0}）`, 3.0);
   spawnMeme(80, GROUND_Y - 70, '810');
+}
+
+function morningCivilIncome() {
+  // 聖地施設＋作業員＋内政Tierの朝収入
+  let gain = 0;
+  for (const L of unlockedLandmarks()) {
+    const lv = facilityLv(L.id);
+    if (lv <= 0) continue;
+    const stationed = workers.filter(w => w.lmId === L.id).length;
+    const n = lv + (state.civilTier > 0 ? 1 : 0) + Math.min(2, stationed);
+    dropCoin(L.x + rand(-16, 16), n);
+    gain += n;
+  }
+  // 未配置作業員も部室付近で小収入
+  const idle = workers.filter(w => !w.lmId).length;
+  if (idle > 0) {
+    dropCoin(rand(-30, 30), idle);
+    gain += idle;
+  }
+  if (state.civilTier >= 2) {
+    dropCoin(rand(-40, 40), 1);
+    gain += 1;
+  }
+  if (state.civilTier >= 3) {
+    dropCoin(0, 1);
+    gain += 1;
+  }
+  if (gain > 0) {
+    toast(`【内政】朝の聖地収入 +${gain}`, 2.4);
+    spawnMeme(0, GROUND_Y - 70, '内政+' + gain);
+  }
 }
 
 function playerSpeedMul() {
@@ -1281,6 +1421,8 @@ function archerCdMul() {
   let m = 1;
   if (state.humidity >= 80) m *= 1.22;
   if (state.gazeT > 0) m *= 1.35;
+  // 軍事Tierで発射間隔短縮
+  m *= Math.max(0.72, 1 - (state.miliTier | 0) * 0.07);
   return m;
 }
 
@@ -1544,7 +1686,7 @@ function shopSpots() {
   // 左右壁アップグレード / 建設
   for (const side of ['left', 'right']) {
     const wall = side === 'left' ? structures.leftWall : structures.rightWall;
-    const label = wall.level === 0 ? 'バリケード建設（いいゾ〜）' : wall.level === 1 ? '石バリケード強化（王道を征く）' : 'バリケード最大…いいゾ〜これ';
+    const label = wall.level === 0 ? '【軍事】バリケード建設' : wall.level === 1 ? '【軍事】石バリケード強化' : '【軍事】壁は最大';
     const cost = wall.level === 0 ? 3 : wall.level === 1 ? 6 : 99;
     const can = wall.level < 2;
     spots.push({
@@ -1553,7 +1695,8 @@ function shopSpots() {
       r: 48,
       cost,
       can,
-      label: (side === 'left' ? '◀西の' : '東の▶') + label,
+      branch: 'mili',
+      label: (side === 'left' ? '◀西' : '東▶') + label,
       buy() {
         if (wall.level >= 2) return false;
         wall.level++;
@@ -1579,7 +1722,7 @@ function shopSpots() {
   for (const side of ['left', 'right']) {
     const wall = side === 'left' ? structures.leftWall : structures.rightWall;
     if (wall.level < 1) continue;
-    const count = units.filter(u => u.side === side).length;
+    const count = units.filter(u => u.side === side && u.role !== 'vanguard').length;
     const cost = 4 + count * 2;
     const can = count < 3;
     spots.push({
@@ -1588,12 +1731,14 @@ function shopSpots() {
       r: 40,
       cost,
       can,
-      label: `先輩砲台を設置 (${count}/3)`,
+      branch: 'mili',
+      label: `【軍事】砲台設置 (${count}/3)`,
       buy() {
-        if (units.filter(u => u.side === side).length >= 3) return false;
+        if (units.filter(u => u.side === side && u.role !== 'vanguard').length >= 3) return false;
         const line = pick(LORE.hire);
+        const role = 'gun'; // 砲台
         units.push({
-          side,
+          side, role, tier: 0,
           x: wall.x + (side === 'left' ? 20 : -20) + rand(-8, 8),
           y: GROUND_Y,
           cooldown: rand(0.5, 1.5),
@@ -1602,23 +1747,94 @@ function shopSpots() {
         });
         toast(line);
         spawnMeme(wall.x, GROUND_Y - 50, units[units.length - 1].meme);
-        story('砲台　' + units[units.length - 1].meme + '　いいよ！こいよ！', 2.2);
+        story('【軍事】砲台　' + units[units.length - 1].meme, 2.2);
+        return true;
+      }
+    });
+    // 軍事：先鋒（攻勢バスに乗ると拠点ダメージ増）
+    const vanCount = units.filter(u => u.side === side && u.role === 'vanguard').length;
+    if (wall.level >= 1 && vanCount < 1 && (state.assault || state.chapter > 0 || state.day >= 4)) {
+      spots.push({
+        id: 'van-' + side,
+        x: wall.x + (side === 'left' ? 50 : -50),
+        r: 36,
+        cost: 5,
+        can: true,
+        branch: 'mili',
+        label: `【軍事】先鋒編成 (${vanCount}/1)・侵攻強化`,
+        buy() {
+          units.push({
+            side, role: 'vanguard', tier: 0,
+            x: wall.x + (side === 'left' ? 35 : -35),
+            y: GROUND_Y, cooldown: 99, hp: 1,
+            meme: '先鋒',
+          });
+          toast(pick(LORE.miliUp));
+          story('先鋒　ロケバス侵攻で拠点に追加ダメージ', 2.4);
+          spawnMeme(wall.x, GROUND_Y - 50, '先鋒');
+          return true;
+        }
+      });
+    }
+  }
+  // 軍事：砲台個別強化
+  for (const side of ['left', 'right']) {
+    const guns = units.filter(u => u.side === side && u.role !== 'vanguard');
+    for (let gi = 0; gi < guns.length; gi++) {
+      const g = guns[gi];
+      if ((g.tier | 0) >= 2) continue;
+      spots.push({
+        id: 'gunup-' + side + '-' + gi,
+        x: g.x,
+        r: 32,
+        cost: 3 + (g.tier | 0) * 2,
+        can: true,
+        branch: 'mili',
+        label: `【軍事】砲台強化 Tier${(g.tier|0)}→${(g.tier|0)+1}`,
+        buy() {
+          g.tier = (g.tier | 0) + 1;
+          toast(pick(LORE.miliUp));
+          story('砲台強化　射程／火力アップ', 2.0);
+          spawnMeme(g.x, GROUND_Y - 50, 'T' + g.tier);
+          return true;
+        }
+      });
+    }
+  }
+  // 軍事：全体教練
+  if (state.miliTier < 3 && (units.length >= 2 || state.assault)) {
+    spots.push({
+      id: 'mili_tier',
+      x: -150,
+      r: 40,
+      cost: 4 + state.miliTier * 3,
+      can: true,
+      branch: 'mili',
+      label: `【軍事】教練Lv${state.miliTier}→${state.miliTier + 1}（砲台間隔↓）`,
+      buy() {
+        if (state.miliTier >= 3) return false;
+        state.miliTier++;
+        toast(pick(LORE.miliUp));
+        story(`軍事教練 Lv${state.miliTier}`, 2.0);
+        spawnMeme(-150, GROUND_Y - 50, '軍事' + state.miliTier);
         return true;
       }
     });
   }
-  // 作業員後輩（昼の収入）
+  // 内政：作業員（上限を内政で拡張）
   {
+    const maxW = 2 + Math.min(2, state.civilTier | 0);
     const wc = workers.length;
     spots.push({
       id: 'worker',
       x: -95,
       r: 40,
       cost: 3 + wc * 2,
-      can: wc < 2,
-      label: `作業員後輩を雇う (${wc}/2)・昼の収入`,
+      can: wc < maxW,
+      branch: 'civil',
+      label: `【内政】作業員雇う (${wc}/${maxW})`,
       buy() {
-        if (workers.length >= 2) return false;
+        if (workers.length >= maxW) return false;
         const unlocked = unlockedLandmarks();
         let side = Math.random() < 0.5 ? -1 : 1;
         let base = rand(-70, 70);
@@ -1627,50 +1843,119 @@ function shopSpots() {
           side = L.side;
           base = L.x + rand(-18, 18);
         }
-        workers.push({ x: base, y: GROUND_Y, side, bob: rand(0, 3), workCd: 2, lmId: unlocked.length ? unlocked[unlocked.length - 1].id : null });
+        workers.push({
+          x: base, y: GROUND_Y, side, bob: rand(0, 3), workCd: 2,
+          lmId: unlocked.length ? unlocked[unlocked.length - 1].id : null,
+          job: 'gather',
+        });
         toast(pick(LORE.workerHire));
         spawnMeme(base, GROUND_Y - 50, pick(['おかのした', 'やりますねぇ', '汗']));
-        story('作業員後輩　ロケ地でも稼ぐ　夜は部室', 2.2);
+        story('【内政】作業員　聖地収入', 2.2);
         return true;
       }
     });
   }
-  // 下北沢聖地の解放（ロケバスで巡る拠点）
+  // 内政：全体整備
+  if (state.civilTier < 3 && unlockedCount() >= 1) {
+    spots.push({
+      id: 'civil_tier',
+      x: 160,
+      r: 40,
+      cost: 4 + state.civilTier * 3,
+      can: true,
+      branch: 'civil',
+      label: `【内政】整備Lv${state.civilTier}→${state.civilTier + 1}（収入・バス）`,
+      buy() {
+        if (state.civilTier >= 3) return false;
+        state.civilTier++;
+        toast(pick(LORE.civilUp));
+        story(`内政整備 Lv${state.civilTier}`, 2.0);
+        spawnMeme(160, GROUND_Y - 50, '内政' + state.civilTier);
+        return true;
+      }
+    });
+  }
+  // 内政：810運用強化（銀行残高が必要）
+  if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
+    spots.push({
+      id: 'bank_tier',
+      x: 110,
+      r: 36,
+      cost: 3 + state.bankTier * 2,
+      can: true,
+      branch: 'civil',
+      label: `【内政】810運用Lv${state.bankTier}→${state.bankTier + 1}`,
+      buy() {
+        if (state.bankTier >= 3) return false;
+        state.bankTier++;
+        toast(pick(LORE.civilUp));
+        story(`810運用 Lv${state.bankTier}　利息アップ`, 2.2);
+        spawnMeme(110, GROUND_Y - 55, '810Lv');
+        return true;
+      }
+    });
+  }
+  // 聖地解放（現在解放可能章まで）
+  const maxCh = state.assault ? state.chapter + 1 : state.chapter;
   for (const L of LANDMARKS) {
     if (state.landmarks[L.id]) continue;
+    if (L.chapter > maxCh) continue;
+    // 章1+は対応拠点破壊後のみ
+    if (L.chapter > 0) {
+      const needOps = OUTPOST_DEFS.filter(d => d.unlockChapter === L.chapter);
+      const cleared = needOps.filter(d => (state.outposts || []).some(o => o.id === d.id && o.cleared));
+      // assault で章が進んでいればOK、またはその章の拠点が片側でも壊れている
+      const chUnlocked = (state.chapter >= L.chapter) || cleared.length > 0 ||
+        (state.outposts || []).some(o => o.cleared && o.unlockChapter === L.chapter);
+      if (!chUnlocked) continue;
+    }
     const wall = L.side > 0 ? structures.rightWall : structures.leftWall;
     if (wall.level < L.needLv) continue;
-    // 壁が圣地近くまで伸びていれば支払いスポット出現
-    const reach = L.side > 0 ? wall.x + 40 : wall.x - 40;
-    const near = Math.abs(reach - L.x) < 220 || wall.level >= L.needLv;
-    if (!near) continue;
     spots.push({
       id: 'lm_' + L.id,
       x: L.x,
       r: 48,
-      cost: L.cost,
+      cost: L.cost + L.chapter * 2,
       can: true,
-      label: `聖地「${L.name}」を解放・ロケバス開通`,
+      branch: 'civil',
+      label: `【内政】聖地「${L.name}」解放`,
       buy() {
         state.landmarks[L.id] = true;
-        // 壁を聖地側へ押し出し（マップ横断）
-        if (L.side > 0) {
-          structures.rightWall.x = Math.max(structures.rightWall.x, L.x + 40);
-        } else {
-          structures.leftWall.x = Math.min(structures.leftWall.x, L.x - 40);
-        }
+        state.facility[L.id] = 1; // 解放時施設Lv1
+        if (L.side > 0) structures.rightWall.x = Math.max(structures.rightWall.x, L.x + 40);
+        else structures.leftWall.x = Math.min(structures.leftWall.x, L.x - 40);
         toast(pick(LORE.landmarkOpen));
-        story(`聖地　${L.short}　ロケバス開通　IKZO`, 2.6);
+        story(`聖地　${L.short}　ロケバス開通`, 2.6);
         spawnMeme(L.x, GROUND_Y - 60, L.short);
         screenFlash('rgba(255,215,0,0.18)', 0.25);
         shake(3, 0.2);
-        // 解放直後に部室→聖地へロケバス1便
-        startLocationBus(0, L.id, true);
+        startLocationBus(0, L.id, true, 'civil');
         return true;
       }
     });
   }
-  // 解放済み聖地：ロケバス呼び出し（部室↔聖地）
+  // 内政：解放済み聖地の施設強化
+  for (const L of unlockedLandmarks()) {
+    const lv = facilityLv(L.id);
+    if (lv >= 2) continue;
+    spots.push({
+      id: 'fac_' + L.id,
+      x: L.x + (L.side > 0 ? -28 : 28),
+      r: 36,
+      cost: 3 + lv * 3,
+      can: true,
+      branch: 'civil',
+      label: `【内政】${L.short}施設 Lv${lv}→${lv + 1}`,
+      buy() {
+        state.facility[L.id] = lv + 1;
+        toast(pick(LORE.civilUp));
+        story(`${L.short}　施設強化　朝収入↑`, 2.2);
+        spawnMeme(L.x, GROUND_Y - 55, '施設' + (lv + 1));
+        return true;
+      }
+    });
+  }
+  // ロケバス運用（内政巡回）＋攻勢侵攻
   if (!state.bus) {
     const u = unlockedLandmarks();
     for (const L of u) {
@@ -1680,22 +1965,21 @@ function shopSpots() {
         r: 40,
         cost: 1,
         can: true,
-        label: `ロケバス：${L.short}→部室（復路は自動）`,
+        branch: 'civil',
+        label: `【内政】ロケバス ${L.short}→部室`,
         buy() {
-          // 聖地から部室へ送る便（returning 相当）
           state.bus = {
-            x: L.x, tx: 0, fromId: L.id, toId: 'camp',
+            mode: 'civil', x: L.x, tx: 0, fromId: L.id, toId: 'camp',
             t: 0, cargo: workers.filter(w => Math.abs(w.x - L.x) < 140).slice(0, 2),
             returning: true,
           };
           toast(pick(LORE.busDepart));
-          story(`ロケバス　${L.short}→部室`, 1.8);
+          story(`【内政】バス　${L.short}→部室`, 1.8);
           return true;
         }
       });
     }
     if (u.length) {
-      // 部室バス停：次の聖地へ撮影班を送る
       const next = u[(state.day + unlockedCount()) % u.length];
       spots.push({
         id: 'bus_camp',
@@ -1703,13 +1987,67 @@ function shopSpots() {
         r: 42,
         cost: 1,
         can: true,
-        label: `ロケバス発車：→${next.short}`,
+        branch: 'civil',
+        label: `【内政】ロケバス発車→${next.short}`,
         buy() {
-          startLocationBus(0, next.id, false);
+          startLocationBus(0, next.id, false, 'civil');
           return true;
         }
       });
     }
+    // 軍事：敵拠点へ侵攻バス
+    if (state.assault || activeOutposts().length) {
+      for (const op of activeOutposts()) {
+        spots.push({
+          id: 'raid_' + op.id,
+          x: op.side > 0 ? Math.min(op.x - 80, structures.rightWall.x + 30) : Math.max(op.x + 80, structures.leftWall.x - 30),
+          r: 46,
+          cost: 3 + state.chapter,
+          can: true,
+          branch: 'mili',
+          label: `【軍事】侵攻バス→${op.short}（HP${op.hp}）`,
+          buy() {
+            startRaidBus(op.id);
+            return true;
+          }
+        });
+        // 拠点手前でも直接支払い可
+        spots.push({
+          id: 'raidnear_' + op.id,
+          x: op.x,
+          r: 50,
+          cost: 3 + state.chapter,
+          can: true,
+          branch: 'mili',
+          label: `【軍事】拠点襲撃 ${op.name}`,
+          buy() {
+            startRaidBus(op.id);
+            return true;
+          }
+        });
+      }
+    }
+  }
+  // 軍事：壁修理
+  for (const side of ['left', 'right']) {
+    const wall = side === 'left' ? structures.leftWall : structures.rightWall;
+    if (wall.level < 1 || wall.hp >= wall.maxHp) continue;
+    spots.push({
+      id: 'repair-' + side,
+      x: wall.x,
+      r: 44,
+      cost: 2,
+      can: true,
+      branch: 'mili',
+      label: `【軍事】${side === 'left' ? '西' : '東'}壁修理 (${wall.hp|0}/${wall.maxHp})`,
+      buy() {
+        wall.hp = Math.min(wall.maxHp, wall.hp + 25);
+        toast(pick(LORE.miliUp));
+        story('壁修理　防衛線維持', 1.8);
+        spawnMeme(wall.x, GROUND_Y - 45, '修理');
+        return true;
+      }
+    });
   }
   // たき火回復
   spots.push({
@@ -1718,7 +2056,8 @@ function shopSpots() {
     r: 56,
     cost: 2,
     can: structures.campfire.hp < structures.campfire.maxHp,
-    label: '部室の火をくべる（回復）',
+    branch: 'civil',
+    label: '【内政】部室の火をくべる',
     buy() {
       structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 25);
       toast(pick(LORE.heal));
@@ -1733,7 +2072,8 @@ function shopSpots() {
     r: 40,
     cost: 2,
     can: state.icedTeaStock < 3,
-    label: `アイスティー補給（在庫 ${state.icedTeaStock}/3）`,
+    branch: 'civil',
+    label: `【内政】アイスティー補給（${state.icedTeaStock}/3）`,
     buy() {
       if (state.icedTeaStock >= 3) return false;
       state.icedTeaStock++;
@@ -1751,7 +2091,8 @@ function shopSpots() {
     r: 38,
     cost: Math.min(5, Math.max(1, state.coins - 2)),
     can: state.coins >= 3,
-    label: `810銀行へ預ける（残高 ${state.bank}）`,
+    branch: 'civil',
+    label: `【内政】810へ預ける（残高 ${state.bank}）`,
     buy() {
       const amt = Math.min(5, state.coins); // cost already deducted in tryPay — fix: buy runs after deduct
       // tryPay already subtracted spot.cost; credit that amount
@@ -1772,7 +2113,8 @@ function shopSpots() {
     r: 34,
     cost: 0,
     can: state.bank >= 1,
-    label: `810引出（残高 ${state.bank}）`,
+    branch: 'civil',
+    label: `【内政】810引出（残高 ${state.bank}）`,
     buy() {
       const take = Math.min(3, state.bank);
       state.bank -= take;
@@ -1789,7 +2131,8 @@ function shopSpots() {
     r: 36,
     cost: 1,
     can: true,
-    label: '草むら漁り（810コイン？）',
+    branch: 'civil',
+    label: '【内政】草むら漁り',
     buy() {
       const dir = Math.random() < 0.5 ? -1 : 1;
       const wx = player.x + dir * rand(120, 280);
@@ -1890,7 +2233,8 @@ function startNight() {
   story(nline, 3.2);
   spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
   // 序盤は学習用に波を抑え、中盤から本領
-  const waves = state.day <= 2 ? 2 + state.day : Math.min(10, 3 + state.day);
+  const waves = state.day <= 2 ? 2 + state.day
+    : Math.min(14, 3 + state.day + (state.assault ? 1 + state.chapter : 0));
   const nightGen = state.fxGen;
   for (let i = 0; i < waves; i++) {
     const side = i % 2 === 0 ? -1 : 1;
@@ -1977,31 +2321,119 @@ function startDay() {
   for (let i = 0; i < 3; i++) {
     dropCoin(rand(-500, 500) + (Math.random() < 0.5 ? -200 : 200), 1);
   }
-  // 解放聖地の朝はロケ地ドロップ＋ロケバス巡回
+  // 内政：聖地ドロップ＋施設収入＋自動ロケバス
   if (state.day > 1) {
     const u = unlockedLandmarks();
-    for (const L of u) {
-      dropCoin(L.x + rand(-20, 20), 1);
-    }
-    if (u.length && !state.bus && Math.random() < 0.65) {
+    for (const L of u) dropCoin(L.x + rand(-20, 20), 1);
+    morningCivilIncome();
+    if (u.length && !state.bus && Math.random() < (0.55 + (state.civilTier | 0) * 0.1)) {
       const L = u[(Math.random() * u.length) | 0];
-      startLocationBus(0, L.id, true);
+      startLocationBus(0, L.id, true, 'civil');
     }
   }
+  if (state.assault) ensureOutpostsForAssault();
   saveGame(true);
 }
 
 function winCheck() {
-  // 7日生き延び＆両側石壁でクリア
-  if (state.day >= 7 && structures.leftWall.level >= 2 && structures.rightWall.level >= 2 && !state.isNight) {
-    if (!state.won) {
-      state.won = true;
-      state.over = true;
+  // 章マイルストーン：Day閾値＆両側石壁（平定）→ 攻勢へ継続可
+  if (state.isNight) return;
+  const needDay = 7 + state.chapter * 3;
+  if (state.day < needDay) return;
+  if (structures.leftWall.level < 2 || structures.rightWall.level < 2) return;
+  if (state.chapterBeat[state.chapter]) return;
+  state.chapterBeat[state.chapter] = true;
+  state.won = true; // 一時フラグ（カット用）
+  state.over = true;
+  state.running = false;
+  spawnWinFx();
+  setTimeout(() => showChapterClear(), 1100);
+}
+
+function showChapterClear() {
+  const ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  ov.classList.remove('cine-dawn');
+  state.titleCine = true;
+  state.titleDawn = 0.7;
+  state.endCut = 0;
+  renderChapterCut();
+}
+
+function renderChapterCut() {
+  const ov = document.getElementById('overlay');
+  const lines = (LORE.chapterClear || []).concat(LORE.ending || []).slice(0, 5);
+  const i = state.endCut | 0;
+  if (i >= lines.length) {
+    const ch = chapterName(state.chapter);
+    ov.innerHTML = `<h1><span class="meme">${ch}　平定</span></h1>
+      <p>Day ${state.day} ／ 🪙${state.coins} ／ 810銀行 ${state.bank}<br>
+      聖地 ${unlockedCount()}　内政Lv${state.civilTier}　軍事Lv${state.miliTier}<br><br>
+      一度の平定で終わらせない。<br>ロケバスで隣の聖地へ侵攻できる。</p>
+      <button id="assaultBtn" type="button" style="background:#5a2a10;margin-top:8px">攻勢続行：隣の聖地へ</button>
+      <button id="startBtn" type="button" style="margin-top:8px">いったん閉廷（セーブしてタイトル）</button>`;
+    document.getElementById('assaultBtn').onclick = () => enterAssaultMode();
+    document.getElementById('startBtn').onclick = () => {
+      // セーブ残してタイトルへ（つづきから攻勢再開可）
+      state.won = false;
+      state.over = false;
+      state.assault = true;
       state.running = false;
-      spawnWinFx();
-      setTimeout(() => showEnd(true), 1100);
-    }
+      ensureOutpostsForAssault();
+      saveGameCampaign();
+      state.titleCine = true;
+      state.titleDawn = 0.2;
+      ov.innerHTML = `<h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span> 👑</h1>
+        <p>攻勢セーブあり　章 ${chapterName(state.chapter)}<br>つづきから再開できる</p>
+        <button id="continueBtn" type="button" style="background:#2a3a1a">つづきから（セーブ）</button>
+        <button id="startBtn" type="button">新規でやり直す</button>`;
+      bindTitleButtons();
+    };
+    return;
   }
+  ov.innerHTML = `<h1><span class="meme">章クリア</span></h1>
+    <p style="font-size:clamp(12px,3.2vw,16px);line-height:1.7;color:#ffd700">${lines[i]}</p>
+    <p style="color:#888;margin-top:8px">${i + 1} / ${lines.length}</p>
+    <button id="startBtn" type="button">つづき</button>`;
+  document.getElementById('startBtn').onclick = () => {
+    state.endCut = i + 1;
+    renderChapterCut();
+  };
+}
+
+function enterAssaultMode() {
+  state.won = false;
+  state.over = false;
+  state.running = true;
+  state.assault = true;
+  state.titleCine = false;
+  state.titleDawn = 0;
+  state.endCut = -1;
+  // 次章へ扉：拠点出現
+  ensureOutpostsForAssault();
+  const ov = document.getElementById('overlay');
+  ov.classList.add('hidden');
+  ov.classList.remove('cine-dawn');
+  toast(pick(LORE.assaultOpen), 3.2);
+  story(`攻勢モード　次は ${chapterName(state.chapter + 1)}　ロケバス侵攻`, 3.0);
+  spawnMeme(player.x, GROUND_Y - 70, '攻勢!');
+  screenFlash('rgba(255,100,40,0.2)', 0.3);
+  shake(4, 0.25);
+  saveGameCampaign();
+}
+
+function saveGameCampaign() {
+  // 攻勢中は won でも書く
+  const prev = state.won;
+  state.won = false;
+  const wasRun = state.running;
+  state.running = true;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(buildSaveBlob()));
+  } catch (_) {}
+  state.won = prev;
+  state.running = wasRun;
+  refreshContinueBtn();
 }
 
 function showEnd(win) {
@@ -2011,12 +2443,10 @@ function showEnd(win) {
   state.titleCine = true;
   state.titleDawn = win ? 0.7 : 0.15;
   if (win) {
-    clearSave();
-    state.endCut = 0;
-    renderEndingCut();
+    // 互換：直接勝ち表示は章クリアへ
+    showChapterClear();
     return;
   }
-  // 敗北: 直前オートセーブは残す →「つづきから」で朝に復帰可
   state.endCut = -1;
   const pack = LORE.lose;
   const canCont = hasSave();
@@ -2026,30 +2456,6 @@ function showEnd(win) {
        <button id="continueBtn" type="button" style="display:${canCont ? 'inline-block' : 'none'};margin-top:8px;background:#2a3a1a">つづきから（セーブ）</button>
        <button id="startBtn" type="button">新規でやり直す</button>`;
   bindTitleButtons();
-}
-
-function renderEndingCut() {
-  const ov = document.getElementById('overlay');
-  const lines = LORE.ending || [];
-  const i = state.endCut | 0;
-  if (i >= lines.length) {
-    ov.innerHTML = `<h1><span class="meme">王道を征く　やったぜ</span></h1>
-      <p>Day ${state.day} ／ コイン ${state.coins} ／ 銀行 ${state.bank}<br>
-      作業員 ${workers.length}　聖地 ${unlockedCount()}/${LANDMARKS.length}<br><br>
-      終わり！閉廷！以上！皆解散！</p>
-      <button id="continueBtn" type="button" style="display:none;margin-top:8px;background:#2a3a1a">つづきから（セーブ）</button>
-      <button id="startBtn" type="button">いいよ！こいよ！（最初から）</button>`;
-    bindTitleButtons();
-    return;
-  }
-  ov.innerHTML = `<h1><span class="meme">エンディング</span></h1>
-    <p style="font-size:clamp(12px,3.2vw,16px);line-height:1.7;color:#ffd700">${lines[i]}</p>
-    <p style="color:#888;margin-top:8px">${i + 1} / ${lines.length}</p>
-    <button id="startBtn" type="button">つづき</button>`;
-  document.getElementById('startBtn').onclick = () => {
-    state.endCut = i + 1;
-    renderEndingCut();
-  };
 }
 
 // ---------- セーブ / ロード ----------
@@ -2066,22 +2472,33 @@ function buildSaveBlob() {
     humidity: state.humidity,
     icedTeaStock: state.icedTeaStock,
     landmarks: Object.assign({}, state.landmarks),
-    island: 0, // 旧キー互換（島渡り廃止）
+    facility: Object.assign({}, state.facility),
+    island: 0,
     dayChoiceDone: !!state.dayChoiceDone,
     playerX: player.x,
     leftWall: { ...structures.leftWall },
     rightWall: { ...structures.rightWall },
     campHp: structures.campfire.hp,
-    units: units.map(u => ({ side: u.side, x: u.x, meme: u.meme })),
-    workers: workers.map(w => ({ x: w.x, side: w.side || 0, lmId: w.lmId || null })),
+    units: units.map(u => ({ side: u.side, x: u.x, meme: u.meme, role: u.role || 'gun', tier: u.tier | 0 })),
+    workers: workers.map(w => ({ x: w.x, side: w.side || 0, lmId: w.lmId || null, job: w.job || 'gather' })),
+    chapter: state.chapter | 0,
+    chapterBeat: Object.assign({}, state.chapterBeat),
+    assault: !!state.assault,
+    outposts: (state.outposts || []).map(o => ({
+      id: o.id, name: o.name, short: o.short, side: o.side, x: o.x,
+      hp: o.hp, maxHp: o.maxHp, cleared: !!o.cleared, unlockChapter: o.unlockChapter | 0,
+    })),
+    miliTier: state.miliTier | 0,
+    civilTier: state.civilTier | 0,
+    bankTier: state.bankTier | 0,
     savedAt: Date.now(),
   };
 }
 
 function saveGame(quiet) {
-  // タイトル待機中は書かない／クリア後も書かない（敗北中は直前セーブを維持）
-  if (state.won) return;
-  if (!state.running) return;
+  // タイトル／章カット中は基本書かない（攻勢セーブは saveGameCampaign）
+  if (state.won && !state.assault) return;
+  if (!state.running && !state.assault) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(buildSaveBlob()));
     if (!quiet) toast('セーブした　おかのした', 1.6);
@@ -2125,8 +2542,21 @@ function applySave(d) {
   state.humidity = clamp(+d.humidity || 42, 0, 100);
   state.icedTeaStock = clamp(d.icedTeaStock | 0, 0, 3);
   state.landmarks = migrateIslandSave(d);
+  state.facility = Object.assign({}, d.facility || {});
+  for (const id of Object.keys(state.landmarks)) {
+    if (state.landmarks[id] && !(state.facility[id] > 0)) state.facility[id] = 1;
+  }
   state.bus = null;
+  state.busAutoT = 0;
+  state.chapter = d.chapter | 0;
+  state.chapterBeat = Object.assign({}, d.chapterBeat || {});
+  state.assault = !!d.assault;
+  state.outposts = Array.isArray(d.outposts) ? d.outposts.map(o => Object.assign({}, o)) : [];
+  state.miliTier = clamp(d.miliTier | 0, 0, 3);
+  state.civilTier = clamp(d.civilTier | 0, 0, 3);
+  state.bankTier = clamp(d.bankTier | 0, 0, 3);
   state.dayChoiceDone = !!d.dayChoiceDone;
+  if (state.assault) ensureOutpostsForAssault();
   player.x = clamp(+d.playerX || 0, world.leftBound + 40, world.rightBound - 40);
   player.vx = 0;
   coinsOnGround.length = 0;
@@ -2150,15 +2580,23 @@ function applySave(d) {
     level: clamp(rw.level | 0, 0, 2),
   };
   structures.campfire = { x: 0, hp: clamp(d.campHp | 0, 1, 100), maxHp: 100 };
-  for (const u of (d.units || []).slice(0, 6)) {
+  const maxU = 8;
+  for (const u of (d.units || []).slice(0, maxU)) {
     if (u.side !== 'left' && u.side !== 'right') continue;
-    units.push({ side: u.side, x: +u.x || 0, y: GROUND_Y, cooldown: 1, hp: 1, meme: u.meme || 'やりますねぇ' });
+    units.push({
+      side: u.side, x: +u.x || 0, y: GROUND_Y, cooldown: 1, hp: 1,
+      meme: u.meme || 'やりますねぇ',
+      role: u.role === 'vanguard' ? 'vanguard' : 'gun',
+      tier: clamp(u.tier | 0, 0, 2),
+    });
   }
-  for (const w of (d.workers || []).slice(0, 2)) {
+  const maxW = 2 + Math.min(2, state.civilTier | 0);
+  for (const w of (d.workers || []).slice(0, maxW)) {
     workers.push({
       x: +w.x || 0, y: GROUND_Y, side: w.side || 0,
       bob: rand(0, 3), workCd: rand(1, 3),
       lmId: w.lmId || null,
+      job: w.job || 'gather',
     });
   }
   state.killCombo = 0; state.comboTimer = 0; state.gazeT = 0;
@@ -2231,7 +2669,16 @@ function resetGame() {
   state.humidity = 42;
   state.bank = 0;
   state.landmarks = {};
+  state.facility = {};
   state.bus = null;
+  state.busAutoT = 0;
+  state.chapter = 0;
+  state.chapterBeat = {};
+  state.assault = false;
+  state.outposts = [];
+  state.miliTier = 0;
+  state.civilTier = 0;
+  state.bankTier = 0;
   state.endCut = -1;
   state.workerTimer = 0;
   state.killCombo = 0;
@@ -2492,10 +2939,11 @@ function update(dt) {
       if (w.workCd <= 0) {
         w.workCd = 4.5 + rand(0, 2);
         // 地面にコイン or 直接収入（軽め）
+        const pay = 1 + (facilityLv(w.lmId) >= 2 ? 1 : 0) + ((state.civilTier | 0) >= 2 && Math.random() < 0.35 ? 1 : 0);
         if (Math.random() < 0.55) {
-          dropCoin(w.x + rand(-12, 12), 1);
+          dropCoin(w.x + rand(-12, 12), pay);
         } else {
-          state.coins += 1;
+          state.coins += pay;
           spawnMeme(w.x, GROUND_Y - 40, pick(LORE.workerWork));
         }
         if (Math.random() < 0.25) pushFx({
@@ -2511,25 +2959,27 @@ function update(dt) {
     }
   }
 
-  // 射手
+  // 軍事ユニット（砲台／先鋒）
   for (const u of units) {
     if (u._shotFlash > 0) u._shotFlash -= dt;
     const wall = u.side === 'left' ? structures.leftWall : structures.rightWall;
-    // 壁に追従
+    if (u.role === 'vanguard') {
+      // 先鋒は壁より外側で待機（侵攻時にバスへ）
+      const ideal = wall.x + (u.side === 'left' ? -28 : 28);
+      u.x += (ideal - u.x) * dt * 2.2;
+      continue;
+    }
     const ideal = wall.x + (u.side === 'left' ? 16 : -16);
     u.x += (ideal - u.x) * dt * 2;
     u.cooldown -= dt;
     if (u.cooldown <= 0 && state.isNight) {
-      // 最も近い敵
-      let best = null, bestD = 280;
+      let best = null, bestD = 280 + (u.tier | 0) * 40 + (state.miliTier | 0) * 20;
       for (const e of enemies) {
         const d = Math.abs(e.x - u.x);
         if (d < bestD && ((u.side === 'left' && e.x <= u.x + 40) || (u.side === 'right' && e.x >= u.x - 40) || d < 200)) {
-          // だいたい外側向き優先だが近い敵なら撃つ
           best = e; bestD = d;
         }
       }
-      // 緩和: 単に近い敵
       if (!best) {
         for (const e of enemies) {
           const d = Math.abs(e.x - u.x);
@@ -2537,16 +2987,17 @@ function update(dt) {
         }
       }
       if (best) {
-        const vx = (best.x - u.x) > 0 ? 240 : -240;
+        const spd = 240 + (u.tier | 0) * 30;
+        const vx = (best.x - u.x) > 0 ? spd : -spd;
         arrows.push({
           x: u.x, y: GROUND_Y - 28,
           vx, life: 1.2, trailCd: 0,
+          dmg: 1 + Math.min(2, u.tier | 0),
         });
         u._shotFlash = 0.18;
-        // 発射の小さな閃光
         spawnSparks(u.x, GROUND_Y - 28, 3, ['#fff8d0', '#ffd700'], 50);
         pushFx({ type: 'ring', x: u.x, y: GROUND_Y - 28, t: 0, life: 0.15, color: 'rgba(255,240,180,0.4)', r0: 2, r1: 12 });
-        u.cooldown = 1.1 + rand(0, 0.4);
+        u.cooldown = (1.1 + rand(0, 0.4) - (u.tier | 0) * 0.12) * archerCdMul();
       } else {
         u.cooldown = 0.4;
       }
@@ -2571,7 +3022,7 @@ function update(dt) {
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
       if (Math.abs(a.x - e.x) < 14 && Math.abs((GROUND_Y - 20) - (e.y - 14)) < 24) {
-        e.hp--;
+        e.hp -= (a.dmg || 1);
         hit = true;
         spawnArrowHit(e.x, GROUND_Y, a.vx);
         e._flash = 0.14;
@@ -2703,8 +3154,11 @@ function update(dt) {
   const combo = state.killCombo >= 2 ? ` <span class="meme">×${state.killCombo}</span>` : '';
   const wTag = workers.length ? ` 作業${workers.length}` : '';
   const iTag = unlockedCount() ? ` 聖地${unlockedCount()}` : '';
-  const busTag = state.bus ? ' <span style="color:#fc8">バス</span>' : '';
-  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}／茶×${state.icedTeaStock}${gaze}${wTag}${iTag}${busTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span>`;
+  const busTag = state.bus ? (state.bus.mode === 'raid' ? ' <span style="color:#f84">侵攻</span>' : ' <span style="color:#fc8">バス</span>') : '';
+  const chTag = ` ${chapterName(state.chapter)}`;
+  const asTag = state.assault ? ' <span style="color:#f96">攻勢</span>' : '';
+  const cmTag = ` <span style="color:#8cf">内政${state.civilTier|0}</span>/<span style="color:#fa8">軍事${state.miliTier|0}</span>`;
+  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${gaze}${wTag}${iTag}${busTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock}`;
   const spot = nearestSpot();
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
   right.innerHTML = spot
@@ -3608,65 +4062,158 @@ function drawPond(phase) {
   ctx.stroke();
 }
 
-// ---------- ロケバス／下北沢聖地 ----------
-function startLocationBus(fromXOrCamp, toId, quiet) {
+// ---------- ロケバス／聖地／攻勢 ----------
+function startLocationBus(fromXOrCamp, toId, quiet, mode) {
   const L = landmarkById(toId);
   if (!L || state.bus) return false;
   const fromX = (fromXOrCamp === 0 || fromXOrCamp == null) ? 0 : +fromXOrCamp;
-  // 作業員を数人乗せる（撮影班／部室部隊）
   const cargo = [];
   for (const w of workers) {
     if (cargo.length >= 2) break;
     if (Math.abs(w.x - fromX) < 160 || Math.abs(w.x - L.x) < 160) cargo.push(w);
   }
   state.bus = {
-    x: fromX,
-    tx: L.x,
+    mode: mode || 'civil',
+    x: fromX, tx: L.x,
     fromId: fromX === 0 ? 'camp' : null,
-    toId: L.id,
-    t: 0,
-    cargo,
-    returning: false,
+    toId: L.id, t: 0, cargo, returning: false, opId: null,
   };
   if (!quiet) {
     toast(pick(LORE.busDepart));
-    story(`ロケバス　→${L.short}`, 2.0);
+    story(`【内政】ロケバス　→${L.short}`, 2.0);
     spawnMeme(fromX, GROUND_Y - 55, 'バス!');
   }
   return true;
 }
 
+function startRaidBus(opId) {
+  const op = (state.outposts || []).find(o => o.id === opId && !o.cleared);
+  if (!op || state.bus) return false;
+  const cargoW = workers.filter(w => Math.abs(w.x) < 200 || Math.abs(w.x - op.x) < 200).slice(0, 2);
+  const vans = units.filter(u => u.role === 'vanguard');
+  state.bus = {
+    mode: 'raid',
+    x: 0, tx: op.x,
+    fromId: 'camp', toId: opId, t: 0,
+    cargo: cargoW, vans, returning: false, opId: op.id,
+  };
+  toast(pick(LORE.assaultOpen));
+  story(`【軍事】侵攻バス　→${op.short}`, 2.2);
+  spawnMeme(0, GROUND_Y - 55, '侵攻!');
+  screenFlash('rgba(255,80,40,0.15)', 0.2);
+  return true;
+}
+
+function damageOutpost(op, dmg) {
+  if (!op || op.cleared) return;
+  op.hp = Math.max(0, op.hp - dmg);
+  toast(pick(LORE.outpostHit) + ` −${dmg}`, 2.2);
+  spawnMeme(op.x, GROUND_Y - 60, '-' + dmg);
+  shake(3, 0.15);
+  // 反撃波
+  const n = 2 + Math.floor(state.chapter / 2);
+  for (let i = 0; i < n; i++) {
+    enemies.push({
+      x: op.x + rand(-30, 30), y: GROUND_Y,
+      hp: 2 + state.chapter, maxHp: 2 + state.chapter,
+      speed: 28 + state.day * 1.5, side: op.side,
+      name: pick(['たかり後輩', '覗き見学者', 'ンギモ']),
+      isBoss: false, isTaka: true, isGaze: false, isTono: false, isNgimo: false, isKoko: false, isMur: false,
+      attackCd: 0.4, stealCd: 0, stunned: 0, anim: rand(0, 3), w: 18, h: 28,
+    });
+  }
+  if (op.hp <= 0) clearOutpost(op);
+}
+
+function clearOutpost(op) {
+  op.cleared = true;
+  op.hp = 0;
+  toast(pick(LORE.outpostDown), 3.0);
+  story(`敵拠点破壊　${op.name}　次エリア解放`, 3.0);
+  spawnMeme(op.x, GROUND_Y - 70, '破壊!');
+  screenFlash('rgba(255,215,0,0.25)', 0.35);
+  shake(6, 0.35);
+  // 戦利品（ゲーム内コイン／銀行）
+  dropCoin(op.x, 2 + state.chapter);
+  state.bank += 1 + state.chapter;
+  spawnMeme(op.x + 20, GROUND_Y - 50, '810+');
+  // 壁押し出し
+  if (op.side > 0) structures.rightWall.x = Math.max(structures.rightWall.x, op.x - 20);
+  else structures.leftWall.x = Math.min(structures.leftWall.x, op.x + 20);
+  // 章進行：両側（またはエンドレス片方）壊したら chapter++
+  const targetCh = (op.unlockChapter != null ? op.unlockChapter : (state.chapter + 1));
+  const defs = OUTPOST_DEFS.filter(d => d.unlockChapter === targetCh);
+  const related = (state.outposts || []).filter(o => (o.unlockChapter | 0) === targetCh);
+  const need = Math.min(2, Math.max(1, defs.length || related.length));
+  const got = related.filter(o => o.cleared).length;
+  if (got >= need || state.chapter >= 3) {
+    if (state.chapter < targetCh) {
+      state.chapter = targetCh;
+      toast(`章進行　→${chapterName(state.chapter)}`, 3.2);
+      story(`新ロケ解禁　${chapterName(state.chapter)}`, 2.8);
+    }
+  }
+  ensureOutpostsForAssault();
+  saveGame(true);
+}
+
 function tickLocationBus(dt) {
   const b = state.bus;
-  if (!b) return;
+  if (!b) {
+    // 内政：自動巡回（civilTier）
+    if (!state.isNight && state.civilTier >= 1 && unlockedCount() > 0) {
+      state.busAutoT = (state.busAutoT || 0) - dt;
+      if (state.busAutoT <= 0) {
+        state.busAutoT = 18 - state.civilTier * 3;
+        const u = unlockedLandmarks();
+        const L = u[(Math.random() * u.length) | 0];
+        if (L) startLocationBus(0, L.id, true, 'civil');
+      }
+    }
+    return;
+  }
   b.t += dt;
-  const speed = 160;
+  const speed = b.mode === 'raid' ? 190 : 160;
   const dir = Math.sign(b.tx - b.x) || 1;
   b.x += dir * speed * dt;
-  // 搭乗作業員はバスに追従
   for (const w of (b.cargo || [])) w.x = b.x;
   if ((dir > 0 && b.x >= b.tx) || (dir < 0 && b.x <= b.tx)) {
     b.x = b.tx;
+    if (b.mode === 'raid') {
+      const op = (state.outposts || []).find(o => o.id === b.opId);
+      if (op && !op.cleared) {
+        let dmg = 10 + (state.miliTier | 0) * 3 + (b.vans || []).length * 8;
+        dmg += Math.min(6, units.filter(u => u.role === 'gun').length);
+        dmg += Math.min(4, (b.cargo || []).length * 2);
+        damageOutpost(op, dmg);
+      }
+      // 先鋒を部室側へ戻す
+      for (const v of (b.vans || [])) {
+        v.x = (op && op.side > 0) ? structures.rightWall.x - 28 : structures.leftWall.x + 28;
+      }
+      toast(pick(LORE.busArrive));
+      state.bus = null;
+      return;
+    }
     const L = landmarkById(b.toId);
     toast(pick(LORE.busArrive));
     if (L) {
       spawnMeme(L.x, GROUND_Y - 50, L.short);
-      // 到着ドロップ
-      if (Math.random() < 0.7) dropCoin(L.x + rand(-10, 10), 1);
+      const bonus = facilityLv(L.id) >= 2 ? 2 : 1;
+      if (Math.random() < 0.7 + (state.civilTier | 0) * 0.05) dropCoin(L.x + rand(-10, 10), bonus);
       for (const w of (b.cargo || [])) {
         w.x = L.x + rand(-24, 24);
         w.lmId = L.id;
         w.side = L.side;
       }
     }
-    // 往復：聖地着→部室へ戻る1便（昼のみ）
-    if (!b.returning && !state.isNight) {
+    if (!b.returning && !state.isNight && b.toId !== 'camp') {
       b.returning = true;
       b.tx = 0;
-      b.toId = 'camp';
       b.fromId = L ? L.id : null;
+      b.toId = 'camp';
       b.t = 0;
-      if (L) story(`ロケバス　${L.short}→部室`, 1.8);
+      if (L) story(`【内政】バス　${L.short}→部室`, 1.6);
       return;
     }
     state.bus = null;
@@ -3679,26 +4226,54 @@ function drawLocationBus() {
   const sx = wx(b.x);
   if (sx < -100 || sx > W + 100) return;
   const bob = Math.sin(state.animT * 10) * 1.2;
-  // 影
   drawSoftShadow(sx, GROUND_Y, 28, 0.35);
-  // バス車体（ロケバス：黄＋黒帯）
-  drawPixelRect(sx - 22, GROUND_Y - 22 + bob, 44, 16, '#e8c84a');
+  const body = b.mode === 'raid' ? '#c84a2a' : '#e8c84a';
+  drawPixelRect(sx - 22, GROUND_Y - 22 + bob, 44, 16, body);
   drawPixelRect(sx - 22, GROUND_Y - 14 + bob, 44, 4, '#1a1a1a');
   drawPixelRect(sx - 20, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
   drawPixelRect(sx - 6, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
   drawPixelRect(sx + 8, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
-  // タイヤ
   drawPixelRect(sx - 14, GROUND_Y - 6 + bob, 6, 6, '#222');
   drawPixelRect(sx + 8, GROUND_Y - 6 + bob, 6, 6, '#222');
-  // 「ロケ」札
-  ctx.fillStyle = '#ff6b9d';
+  ctx.fillStyle = b.mode === 'raid' ? '#ff4422' : '#ff6b9d';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('ロケ', sx, GROUND_Y - 26 + bob);
-  // 行き先
-  const dest = b.toId === 'camp' ? '部室' : ((landmarkById(b.toId) || {}).short || '…');
+  ctx.fillText(b.mode === 'raid' ? '侵攻' : 'ロケ', sx, GROUND_Y - 26 + bob);
+  let dest = '…';
+  if (b.mode === 'raid') {
+    const op = (state.outposts || []).find(o => o.id === b.opId);
+    dest = op ? op.short : '拠点';
+  } else {
+    dest = b.toId === 'camp' ? '部室' : ((landmarkById(b.toId) || {}).short || '…');
+  }
   ctx.fillStyle = '#ffd700';
   ctx.fillText('→' + dest, sx, GROUND_Y - 34 + bob);
+}
+
+function drawOutposts(nightish) {
+  for (const op of (state.outposts || [])) {
+    if (op.cleared) continue;
+    const sx = wx(op.x);
+    if (sx < -100 || sx > W + 100) continue;
+    ctx.globalAlpha = 0.95;
+    drawSoftShadow(sx, GROUND_Y, 22, 0.35);
+    drawPixelRect(sx - 20, GROUND_Y - 36, 40, 36, nightish ? '#3a1818' : '#5a2820');
+    drawPixelRect(sx - 22, GROUND_Y - 40, 44, 6, '#8b2020');
+    drawPixelRect(sx - 8, GROUND_Y - 28, 16, 14, '#1a1a1a');
+    // HP bar
+    const pct = op.maxHp > 0 ? op.hp / op.maxHp : 0;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(sx - 18, GROUND_Y - 48, 36, 4);
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(sx - 18, GROUND_Y - 48, 36 * pct, 4);
+    ctx.fillStyle = '#ff6b9d';
+    ctx.font = '6px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(op.short, sx, GROUND_Y - 54);
+    ctx.fillStyle = '#c9a227';
+    ctx.fillText('敵拠点', sx, GROUND_Y - 62);
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawLandmarkBuilding(sx, L, opened, nightish) {
@@ -3752,13 +4327,14 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
 }
 
 function drawLandmarkMap(phase, nightish) {
-  // 下北沢マップ横断：左右の聖地シルエット／解放済みロケ地
+  const maxCh = (state.assault ? state.chapter + 1 : state.chapter);
   for (const L of LANDMARKS) {
+    if (L.chapter > maxCh + 0) continue; // 遠すぎる章は描かない
     const opened = !!state.landmarks[L.id];
     const sx = wx(L.x);
     if (sx < -90 || sx > W + 90) continue;
-    ctx.globalAlpha = opened ? 1 : 0.4;
-    // 路面／歩道片鱗
+    const known = L.chapter <= maxCh;
+    ctx.globalAlpha = opened ? 1 : (known ? 0.42 : 0.2);
     ctx.fillStyle = nightish ? '#2a2a30' : '#5a5a58';
     ctx.fillRect(sx - 28, GROUND_Y + 1, 56, 4);
     drawLandmarkBuilding(sx, L, opened, nightish);
@@ -3766,22 +4342,24 @@ function drawLandmarkMap(phase, nightish) {
     ctx.fillStyle = opened ? '#ffd700' : '#c9a227';
     ctx.font = '6px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText(opened ? L.short : (L.short + '…？'), sx, GROUND_Y - 54);
+    const fac = opened ? facilityLv(L.id) : 0;
+    // fac used below for badge
+    ctx.fillText(opened ? L.short : (known ? L.short + '…？' : '???'), sx, GROUND_Y - 54);
     if (opened) {
       ctx.fillStyle = '#ff6b9d';
-      ctx.fillText('聖地', sx, GROUND_Y - 44);
+      ctx.fillText(fac >= 1 ? `聖地施設${fac}` : '聖地', sx, GROUND_Y - 44);
     }
     ctx.globalAlpha = 1;
   }
-  // 部室前のバス停（聖地が1つでもあれば）
-  if (unlockedCount() > 0) {
+  drawOutposts(nightish);
+  if (unlockedCount() > 0 || state.assault) {
     const sx = wx(0);
     drawPixelRect(sx + 40, GROUND_Y - 26, 3, 26, '#888');
-    drawPixelRect(sx + 34, GROUND_Y - 32, 16, 10, '#2a6aaa');
+    drawPixelRect(sx + 34, GROUND_Y - 32, 16, 10, state.assault ? '#8a2a1a' : '#2a6aaa');
     ctx.fillStyle = '#fff';
     ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('BUS', sx + 42, GROUND_Y - 24);
+    ctx.fillText(state.assault ? 'RAID' : 'BUS', sx + 42, GROUND_Y - 24);
   }
 }
 
@@ -4066,6 +4644,18 @@ function drawYajyu(x, y, facing) {
 
 function drawArcher(x, y, u) {
   ctx.imageSmoothingEnabled = false;
+  if (u.role === 'vanguard') {
+    const bob = Math.sin(state.animT * 4 + (u.x || 0) * 0.05) * 1.2;
+    drawPixelRect(x - 10, y - 30 + bob, 20, 30, '#5a2a18');
+    drawPixelRect(x - 12, y - 34 + bob, 24, 6, '#c9a227');
+    drawPixelRect(x + 6, y - 28 + bob, 4, 18, '#888');
+    ctx.fillStyle = '#ff6b9d';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('先鋒', x, y - 40 + bob);
+    if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 48 + bob, 24, 24);
+    return;
+  }
   const shooting = (u._shotFlash || 0) > 0;
   const fi = shooting ? 3 : frameIndex(4, FR_ARCH.length);
   const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
@@ -4073,6 +4663,12 @@ function drawArcher(x, y, u) {
   if (SPR.kohai) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.kohai, x - 14, y - 52 + bob, 28, 28);
+  }
+  if ((u.tier | 0) > 0) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('T' + (u.tier | 0), x, y - 56 + bob);
   }
   ctx.strokeStyle = '#c8a060';
   ctx.lineWidth = 2;
