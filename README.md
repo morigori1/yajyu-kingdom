@@ -82,6 +82,19 @@ python3 -m http.server 8080   # このディレクトリで
 聖地付近／部室バス停で支払い → **ロケバス**発車（撮影班が聖地を行き来）。  
 パネルはカード枠UI（内政／軍事／ロケ日程／関係・やりこみ）。
 
+### モバイル／タッチUI（セーフエリア・縦持ち・品質連動）
+ノッチ／ホームインジケータ対応とタッチ誤操作防止を強化（既存セーブ・内政／軍事／関係は不変）。
+
+| 項目 | 内容 |
+|---|---|
+| **セーフエリア** | `viewport-fit=cover`＋CSS `env(safe-area-inset-*)`。HUD／パッド／パネル／チップに反映 |
+| **パネル重なり** | 開時 `#wrap.ui-panel` で仮想パッド非表示・チップ／トースト位置を底上げ。カード高 `--panel-max-h` 拡大 |
+| **タッチパッド** | `setPointerCapture` で指ずれ保持。`touch-action`／`gesturestart` 抑制。粗いポインタは min 48px |
+| **フォント／ボタン** | `--hud-fs`／`--ui-fs`／`--pad-btn-h`／`--btn-min-h`。縦持ちで clamp 拡大 |
+| **縦持ちレイアウト** | `orientation: portrait` と `applyUiLayout()`（`ui-portrait`）。超縦長（≤400px）でパッド微増 |
+| **品質ティア連動** | `html[data-gfx=low|high]`。低画質＋縦持ちタッチはパッド高を抑えキャンバス領域確保。影簡略化 |
+| **visualViewport** | モバイルブラウザUI開閉時に `fitCanvas` 再計算 |
+
 ### タイトル
 | ボタン | 効果 |
 |------|------|

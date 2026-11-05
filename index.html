@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a12">
+<meta name="format-detection" content="telephone=no">
 <title>野獣キングダム — 王道を征く</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -15,6 +18,12 @@
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
     --hud-fs: clamp(11px, 2.8vw, 14px);
+    --ui-fs: clamp(11px, 3.1vw, 14px);
+    --btn-min-h: 46px;
+    --pad-btn-h: 64px;
+    --panel-max-h: min(78vh, 560px);
+    --chip-gap: 6px;
+    --yk-ui-shadow: 0 8px 28px rgba(0,0,0,.55);
     /* Kingdom Crowns 統一パレット */
     --yk-ink: #0a0a12;
     --yk-parchment: #f5e6c8;
@@ -324,8 +333,8 @@
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
     cursor: pointer; touch-action: manipulation;
   }
-  #gfx-chip { right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 6px); }
-  #mute-chip { right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 40px); color: #8cf; border-color: #468; }
+  #gfx-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap)); }
+  #mute-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap) + 34px); color: #8cf; border-color: #468; }
   #gfx-chip:active, #mute-chip:active { background: #7a3a2a; }
   #mute-chip.muted { color: #888; border-color: #555; }
   @media (max-width: 720px) {
@@ -337,13 +346,17 @@
   #choice-panel {
     position: absolute; inset: 0; z-index: 25;
     background: radial-gradient(ellipse at center, rgba(40,24,12,.92) 0%, rgba(0,0,0,.88) 70%);
-    display: none; flex-direction: column; align-items: center; justify-content: center;
-    gap: 8px; padding: 12px 12px calc(12px + var(--safe-b)); text-align: center;
+    display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 8px;
+    padding: max(10px, var(--safe-t)) max(10px, var(--safe-r)) max(10px, var(--safe-b)) max(10px, var(--safe-l));
+    text-align: center;
     touch-action: manipulation; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   #choice-panel.show { display: flex; }
   #choice-panel .panel-card {
-    width: min(440px, 94vw);
+    width: min(440px, calc(100vw - 20px - var(--safe-l) - var(--safe-r)));
+    margin-top: auto; margin-bottom: auto;
     background:
       linear-gradient(180deg, var(--yk-panel-hi) 0%, var(--yk-panel) 55%, #120c08 100%);
     border: 3px solid var(--yk-frame);
@@ -353,7 +366,7 @@
       0 10px 28px rgba(0,0,0,.6),
       inset 0 0 28px rgba(255,215,0,.07),
       inset 0 1px 0 rgba(255,230,160,.2);
-    border-radius: 10px; padding: 14px 12px 16px; max-height: min(78vh, 560px);
+    border-radius: 10px; padding: 14px 12px 16px; max-height: var(--panel-max-h);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     scroll-padding-top: 48px;
@@ -524,7 +537,7 @@
   #touch-pad {
     flex: 0 0 auto;
     height: calc(var(--pad-h) + var(--safe-b));
-    padding: 8px 8px calc(8px + var(--safe-b));
+    padding: 8px max(8px, var(--safe-r)) calc(8px + var(--safe-b)) max(8px, var(--safe-l));
     display: flex;
     align-items: stretch;
     justify-content: space-between;
@@ -545,7 +558,7 @@
   .pad-btn {
     font-family: inherit;
     min-width: clamp(52px, 14vw, 96px);
-    min-height: 64px;
+    min-height: var(--pad-btn-h);
     border: 3px solid var(--yk-gold-deep);
     border-radius: 12px;
     background: linear-gradient(180deg, #3a2a1c 0%, #2a2018 100%);
@@ -607,15 +620,161 @@
 
   /* 横向き: パッドやや低く、ボタン横並び維持 */
   @media (orientation: landscape) and (max-height: 500px) {
-    :root { --pad-h: clamp(78px, 30vh, 100px); --hud-fs: clamp(10px, 2.2vh, 12px); }
-    #choice-panel .panel-card { max-height: min(86vh, 420px); padding: 8px; }
-    #choice-panel button { min-height: 40px; padding: 8px 10px; font-size: clamp(10px, 2.4vw, 12px); }
-    .pad-btn { min-height: 52px; font-size: clamp(14px, 3.5vh, 20px); }
+    :root {
+      --pad-h: clamp(78px, 30vh, 100px);
+      --hud-fs: clamp(10px, 2.2vh, 12px);
+      --pad-btn-h: 52px;
+      --btn-min-h: 40px;
+      --panel-max-h: min(86dvh, 420px);
+    }
+    #choice-panel .panel-card { max-height: var(--panel-max-h); padding: 8px; }
+    #choice-panel button { min-height: var(--btn-min-h); padding: 8px 10px; font-size: clamp(10px, 2.4vw, 12px); }
+    .pad-btn { min-height: var(--pad-btn-h); font-size: clamp(14px, 3.5vh, 20px); }
     .pad-btn small { font-size: 8px; }
-    .pad-btn { min-height: 56px; min-width: clamp(64px, 16vw, 96px); border-radius: 10px; }
+    .pad-btn { min-width: clamp(64px, 16vw, 96px); border-radius: 10px; }
     #btn-pay { min-width: clamp(96px, 24vw, 140px); }
     #hud .box { padding: 6px 8px; }
+    #top-ui { max-height: min(40%, 120px); }
   }
+
+  /* ===== モバイル／タッチUI磨き（セーフエリア・縦持ち・品質連動） ===== */
+  @media (orientation: portrait) {
+    :root {
+      --pad-h: clamp(132px, 22vh, 188px);
+      --hud-fs: clamp(11px, 3.4vw, 14px);
+      --ui-fs: clamp(11px, 3.4vw, 14px);
+      --pad-btn-h: clamp(68px, 11vh, 84px);
+      --btn-min-h: 50px;
+      --panel-max-h: min(72dvh, calc(100dvh - var(--pad-h) - var(--safe-t) - var(--safe-b) - 28px));
+    }
+    #top-ui {
+      top: 6px;
+      width: min(960px, calc(100% - 8px - var(--safe-l) - var(--safe-r)));
+      max-height: min(38%, 240px);
+      gap: 5px;
+    }
+    #hud .box { padding: 7px 9px; }
+    #story, #toast { font-size: clamp(10px, 3.2vw, 12px); padding: 6px 10px; }
+    #hud-humid { font-size: 9px; padding: 4px 8px 5px; }
+    #touch-pad { gap: 7px; }
+    .pad-btn {
+      min-height: var(--pad-btn-h);
+      min-width: clamp(54px, 15vw, 100px);
+      font-size: clamp(22px, 6.5vw, 30px);
+      border-radius: 14px;
+    }
+    .pad-btn small { font-size: clamp(10px, 2.8vw, 12px); }
+    #btn-civil, #btn-mili { font-size: clamp(15px, 4.2vw, 20px); }
+    #btn-pay { min-width: clamp(78px, 22vw, 128px); }
+    #choice-panel {
+      justify-content: flex-start;
+      padding-top: max(12px, var(--safe-t));
+    }
+    #choice-panel .panel-card {
+      width: min(520px, calc(100vw - 16px - var(--safe-l) - var(--safe-r)));
+      max-height: var(--panel-max-h);
+      padding: 12px 10px 14px;
+      margin-top: 4px;
+    }
+    #choice-panel h2 { font-size: clamp(13px, 3.8vw, 16px); }
+    #choice-panel button {
+      min-height: var(--btn-min-h);
+      font-size: clamp(12px, 3.3vw, 14px);
+      padding: 12px 12px;
+    }
+    #choice-panel .tabs button { min-height: 44px; font-size: clamp(11px, 3vw, 13px); }
+    #choice-panel .mili-subtabs .mili-sub { min-height: 44px; font-size: clamp(11px, 3.1vw, 13px); }
+    #choice-panel .meta { font-size: clamp(10px, 2.9vw, 12px); line-height: 1.6; }
+    #choice-panel .collect-box { max-height: min(36vh, 260px); font-size: clamp(10px, 2.9vw, 12px); }
+    #ach-toast { bottom: calc(var(--pad-h) + var(--safe-b) + 10px); font-size: clamp(10px, 3vw, 12px); }
+    canvas { border-width: 3px; }
+  }
+
+  /* 粗いポインタ（タッチ）: ヒット領域とタップ遅延対策 */
+  @media (pointer: coarse) {
+    #choice-panel button,
+    #choice-panel .tabs button,
+    #choice-panel .mili-subtabs .mili-sub,
+    #overlay button {
+      min-height: max(var(--btn-min-h), 48px);
+      touch-action: manipulation;
+    }
+    .pad-btn { -webkit-tap-highlight-color: transparent; }
+    #gfx-chip, #mute-chip {
+      min-height: 36px;
+      min-width: 64px;
+      padding: 8px 10px;
+      font-size: 8px;
+    }
+  }
+
+  /* パネル開時: パッドを隠して重なり／誤操作を防ぐ（セーフエリアは維持） */
+  #wrap.ui-panel #touch-pad {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  #wrap.ui-panel #gfx-chip,
+  #wrap.ui-panel #mute-chip {
+    bottom: max(12px, calc(var(--safe-b) + 10px));
+  }
+  #wrap.ui-panel #mute-chip {
+    bottom: max(48px, calc(var(--safe-b) + 46px));
+  }
+  #wrap.ui-panel #ach-toast {
+    bottom: max(16px, calc(var(--safe-b) + 14px));
+  }
+  #wrap.ui-panel #choice-panel {
+    /* パッド非表示分、カードを大きく */
+    --panel-max-h: min(88dvh, calc(100dvh - var(--safe-t) - var(--safe-b) - 24px));
+  }
+  #wrap.ui-panel #choice-panel .panel-card {
+    max-height: var(--panel-max-h);
+  }
+
+  /* 画質ティア連動（applyQuality が html[data-gfx] をセット） */
+  html[data-gfx="low"] {
+    --yk-ui-shadow: 0 4px 12px rgba(0,0,0,.4);
+  }
+  html[data-gfx="low"] canvas {
+    box-shadow:
+      0 0 0 2px var(--yk-gold-deep),
+      0 0 0 4px var(--yk-gold-dim),
+      var(--yk-ui-shadow);
+  }
+  html[data-gfx="low"] #choice-panel .panel-card {
+    box-shadow: 0 0 0 2px #5a3a10, 0 6px 16px rgba(0,0,0,.5);
+  }
+  html[data-gfx="low"] #hud .box {
+    box-shadow: inset 0 0 0 1px #3a2810, 0 0 0 1px #5a4010;
+  }
+  html[data-gfx="low"] #touch-pad {
+    box-shadow: inset 0 1px 0 rgba(255,215,0,.15);
+  }
+  html[data-gfx="low"] #story,
+  html[data-gfx="low"] #toast {
+    box-shadow: inset 0 0 0 1px #5a3a10;
+  }
+  html[data-gfx="high"] canvas {
+    box-shadow:
+      0 0 0 2px var(--yk-gold-deep),
+      0 0 0 5px var(--yk-gold-dim),
+      0 0 0 7px var(--yk-wood),
+      var(--yk-ui-shadow),
+      inset 0 0 40px rgba(255,215,0,.04);
+  }
+
+  /* 超縦長・ノッチ端末向け微调 */
+  @media (orientation: portrait) and (max-width: 400px) {
+    :root { --pad-h: clamp(140px, 24vh, 200px); --pad-btn-h: 72px; }
+    .pad-btn { min-width: 0; flex: 1 1 0; padding: 4px 1px; }
+    .pad-group { flex: 1 1 0; gap: 4px; }
+    #touch-pad { gap: 4px; }
+    #choice-panel .mili-subtabs .mili-sub { flex: 1 1 28%; max-width: none; min-width: 0; }
+  }
+
+  /* パネル内ボタン共通サイズ変数 */
+  #choice-panel button { min-height: var(--btn-min-h); font-size: var(--ui-fs); }
 </style>
 </head>
 <body>
@@ -1218,18 +1377,20 @@ canvas.addEventListener('pointerdown', e => {
 function bindHold(el, on, off) {
   const start = ev => {
     ev.preventDefault();
+    try { if (ev.pointerId != null) el.setPointerCapture(ev.pointerId); } catch (_) {}
     el.classList.add('active');
     on();
   };
   const end = ev => {
     if (ev) ev.preventDefault();
+    try { if (ev && ev.pointerId != null) el.releasePointerCapture(ev.pointerId); } catch (_) {}
     el.classList.remove('active');
     off();
   };
   el.addEventListener('pointerdown', start);
   el.addEventListener('pointerup', end);
-  el.addEventListener('pointerleave', end);
   el.addEventListener('pointercancel', end);
+  el.addEventListener('lostpointercapture', end);
   el.addEventListener('contextmenu', ev => ev.preventDefault());
 }
 
@@ -1246,39 +1407,46 @@ bindHold(document.getElementById('btn-right'),
   if (bc) bc.addEventListener('pointerdown', e => { e.preventDefault(); if (!state.isNight) openBranchPanel('civil'); });
   if (bm) bm.addEventListener('pointerdown', e => { e.preventDefault(); if (!state.isNight) openBranchPanel('mili'); });
 })();
-document.getElementById('btn-pay').addEventListener('pointerdown', e => {
-  e.preventDefault();
-  document.getElementById('btn-pay').classList.add('active');
-  tryPay();
-});
-document.getElementById('btn-pay').addEventListener('pointerup', e => {
-  e.preventDefault();
-  document.getElementById('btn-pay').classList.remove('active');
-});
-document.getElementById('btn-pay').addEventListener('pointerleave', () => {
-  document.getElementById('btn-pay').classList.remove('active');
-});
-document.getElementById('btn-pay').addEventListener('pointercancel', () => {
-  document.getElementById('btn-pay').classList.remove('active');
-});
-document.getElementById('btn-pay').addEventListener('contextmenu', e => e.preventDefault());
-
-document.getElementById('btn-skill').addEventListener('pointerdown', e => {
-  e.preventDefault();
-  document.getElementById('btn-skill').classList.add('active');
-  trySkill();
-});
-document.getElementById('btn-skill').addEventListener('pointerup', e => {
-  e.preventDefault();
-  document.getElementById('btn-skill').classList.remove('active');
-});
-document.getElementById('btn-skill').addEventListener('pointerleave', () => {
-  document.getElementById('btn-skill').classList.remove('active');
-});
-document.getElementById('btn-skill').addEventListener('pointercancel', () => {
-  document.getElementById('btn-skill').classList.remove('active');
-});
-document.getElementById('btn-skill').addEventListener('contextmenu', e => e.preventDefault());
+(function bindTapPad(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const down = e => {
+    e.preventDefault();
+    try { if (e.pointerId != null) el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.classList.add('active');
+    fn();
+  };
+  const up = e => {
+    if (e) e.preventDefault();
+    try { if (e && e.pointerId != null) el.releasePointerCapture(e.pointerId); } catch (_) {}
+    el.classList.remove('active');
+  };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('lostpointercapture', up);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+})('btn-pay', () => { tryPay(); });
+(function bindTapPad(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const down = e => {
+    e.preventDefault();
+    try { if (e.pointerId != null) el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.classList.add('active');
+    fn();
+  };
+  const up = e => {
+    if (e) e.preventDefault();
+    try { if (e && e.pointerId != null) el.releasePointerCapture(e.pointerId); } catch (_) {}
+    el.classList.remove('active');
+  };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('lostpointercapture', up);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+})('btn-skill', () => { trySkill(); });
 
 // ページ全体のスクロール・ピンチ干渉を抑制
 document.addEventListener('gesturestart', e => e.preventDefault());
@@ -1288,11 +1456,70 @@ document.addEventListener('touchmove', e => {
   e.preventDefault();
 }, { passive: false });
 
+function applyUiLayout() {
+  const root = document.documentElement;
+  const wrap = document.getElementById('wrap');
+  const portrait = (window.matchMedia && matchMedia('(orientation: portrait)').matches)
+    || (window.innerHeight > window.innerWidth);
+  const touch = (window.matchMedia && matchMedia('(pointer: coarse)').matches)
+    || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '');
+  if (wrap) {
+    wrap.classList.toggle('ui-portrait', !!portrait);
+    wrap.classList.toggle('ui-landscape', !portrait);
+    wrap.classList.toggle('ui-touch', !!touch);
+    const panelEl = document.getElementById('choice-panel');
+    const panelOpen = !!(state && state.panelOpen) || !!(panelEl && panelEl.classList.contains('show'));
+    wrap.classList.toggle('ui-panel', panelOpen);
+  }
+  // 品質＋縦持ちでパッド高・ボタン高を微調整（CSS clamp の上書き）
+  const q = (typeof GFX !== 'undefined' && GFX.quality) || 'high';
+  let padH, padBtn, btnMin, panelMax;
+  if (portrait) {
+    padH = touch ? 'clamp(136px, 22vh, 192px)' : 'clamp(124px, 20vh, 172px)';
+    padBtn = touch ? 'clamp(70px, 11vh, 86px)' : 'clamp(64px, 10vh, 78px)';
+    btnMin = touch ? '52px' : '48px';
+    panelMax = 'min(72dvh, calc(100dvh - var(--pad-h) - var(--safe-t) - var(--safe-b) - 28px))';
+  } else if (window.innerHeight && window.innerHeight <= 500) {
+    padH = 'clamp(78px, 30vh, 100px)';
+    padBtn = '52px';
+    btnMin = '40px';
+    panelMax = 'min(86dvh, 420px)';
+  } else {
+    padH = 'clamp(118px, 24vh, 168px)';
+    padBtn = '64px';
+    btnMin = touch ? '48px' : '46px';
+    panelMax = 'min(78vh, 560px)';
+  }
+  // 低画質モバイルはパッドやや低くしキャンバス領域を確保
+  if (q === 'low' && touch && portrait) {
+    padH = 'clamp(124px, 20vh, 168px)';
+  }
+  root.style.setProperty('--pad-h', padH);
+  root.style.setProperty('--pad-btn-h', padBtn);
+  root.style.setProperty('--btn-min-h', btnMin);
+  root.style.setProperty('--panel-max-h', panelMax);
+  root.style.setProperty('--hud-fs', portrait ? 'clamp(11px, 3.4vw, 14px)' : 'clamp(11px, 2.8vw, 14px)');
+  root.style.setProperty('--ui-fs', portrait ? 'clamp(11px, 3.4vw, 14px)' : 'clamp(11px, 3.1vw, 14px)');
+}
+
 function fitCanvas() {
+  try { applyUiLayout(); } catch (_) {}
   const stage = document.getElementById('stage');
   if (!stage) return;
-  const aw = stage.clientWidth;
-  const ah = stage.clientHeight;
+  let aw = stage.clientWidth;
+  let ah = stage.clientHeight;
+  // visualViewport: モバイルブラウザUI開閉でstage高がずれないよう補正
+  try {
+    const vv = window.visualViewport;
+    if (vv && vv.height) {
+      const pad = document.getElementById('touch-pad');
+      const padH = pad && !document.getElementById('wrap')?.classList.contains('ui-panel')
+        ? pad.offsetHeight : 0;
+      const safeT = parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0;
+      // stage 実高が優先。極端に小さいときだけ vv で下限を補う
+      if (ah < 120 && vv.height > ah) ah = Math.max(ah, Math.floor(vv.height - padH - 8));
+    }
+  } catch (_) {}
   const scale = Math.min(aw / W, ah / H);
   const dw = Math.floor(W * scale);
   const dh = Math.floor(H * scale);
@@ -1300,8 +1527,15 @@ function fitCanvas() {
   canvas.style.height = dh + 'px';
 }
 window.addEventListener('resize', fitCanvas);
-window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 120));
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 160));
+try {
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', () => { try { fitCanvas(); } catch (_) {} });
+    visualViewport.addEventListener('scroll', () => { try { fitCanvas(); } catch (_) {} });
+  }
+} catch (_) {}
 setTimeout(fitCanvas, 0);
+setTimeout(fitCanvas, 280);
 
 // ---------- ゲーム状態 ----------
 const state = {
@@ -2734,12 +2968,21 @@ function tryDrinkMugicha() {
 }
 
 
+function syncPanelChrome(open) {
+  const wrap = document.getElementById('wrap');
+  const panel = document.getElementById('choice-panel');
+  const isOpen = open != null ? !!open : !!(panel && panel.classList.contains('show'));
+  if (wrap) wrap.classList.toggle('ui-panel', isOpen);
+  try { applyUiLayout(); fitCanvas(); } catch (_) {}
+}
+
 function closeBranchPanel() {
   const panel = document.getElementById('choice-panel');
   if (panel) panel.classList.remove('show');
   state.panelOpen = null;
   state.collectSub = null;
   if (!state.over && !state.won) state.running = true;
+  try { syncPanelChrome(false); } catch (_) {}
 }
 
 function panelPay(cost, fn) {
@@ -3439,6 +3682,7 @@ function openBranchPanel(tab) {
   hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
   btns.insertBefore(hint, btns.firstChild);
   panel.classList.add('show');
+  try { syncPanelChrome(true); } catch (_) {}
   const card = panel.querySelector('.panel-card');
   if (card) {
     card.classList.remove('pulse');
@@ -3577,12 +3821,18 @@ function applyQuality() {
   GFX.emberMul = low ? 0.25 : 1;
   GFX.sparkMul = low ? 0.45 : 1;
   GFX.mistMul = low ? 0.35 : 1;
+  try {
+    document.documentElement.dataset.gfx = low ? 'low' : 'high';
+    document.documentElement.classList.toggle('gfx-low', low);
+    document.documentElement.classList.toggle('gfx-high', !low);
+  } catch (_) {}
   const chip = document.getElementById('gfx-chip');
   if (chip) {
     const label = GFX.mode === 'auto' ? `画質:自動(${GFX.quality === 'low' ? '低' : '高'})`
       : (GFX.mode === 'low' ? '画質:低' : '画質:高');
     chip.textContent = label;
   }
+  try { applyUiLayout(); fitCanvas(); } catch (_) {}
 }
 
 function cycleQuality() {
@@ -4370,6 +4620,7 @@ function openDayChoice() {
       if (!goPanel) {
         panel.classList.remove('show');
         state.running = true;
+        try { syncPanelChrome(false); } catch (_) {}
         updateHumidityHud();
         checkAchievements();
       }
@@ -4377,6 +4628,7 @@ function openDayChoice() {
     btns.appendChild(b);
   }
   panel.classList.add('show');
+  try { syncPanelChrome(true); } catch (_) {}
 }
 
 function applyBankInterest() {
