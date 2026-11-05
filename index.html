@@ -808,18 +808,18 @@
       <div id="toast"></div>
     </div>
     <canvas id="c" width="960" height="540"></canvas>
-    <div id="hint">PC: 移動 A/D　支払 スペース　内政1／軍事2／ミッション3　｜　スマホ: 下パッド</div>
+    <div id="hint">PC: 現地へ行ってスペースで払う　乗り物も現地　バスは遠路ワープ　民帳1／陣帳2は一覧　｜　スマホ: 下パッド</div>
     <div id="overlay">
       <h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span> 👑</h1>
       <p>
         下北沢（自称）　湿度114514　真夏（汗）<br>
         王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
-        いいよ！こいよ！　迫真バリケード　先輩砲台／部室トリオ／胸ぐらスネア／810地雷<br>
-        下北横断→攻勢　内政／軍事　ロケバスで隣の聖地へ<br>
+        いいよ！こいよ！　現地で払って建てる　巣から夜襲　乗り物で近場、ロケバスで遠路<br>
+        迫真バリケード　先輩砲台　帰宅チャリ／スクーター／ホース<br>
         <span style="color:#888">パッド／キーボード　おかのした</span>
       </p>
       <div id="title-faces" style="display:flex;gap:12px;justify-content:center;align-items:flex-end;margin:8px 0;">
-        <div style="text-align:center"><img src="assets/senpai_pixel.png" alt="先輩" width="72" height="72" style="image-rendering:pixelated;border:2px solid #ffd700;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
+        <div style="text-align:center"><img src="assets/doya.jpg" alt="先輩" width="88" height="88" style="object-fit:cover;object-position:center 18%;border:2px solid #ffd700;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
         <div style="text-align:center"><img src="assets/kohai_pixel.png" alt="後輩" width="56" height="56" style="image-rendering:pixelated;border:2px solid #ff6b9d;background:#222"/><div style="font-size:9px;color:#ff6b9d;margin-top:4px">後輩</div></div>
       </div>
       <button id="startBtn" type="button">いいよ！こいよ！（新規）</button>
@@ -840,8 +840,8 @@
       <button type="button" class="pad-btn" id="btn-right" aria-label="右へ移動">▶<small>右</small></button>
     </div>
     <div class="pad-group">
-      <button type="button" class="pad-btn" id="btn-civil" aria-label="内政パネル" style="border-color:#6af;background:#1a3a4a">内政<small>1</small></button>
-      <button type="button" class="pad-btn" id="btn-mili" aria-label="軍事パネル" style="border-color:#f84;background:#4a1a10">軍事<small>2</small></button>
+      <button type="button" class="pad-btn" id="btn-civil" aria-label="民の一覧（現地払いが基本）" style="border-color:#6af;background:#1a3a4a">民帳<small>一覧</small></button>
+      <button type="button" class="pad-btn" id="btn-mili" aria-label="陣の一覧（現地払いが基本）" style="border-color:#f84;background:#4a1a10">陣帳<small>一覧</small></button>
     </div>
     <div class="pad-group">
       <button type="button" class="pad-btn" id="btn-pay" aria-label="コイン支払い">🪙<small>支払う</small></button>
@@ -862,7 +862,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-const SPR = { senpai: null, kohai: null, icon: null, tono: null, ready: 0 };
+const SPR = { senpai: null, kohai: null, icon: null, tono: null, face: null, ready: 0 };
 function loadSpr(key, src) {
   const im = new Image();
   im.onload = () => { SPR[key] = im; SPR.ready++; };
@@ -873,6 +873,8 @@ loadSpr('senpai', 'assets/senpai_pixel.png');
 loadSpr('kohai', 'assets/kohai_pixel.png');
 loadSpr('icon', 'assets/senpai_icon.png');
 loadSpr('tono', 'assets/tono_smile_pixel.png');
+loadSpr('face', 'assets/doya.jpg');
+const REDUCE_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const W = canvas.width, H = canvas.height;
 const GROUND_Y = 380;
@@ -1659,6 +1661,12 @@ const state = {
   _nightCoin0: 0,
   _nightCamp0: 0,
   _raidDmgAcc: 0,
+  mounts: { owned: {}, eq: null, stam: 100 },
+  nestQ: [],
+  duskRaid: false,
+  nestRel: 0,
+  _ledgerHint: false,
+  _payLock: 0,
   endCut: -1,
   workerTimer: 0,
   // --- 厚バッチ: パネル／ロケ日程／関係／真夏／やりこみ ---
@@ -3095,6 +3103,10 @@ function enterDungeon(D) {
   e2.dgRuns++;
   state.encounter = null;
   state.dungeon = { site: D.site, room: 0, px: 90, camX: 90, taken: {}, hitCd: 0, t: 0, retX: player.x };
+  try {
+    const M = ensureMountState();
+    if (M.eq) { state._mountHold = M.eq; M.eq = null; }
+  } catch (_) {}
   story(`${D.name}へ潜入　足元に注意　くさい煙に触れると湿度↑`, 3);
   try { if (typeof audPlay === 'function') audPlay('day'); } catch (_) {}
   return true;
@@ -3108,6 +3120,11 @@ function exitDungeon(msg) {
     const S = EXPLORE_SITES.find(s => s.id === dg.site);
     if (S) player.x = S.x;
   }
+  try {
+    const M = ensureMountState();
+    if (state._mountHold && M.owned[state._mountHold]) M.eq = state._mountHold;
+    state._mountHold = null;
+  } catch (_) {}
   state.cameraX = player.x - W / 2;
   if (msg) toast(msg, 2.4);
   try { saveGame(true); } catch (_) {}
@@ -3472,6 +3489,10 @@ function enterAdvDungeon() {
     adv: true, site: 'adv_echo', room: 0, px: 90, camX: 90,
     taken: Object.assign({}, a.taken), hitCd: 0, t: 0, retX: player.x,
   };
+  try {
+    const M = ensureMountState();
+    if (M.eq) { state._mountHold = M.eq; M.eq = null; }
+  } catch (_) {}
   a.stage = Math.max(a.stage | 0, 5);
   advUnlockJournal('hole', true);
   story('部室の裏穴へ　湯気は暖かい方　つめたい煙に触れると湿度↑　左の扉で地上', 3.2);
@@ -4432,7 +4453,7 @@ function startMissionFromSchedule(slot) {
   toast(`ロケ日程　${L.short}　${mk.label}`, 2.8);
   story(storyCompose(`【撮影】${chapterName(state.chapter)}・${L.short}へ　${mk.label}　${fl}`, { bond: true, schedule: true, heat: true }), 2.8);
   if (slot.kind === 'bus' || slot.kind === 'patrol' || slot.kind === 'film' || slot.kind === 'collab') {
-    startLocationBus(0, L.id, false, 'civil');
+    startLocationBus(0, L.id, false, 'civil', true);
   }
   return true;
 }
@@ -4474,7 +4495,7 @@ function startChapterQuestMission() {
   };
   toast('章任務　' + q.label, 2.8);
   story(storyCompose(`【章任務】${q.label}　${q.story || ''}`, { bond: true, schedule: true, heat: true }), 3.0);
-  if (q.kind === 'film' || q.kind === 'patrol' || q.kind === 'collab') startLocationBus(0, L.id, false, 'civil');
+  if (q.kind === 'film' || q.kind === 'patrol' || q.kind === 'collab') startLocationBus(0, L.id, false, 'civil', true);
   return true;
 }
 
@@ -4764,8 +4785,13 @@ function openBranchPanel(tab) {
   const title = document.getElementById('choice-title');
   const btns = document.getElementById('choice-btns');
   if (prevTab !== state.panelOpen) {
-    const tabJa = ({ civil:'内政', mili:'軍事', mission:'ロケ日程', bond:'関係・やりこみ' })[state.panelOpen] || '';
-    if (tabJa) toast('パネル　' + tabJa, 1.1);
+    const tabJa = ({ civil:'民帳', mili:'陣帳', mission:'ロケ日程', bond:'関係・やりこみ' })[state.panelOpen] || '';
+    if (tabJa && (state.panelOpen === 'civil' || state.panelOpen === 'mili')) {
+      if (!state._ledgerHint) {
+        state._ledgerHint = true;
+        toast('建設は現地へ行って払う。帳は一覧と役割切替（購入ではない）', 3.2);
+      } else toast(tabJa + 'を開いた（購入ではない）', 1.2);
+    } else if (tabJa) toast('パネル　' + tabJa, 1.1);
   }
   title.textContent = '';
   btns.innerHTML = '';
@@ -4773,7 +4799,7 @@ function openBranchPanel(tab) {
   const tabs = document.createElement('div');
   tabs.className = 'tabs';
   for (const [id, label, cls] of [
-    ['civil','内政','civil'],['mili','軍事','mili'],['mission','ロケ日程','mission'],['bond','関係・やりこみ','bond']
+    ['civil','民帳','civil'],['mili','陣帳','mili'],['mission','ロケ日程','mission'],['bond','関係・やりこみ','bond']
   ]) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = cls + (state.panelOpen === id ? ' active' : '');
@@ -4800,8 +4826,8 @@ function openBranchPanel(tab) {
   meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}　補給${state.supplyStock|0}/5<br>関係 後輩${_b.kohai|0}／班${_b.crew|0}／街${_b.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>民 集金${_jr.g}／補給${_jr.s}／撮影${_jr.f}／応援${_jr.c}　編成${raidFormName(state.raidForm||'std').split('（')[0]}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}　収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}`;
   btns.appendChild(meta);
   title.textContent = ({
-    civil: '【内政】民の役割／補給線／施設',
-    mili: '【軍事】TD塔／編成／戦果',
+    civil: '【民帳・一覧】現地払いが基本　役割切替のみここで',
+    mili: '【陣帳・一覧】壁や砲台は現地で払う　編成はここ',
     mission: '【ロケ日程】撮影ミッション',
     bond: '【関係・やりこみ】',
   })[state.panelOpen] || 'パネル';
@@ -4818,18 +4844,18 @@ function openBranchPanel(tab) {
   }
   if (state.panelOpen === 'civil' && state.civilSub) {
     title.textContent = ({
-      people: '【内政・民の役割】集金／補給／撮影／応援',
-      supply: '【内政・補給線】物資と終点',
-      spot: '【内政・施設】バス／銀行',
+      people: '【民帳・役割切替】現地雇いが基本　ここで職を替える',
+      supply: '【民帳・補給線】物資と終点　現地でも払える',
+      spot: '【民帳・一覧】バス／銀行は現地払い',
     })[state.civilSub] || title.textContent;
   }
   if (state.panelOpen === 'mili' && state.miliSub) {
     title.textContent = ({
-      west: '【軍事・西】TD塔名寄せ',
-      east: '【軍事・東】TD塔名寄せ',
-      trap: '【軍事・罠／覚醒】スネア・地雷・片鱗',
-      form: '【軍事・攻勢編成】標準／突撃／要塞',
-      raid: '【軍事・侵攻】バスと拠点',
+      west: '【陣帳・西一覧】砲台は壁まで行って払う',
+      east: '【陣帳・東一覧】砲台は壁まで行って払う',
+      trap: '【陣帳・罠一覧】スネア・地雷は現地',
+      form: '【陣帳・編成切替】標準／突撃／要塞（購入ではない）',
+      raid: '【陣帳・侵攻】バスは現地でも発車可',
       report: '【軍事・戦果報告】夜明け日誌',
     })[state.miliSub] || title.textContent;
   }
@@ -4981,8 +5007,8 @@ function openBranchPanel(tab) {
         if (lv < 2) addBtn(`${L.short}施設 Lv${lv}→${lv+1}`, 3 + lv * 3, () => {
           state.facility[L.id] = lv + 1; bumpBond('town', 2); toast(pick(LORE.civilUp)); return true;
         });
-        if (!state.bus) addBtn(`ロケバス発車→${L.short}`, 1, () => {
-          startLocationBus(0, L.id, false, 'civil'); bumpBond('crew', 1); return true;
+        if (!state.bus) addBtn(`ロケバス発車→${L.short}（遠路ワープ）`, 1, () => {
+          startLocationBus(0, L.id, false, 'civil', true); bumpBond('crew', 1); return true;
         });
       }
       if (!state.bus && unlockedCount()) {
@@ -5445,12 +5471,12 @@ function openBranchPanel(tab) {
   const hint = document.createElement('div');
   hint.className = 'fb-hint panel-hint';
   const tabHint = ({
-    civil: '内政：施設Lv・作業員・810銀行・ロケバス',
-    mili: '軍事：西東タブで砲台・トリオ　罠・覚醒でスネア／地雷／片鱗',
+    civil: '民帳は一覧。雇う・預ける・バスは現地でスペース払い',
+    mili: '陣帳は一覧。壁・砲台・罠は現地で払う。編成切替のみここ',
     mission: '日次／週次／章任務　報酬は関係・語録・塔スキン連動',
     bond: '関係：会話分岐／ギフト／共同ロケ／閾値Evt　｜　実績／語録／写真／塔／隠し／日誌',
   })[state.panelOpen] || '';
-  hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
+  hint.textContent = (tabHint ? tabHint + '　｜　' : '') + '現地へ行って払う　1民帳／2陣帳は一覧　3日程／4関係';
   btns.insertBefore(hint, btns.firstChild);
   panel.classList.add('show');
   try { syncPanelChrome(true); } catch (_) {}
@@ -5477,23 +5503,30 @@ function spawnRetaliation(op, dmg) {
   else if (retal === 'rush') { n = 3 + Math.min(2, state.chapter|0); names = ['こ↑こ↓','俊足後輩','跳び後輩']; hpBase = 2; spd = 42; }
   // ダメージ大きいほど追加
   if (dmg >= 18) n += 1;
+  ensureNestState();
+  const nest = { id: 'op:' + op.id, x: op.x, side: op.side, short: op.short || '拠点', source: 'outpost' };
   for (let i = 0; i < n; i++) {
     const name = names[i % names.length];
-    const isGaze = name.indexOf('眼光') >= 0;
-    const isTaka = name.indexOf('たかり') >= 0;
-    const isTono = name.indexOf('遠野') >= 0;
-    const isNgimo = name.indexOf('ンギモ') >= 0;
-    const isKoko = name.indexOf('こ↑こ↓') >= 0;
-    const isMur = name.indexOf('MUR') >= 0;
-    enemies.push({
-      x: op.x + rand(-36, 36), y: GROUND_Y,
-      hp: hpBase, maxHp: hpBase, speed: spd + rand(0,6), side: op.side,
-      name, isBoss: false, isTaka, isGaze, isTono, isNgimo, isKoko, isMur,
-      attackCd: 0.3, stealCd: 0, stunned: 0, anim: rand(0,3), w: 18, h: 28,
+    const spec = {
+      t: (state.nestRel || 0) + 0.28 * i,
+      side: op.side, nestId: nest.id, x: nestMouthX(nest),
+      name, isBoss: false,
+      isTaka: name.indexOf('たかり') >= 0,
+      isGaze: name.indexOf('眼光') >= 0,
+      isTono: name.indexOf('遠野') >= 0,
+      isNgimo: name.indexOf('ンギモ') >= 0,
+      isKoko: name.indexOf('こ↑こ↓') >= 0,
+      isMur: name.indexOf('MUR') >= 0,
+      hp: hpBase, maxHp: hpBase, speed: spd + rand(0, 6),
       fromOutpost: op.id,
-    });
+    };
+    if (!state.nestQ) state.nestQ = [];
+    state.nestQ.push(spec);
   }
+  state.nestQ.sort((a, b) => a.t - b.t);
+  state.duskRaid = true;
   spawnMeme(op.x, GROUND_Y - 70, retal);
+  nestDirWarn(nest);
 }
 
 
@@ -5914,6 +5947,17 @@ function audPlay(kind) {
         setTimeout(() => audTone(392, 0.3, 'sine', 0.06, 262), 210);
         audNoiseBurst(0.16, 0.045, 700);
         break;
+      case 'nest':
+        if (t - (L.nest || 0) < 220) return;
+        L.nest = t;
+        audTone(70, 0.28, 'sawtooth', 0.07, 42);
+        audTone(98, 0.2, 'triangle', 0.05, 55);
+        audNoiseBurst(0.18, 0.05, 240);
+        break;
+      case 'build':
+        audTone(392, 0.08, 'square', 0.06, 523);
+        audTone(523, 0.1, 'triangle', 0.05, 659);
+        break;
       default:
         audTone(440, 0.05, 'square', 0.05);
     }
@@ -6130,11 +6174,13 @@ function pushFx(p) {
 }
 
 function shake(mag = 4, sec = 0.22) {
+  if (REDUCE_MOTION) { state.shakeMag = Math.max(state.shakeMag || 0, Math.min(2, mag * 0.35)); state.shakeT = Math.max(state.shakeT || 0, Math.min(0.08, sec)); return; }
   state.shakeMag = Math.max(state.shakeMag || 0, mag);
   state.shakeT = Math.max(state.shakeT || 0, sec);
 }
 
 function screenFlash(color, sec = 0.12) {
+  if (REDUCE_MOTION) { state.flashT = Math.max(state.flashT || 0, Math.min(0.05, sec)); state.flashColor = color || 'rgba(255,255,255,0.18)'; return; }
   state.flashColor = color || 'rgba(255,255,255,0.35)';
   state.flashT = Math.max(state.flashT || 0, sec);
 }
@@ -6597,6 +6643,14 @@ function playerSpeedMul() {
       if (home) m *= (state.adv.riskBonus ? 1.2 : 1.16);
     }
   }
+  if (!state.dungeon && !(state.bus && state.bus.carryPlayer)) {
+    const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
+    if (mount) {
+      const stam = (state.mounts && state.mounts.stam) || 0;
+      const fade = stam < 18 ? (0.35 + stam / 18 * 0.65) : 1;
+      m *= 1 + (mount.spd - 1) * fade;
+    }
+  }
   return m;
 }
 
@@ -6925,7 +6979,7 @@ function shopSpots() {
   // 左右壁アップグレード / 建設
   for (const side of ['left', 'right']) {
     const wall = side === 'left' ? structures.leftWall : structures.rightWall;
-    const label = wall.level === 0 ? '【軍事】迫真バリケード建設' : wall.level === 1 ? '【軍事】迫真石バリケード強化' : '【軍事】バリケード最大';
+    const label = wall.level === 0 ? '迫真バリケード建設' : wall.level === 1 ? '迫真石バリケード強化' : 'バリケード最大';
     const cost = wall.level === 0 ? 3 : wall.level === 1 ? 6 : 99;
     const can = wall.level < 2;
     spots.push({
@@ -6934,6 +6988,7 @@ function shopSpots() {
       r: 48,
       cost,
       can,
+      why: wall.level >= 2 ? '最大まで強化済' : null,
       branch: 'mili',
       label: (side === 'left' ? '◀西' : '東▶') + label,
       buy() {
@@ -6953,6 +7008,7 @@ function shopSpots() {
           spawnMeme(wall.x, GROUND_Y - 40, pick(['王道を征く', 'はっきりわかんだね', '見とけよ']));
         }
         story(sideJa + '　IKZO　王道を征く', 2.0);
+        spawnBuildFx(wall.x, wall.level === 1 ? '壁!' : '石壁!');
         return true;
       }
     });
@@ -6971,7 +7027,8 @@ function shopSpots() {
       cost,
       can,
       branch: 'mili',
-      label: `【軍事】${miliGunName(0)}設置 (${count}/3)`,
+      label: `${miliGunName(0)}設置 (${count}/3)`,
+      why: count >= 3 ? '砲台がいっぱい' : null,
       buy() {
         if (units.filter(u => u.side === side && u.role !== 'vanguard').length >= 3) return false;
         const line = pick(LORE.hire);
@@ -7000,7 +7057,7 @@ function shopSpots() {
         cost: 5,
         can: true,
         branch: 'mili',
-        label: `【軍事】${miliVanguardName()} (${vanCount}/1)・侵攻強化`,
+        label: `${miliVanguardName()} (${vanCount}/1)・侵攻強化`,
         buy() {
           units.push({
             side, role: 'vanguard', tier: 0,
@@ -7029,7 +7086,7 @@ function shopSpots() {
         cost: 3 + (g.tier | 0) * 2,
         can: true,
         branch: 'mili',
-        label: `【軍事】${miliGunName(g.tier)}→${miliGunName((g.tier|0)+1)}`,
+        label: `${miliGunName(g.tier)}→${miliGunName((g.tier|0)+1)}`,
         buy() {
           g.tier = (g.tier | 0) + 1;
           toast(pick(LORE.miliUp));
@@ -7049,7 +7106,7 @@ function shopSpots() {
       cost: 4 + state.miliTier * 3,
       can: true,
       branch: 'mili',
-      label: `【軍事】教練Lv${state.miliTier}→${state.miliTier + 1}（砲台間隔↓）`,
+      label: `教練Lv${state.miliTier}→${state.miliTier + 1}（砲台間隔↓）`,
       buy() {
         if (state.miliTier >= 3) return false;
         state.miliTier++;
@@ -7072,7 +7129,7 @@ function shopSpots() {
         cost: 3 + sn.length,
         can: true,
         branch: 'mili',
-        label: `【軍事】${miliSnareName()} (${sn.length}/${sMax})`,
+        label: `${miliSnareName()} (${sn.length}/${sMax})`,
         buy() {
           if (!state.snares) state.snares = [];
           if (state.snares.length >= snareMax()) return false;
@@ -7105,7 +7162,7 @@ function shopSpots() {
         cost: 2 + Math.floor(mn.length / 2),
         can: true,
         branch: 'mili',
-        label: `【軍事】${miliMineName()} (${mn.length}/${mMax})`,
+        label: `${miliMineName()} (${mn.length}/${mMax})`,
         buy() {
           if (!state.mines) state.mines = [];
           if (state.mines.length >= mineMax()) return false;
@@ -7135,7 +7192,8 @@ function shopSpots() {
       cost: 3 + wc * 2,
       can: wc < maxW,
       branch: 'civil',
-      label: `【内政】作業員雇う (${wc}/${maxW})`,
+      label: `作業員雇う (${wc}/${maxW})`,
+      why: wc >= maxW ? '作業員がいっぱい　整備で増える' : null,
       buy() {
         if (workers.length >= maxW) return false;
         const unlocked = unlockedLandmarks();
@@ -7167,7 +7225,7 @@ function shopSpots() {
       cost: 4 + state.civilTier * 3,
       can: true,
       branch: 'civil',
-      label: `【内政】整備Lv${state.civilTier}→${state.civilTier + 1}（収入・バス）`,
+      label: `整備Lv${state.civilTier}→${state.civilTier + 1}（収入・バス）`,
       buy() {
         if (state.civilTier >= 3) return false;
         state.civilTier++;
@@ -7187,7 +7245,7 @@ function shopSpots() {
       cost: 3 + state.bankTier * 2,
       can: true,
       branch: 'civil',
-      label: `【内政】810運用Lv${state.bankTier}→${state.bankTier + 1}`,
+      label: `810運用Lv${state.bankTier}→${state.bankTier + 1}`,
       buy() {
         if (state.bankTier >= 3) return false;
         state.bankTier++;
@@ -7221,7 +7279,7 @@ function shopSpots() {
       cost: L.cost + L.chapter * 2,
       can: true,
       branch: 'civil',
-      label: `【内政】聖地「${L.name}」解放`,
+      label: `聖地「${L.name}」解放`,
       buy() {
         state.landmarks[L.id] = true;
         state.facility[L.id] = 1; // 解放時施設Lv1
@@ -7249,7 +7307,7 @@ function shopSpots() {
       cost: 3 + lv * 3,
       can: true,
       branch: 'civil',
-      label: `【内政】${L.short}施設 Lv${lv}→${lv + 1}`,
+      label: `${L.short}施設 Lv${lv}→${lv + 1}`,
       buy() {
         state.facility[L.id] = lv + 1;
         toast(pick(LORE.civilUp));
@@ -7270,15 +7328,15 @@ function shopSpots() {
         cost: 1,
         can: true,
         branch: 'civil',
-        label: `【内政】ロケバス ${L.short}→部室`,
+        label: `ロケバス ${L.short}→部室　遠路ワープ`,
         buy() {
           state.bus = {
             mode: 'civil', x: L.x, tx: 0, fromId: L.id, toId: 'camp',
             t: 0, cargo: workers.filter(w => Math.abs(w.x - L.x) < 140).slice(0, 2),
-            returning: true,
+            returning: true, carryPlayer: true,
           };
-          toast(pick(LORE.busDepart));
-          story(`【内政】バス　${L.short}→部室`, 1.8);
+          toast('ロケバス　部室へワープ中', 2.0);
+          story(`${L.short}→部室　遠路はバス、近場は乗り物`, 1.8);
           return true;
         }
       });
@@ -7292,9 +7350,9 @@ function shopSpots() {
         cost: 1,
         can: true,
         branch: 'civil',
-        label: `【内政】ロケバス発車→${next.short}`,
+        label: `ロケバス発車→${next.short}　遠路ワープ`,
         buy() {
-          startLocationBus(0, next.id, false, 'civil');
+          startLocationBus(0, next.id, false, 'civil', true);
           return true;
         }
       });
@@ -7309,7 +7367,7 @@ function shopSpots() {
           cost: 3 + (state.chapter|0) * 2,
           can: true,
           branch: 'mili',
-          label: `【軍事】侵攻バス→${op.short}（HP${op.hp|0}）`,
+          label: `侵攻バス→${op.short}（HP${op.hp|0}）　遠路`,
           buy() {
             startRaidBus(op.id);
             return true;
@@ -7323,7 +7381,7 @@ function shopSpots() {
           cost: 3 + (state.chapter|0) * 2,
           can: true,
           branch: 'mili',
-          label: `【軍事】拠点襲撃 ${op.name}`,
+          label: `拠点襲撃 ${op.name}`,
           buy() {
             startRaidBus(op.id);
             return true;
@@ -7343,7 +7401,7 @@ function shopSpots() {
       cost: 2,
       can: true,
       branch: 'mili',
-      label: `【軍事】${side === 'left' ? '西' : '東'}壁修理 (${wall.hp|0}/${wall.maxHp})`,
+      label: `${side === 'left' ? '西' : '東'}壁修理 (${wall.hp|0}/${wall.maxHp})`,
       buy() {
         wall.hp = Math.min(wall.maxHp, wall.hp + 25);
         toast(pick(LORE.miliUp));
@@ -7361,7 +7419,8 @@ function shopSpots() {
     cost: 2,
     can: structures.campfire.hp < structures.campfire.maxHp,
     branch: 'civil',
-    label: '【内政】部室の火をくべる',
+    label: '部室の火をくべる',
+    why: structures.campfire.hp >= structures.campfire.maxHp ? '部室は万全' : null,
     buy() {
       structures.campfire.hp = Math.min(structures.campfire.maxHp, structures.campfire.hp + 25);
       toast(pick(LORE.heal));
@@ -7377,7 +7436,8 @@ function shopSpots() {
     cost: 2,
     can: state.icedTeaStock < 3,
     branch: 'civil',
-    label: `【内政】アイスティー補給（${state.icedTeaStock}/3）`,
+    label: `アイスティー補給（${state.icedTeaStock}/3）`,
+    why: state.icedTeaStock >= 3 ? '在庫いっぱい' : null,
     buy() {
       ensureHeatState();
       if (state.icedTeaStock >= 3) return false;
@@ -7398,7 +7458,8 @@ function shopSpots() {
     cost: 1,
     can: (state.mugichaStock | 0) < 3,
     branch: 'civil',
-    label: `【内政】麦茶を淹れる（${state.mugichaStock|0}/3）`,
+    label: `麦茶を淹れる（${state.mugichaStock|0}/3）`,
+    why: (state.mugichaStock|0) >= 3 ? '在庫いっぱい' : null,
     buy() {
       ensureHeatState();
       if ((state.mugichaStock | 0) >= 3) return false;
@@ -7418,12 +7479,11 @@ function shopSpots() {
     x: -55,
     r: 36,
     cost: 1,
-    can: state.coins >= 1 && (state.humidity | 0) >= 40,
-    label: `【内政】アイスを買う（1🪙　湿度${state.humidity|0}／熱中症${state.heatRisk|0}）`,
-    do() {
+    can: (state.humidity | 0) >= 40,
+    why: (state.humidity | 0) < 40 ? 'まだ暑くない' : null,
+    label: `アイスを買う（湿度${state.humidity|0}／熱中症${state.heatRisk|0}）`,
+    buy() {
       ensureHeatState();
-      if (state.coins < 1) return false;
-      state.coins -= 1;
       state.humidity = clamp(state.humidity - 16, 0, 100);
       state.heatRisk = clamp((state.heatRisk | 0) - 18, 0, 100);
       state.sweatDrops = (state.sweatDrops | 0) + 1;
@@ -7444,7 +7504,8 @@ function shopSpots() {
     cost: Math.min(5, Math.max(1, state.coins - 2)),
     can: state.coins >= 3,
     branch: 'civil',
-    label: `【内政】810へ預ける（残高 ${state.bank}）`,
+    label: `810へ預ける（残高 ${state.bank}）`,
+    why: state.coins < 3 ? '3枚から預けられる' : null,
     buy() {
       const amt = Math.min(5, state.coins); // cost already deducted in tryPay — fix: buy runs after deduct
       // tryPay already subtracted spot.cost; credit that amount
@@ -7466,7 +7527,8 @@ function shopSpots() {
     cost: 0,
     can: state.bank >= 1,
     branch: 'civil',
-    label: `【内政】810引出（残高 ${state.bank}）`,
+    label: `810引出（残高 ${state.bank}）`,
+    why: state.bank < 1 ? '残高がない' : null,
     buy() {
       const take = Math.min(3, state.bank);
       state.bank -= take;
@@ -7484,7 +7546,7 @@ function shopSpots() {
     cost: 1,
     can: true,
     branch: 'civil',
-    label: '【内政】草むら漁り（探索）',
+    label: '草むら漁り（探索）',
     buy() { return scoutForage(); }
   });
   // 章ごとの隠し（現地支払い）
@@ -7506,27 +7568,40 @@ function shopSpots() {
   try { exploreSpots(spots); } catch (_) {}
   try { ex2Spots(spots); } catch (_) {}
   try { advSpots(spots); } catch (_) {}
+  try { mountSpots(spots); } catch (_) {}
+  return spots;
+}
+
+function nearbySpots() {
+  const spots = shopSpots().filter(s => Math.abs(player.x - s.x) <= s.r);
+  spots.sort((a, b) => {
+    const pa = a.adv ? 0 : a.mount ? 0 : 1, pb = b.adv ? 0 : b.mount ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    if (!!a.can !== !!b.can) return a.can ? -1 : 1;
+    return Math.abs(player.x - a.x) - Math.abs(player.x - b.x);
+  });
   return spots;
 }
 
 function nearestSpot() {
-  const spots = shopSpots().filter(s => s.can && Math.abs(player.x - s.x) <= s.r);
-  if (!spots.length) return null;
-  spots.sort((a, b) => {
-    const pa = a.adv ? 0 : 1, pb = b.adv ? 0 : 1;
-    if (pa !== pb) return pa - pb;
-    return Math.abs(player.x - a.x) - Math.abs(player.x - b.x);
-  });
-  return spots[0];
+  const can = nearbySpots().filter(s => s.can);
+  return can.length ? can[0] : null;
 }
 
 function tryPay() {
   if (state.panelOpen) return;
   if (!state.running || state.over) return;
+  if ((state._payLock || 0) > 0) return;
   if (state.dungeon) { try { dungeonInteract(); } catch (_) { state.dungeon = null; } return; }
+  if (state.bus && state.bus.carryPlayer) { toast('ロケバス移動中　到着まで待て', 1.6); return; }
   const spot = nearestSpot();
   if (!spot) {
-    // コインを地面に落とす（Kingdom風）
+    const blocked = nearbySpots().find(s => !s.can);
+    if (blocked) {
+      toast(blocked.why || (blocked.label + '　今は払えない'), 2.2);
+      spawnMeme(player.x, GROUND_Y - 40, 'あっ（察し）');
+      return;
+    }
     if (state.coins <= 0) { toast(pick(LORE.payEmpty)); spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?'); return; }
     state.coins--;
     dropCoin(player.x + player.facing * 18, 1, true);
@@ -7534,35 +7609,37 @@ function tryPay() {
     return;
   }
   if (state.coins < spot.cost) {
-    toast(pick(LORE.payShort) + ` ${spot.cost}枚必要（今 ${state.coins}）`);
+    toast((spot.label || '支払い') + `　${spot.cost}枚必要（今 ${state.coins}）`, 2.2);
     spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?');
     return;
   }
+  state._payLock = 0.38;
   state.coins -= spot.cost;
   const gen = state.fxGen;
-  shake(2, 0.1);
-  screenFlash('rgba(255,215,0,0.12)', 0.08);
-  spawnSparks(spot.x, GROUND_Y - 24, 5, ['#ffd700', '#fff8c8'], 70);
-  // 支払演出：コイン飛んで消える
-  const nPay = Math.min(spot.cost, 8);
-  for (let i = 0; i < nPay; i++) {
-    pushFx({
-      type: 'pay',
-      x: player.x, y: GROUND_Y - 20,
-      tx: spot.x, ty: GROUND_Y - 30,
-      t: 0, life: 0.4,
-    });
+  const paid = spot.cost;
+  if (paid > 0) {
+    shake(1.2, 0.08);
+    spawnSparks(spot.x, GROUND_Y - 24, 5, ['#ffd700', '#fff8c8'], 70);
+    const nPay = Math.min(paid, 6);
+    for (let i = 0; i < nPay; i++) {
+      pushFx({ type: 'pay', x: player.x, y: GROUND_Y - 20, tx: spot.x, ty: GROUND_Y - 30, t: 0, life: 0.4 });
+    }
   }
   setTimeout(() => {
     if (state.fxGen !== gen) return;
-    const ok = spot.buy();
+    let ok = false;
+    try { ok = !!(spot.buy && spot.buy()); } catch (_) { ok = false; }
     if (ok) {
       pushFx({ type: 'ring', x: spot.x, y: GROUND_Y - 20, t: 0, life: 0.4, color: 'rgba(255,215,0,0.55)', r0: 6, r1: 36 });
       try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
-      if (typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
+      if (typeof spot.afterPay === 'function') spot.afterPay(paid);
+      if (spot.branch === 'mili' || spot.branch === 'civil') spawnBuildFx(spot.x, '払った');
       saveGame(true);
+    } else {
+      state.coins += paid;
+      toast('払えなかった　コインは戻した', 1.8);
     }
-  }, 200);
+  }, 180);
 }
 
 function dropCoin(x, n = 1, fromPlayer = false) {
@@ -7614,8 +7691,379 @@ function syncCycleLengths() {
   else if (d <= 6) state.dayLength = 54;
   else state.dayLength = state.assault ? 48 : 50;
   const waves = nightWaveCount();
-  const spawnSpan = Math.max(0, waves - 1) * 1.8;
-  state.nightLength = clamp(Math.round(spawnSpan + (state.assault ? 14 : 12)), 30, 56);
+  const spawnSpan = Math.max(0, waves - 1) * 1.6;
+  state.nightLength = clamp(Math.round(spawnSpan + (state.assault ? 16 : 14) + 8), 34, 64);
+}
+
+// =========================================================
+// 巣進軍 / 乗り物 / 判読演出（現地払いが基本）
+// =========================================================
+const NEST_DEFS = [
+  { id: 'nest_w0', side: -1, x: -560, name: '西の路地巣', short: '西巣' },
+  { id: 'nest_e0', side:  1, x:  540, name: '東の空き地巣', short: '東巣' },
+  { id: 'nest_w1', side: -1, x: -980, name: '西の遠巣', short: '西遠' },
+  { id: 'nest_e1', side:  1, x:  960, name: '東の遠巣', short: '東遠' },
+];
+const MOUNTS = [
+  { id: 'chari', name: '帰宅チャリ', short: 'チャリ', x: 210, cost: 3, spd: 1.32, drain: 8, rec: 16, hint: '部室の東' },
+  { id: 'scooter', name: 'いいよスクーター', short: 'スクータ', x: -310, cost: 7, spd: 1.55, drain: 13, rec: 11, hint: '西の路地' },
+  { id: 'horse', name: '王道ホース', short: 'ホース', x: 780, cost: 12, spd: 1.82, drain: 18, rec: 9, hint: '東の遠草地' },
+];
+
+function ensureNestState() {
+  if (!Array.isArray(state.nestQ)) state.nestQ = [];
+  if (state.nestRel == null) state.nestRel = 0;
+  if (state.duskRaid == null) state.duskRaid = false;
+}
+
+function ensureMountState() {
+  if (!state.mounts || typeof state.mounts !== 'object') state.mounts = { owned: {}, eq: null, stam: 100 };
+  if (!state.mounts.owned || typeof state.mounts.owned !== 'object') state.mounts.owned = {};
+  const ids = MOUNTS.map(m => m.id);
+  if (state.mounts.eq && ids.indexOf(state.mounts.eq) < 0) state.mounts.eq = null;
+  if (state.mounts.eq && !state.mounts.owned[state.mounts.eq]) state.mounts.eq = null;
+  state.mounts.stam = clamp(state.mounts.stam == null ? 100 : +state.mounts.stam, 0, 100);
+  return state.mounts;
+}
+
+function mountById(id) { return MOUNTS.find(m => m.id === id) || null; }
+function equippedMount() {
+  const M = ensureMountState();
+  return M.eq ? mountById(M.eq) : null;
+}
+
+function settlementEdge(side) {
+  const wall = side < 0 ? structures.leftWall : structures.rightWall;
+  if (wall && wall.level > 0) return wall.x;
+  return side * 160;
+}
+
+function nestCandidates(side) {
+  const list = [];
+  for (const n of NEST_DEFS) {
+    if (n.side === side) list.push({ id: n.id, x: n.x, name: n.name, short: n.short, side, source: 'wild' });
+  }
+  for (const op of (state.outposts || [])) {
+    if (op.side !== side || op.cleared) continue;
+    list.push({ id: 'op:' + op.id, x: op.x, name: op.name, short: op.short, side, source: 'outpost', op });
+  }
+  return list;
+}
+
+function activeNestForSide(side) {
+  const edge = settlementEdge(side);
+  const minOut = 220;
+  const cands = nestCandidates(side).filter(n => side < 0 ? n.x <= edge - minOut : n.x >= edge + minOut);
+  if (!cands.length) {
+    return { id: 'emerg_' + (side < 0 ? 'w' : 'e'), x: edge + side * 340, name: side < 0 ? '西の遠巣' : '東の遠巣', short: side < 0 ? '西遠' : '東遠', side, source: 'emergent' };
+  }
+  cands.sort((a, b) => {
+    const ao = a.source === 'outpost' ? 0 : 1, bo = b.source === 'outpost' ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    return Math.abs(a.x - edge) - Math.abs(b.x - edge);
+  });
+  return cands[0];
+}
+
+function nestMouthX(nest) {
+  return nest.x + (nest.side < 0 ? 18 : -18);
+}
+
+function nestDirWarn(nest) {
+  if (!nest) return;
+  const sx = nest.x - (state.cameraX || 0);
+  if (sx >= 36 && sx <= W - 36) return;
+  toast((nest.side < 0 ? '西' : '東') + 'の' + (nest.short || '巣') + 'から　夜襲が来る', 2.6);
+}
+
+function spawnFloat(x, y, text, color) {
+  const floats = fx.filter(p => p.type === 'float');
+  if (floats.length >= 5) {
+    const last = floats[floats.length - 1];
+    if (last && last.text === text && Math.abs(last.x - x) < 28) { last.t = 0; return; }
+    fx.splice(fx.indexOf(floats[0]), 1);
+  }
+  pushFx({ type: 'float', x, y, text: String(text).slice(0, 10), color: color || '#ffe8a0', t: 0, life: 0.85, vy: -46 });
+}
+
+function spawnBuildFx(x, label) {
+  spawnFloat(x, GROUND_Y - 48, label || '建った', '#ffd700');
+  pushFx({ type: 'ring', x, y: GROUND_Y - 18, t: 0, life: 0.4, color: 'rgba(255,215,0,0.55)', r0: 6, r1: 34 });
+  spawnSparks(x, GROUND_Y - 22, REDUCE_MOTION ? 3 : 7, ['#ffd700', '#fff8c8', '#fff'], 80);
+  try { if (typeof audPlay === 'function') audPlay('build'); } catch (_) {}
+}
+
+function makeNightSpec(i, waves, scaleDay, nest) {
+  const side = nest.side;
+  let isBoss = scaleDay >= 8 && i === 0;
+  let name = isBoss ? pick(BOSS_NAMES)
+    : (scaleDay >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
+    : pick(ENEMY_NAMES_JP);
+  if (!isBoss && i === 1) name = 'たかり後輩';
+  if (!isBoss && scaleDay >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
+  if (!isBoss && scaleDay >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
+  if (!isBoss && state.heatEvent === 'gaze_sun' && i === 3) name = pick(['野獣の眼光', '迫真の淫獣', name]);
+  const isTaka = name.indexOf('たかり') >= 0;
+  const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
+  const isTono = name.indexOf('遠野') >= 0;
+  const isNgimo = name.indexOf('ンギモ') >= 0;
+  const isKoko = name.indexOf('こ↑こ↓') >= 0;
+  const isMur = name.indexOf('MUR') >= 0;
+  let hp = isBoss ? (12 + scaleDay) : (2 + Math.floor(scaleDay / 2));
+  if (isTaka) hp = 3 + Math.floor(scaleDay / 3);
+  if (isMur) hp = 5 + Math.min(scaleDay, 14);
+  if (isNgimo) hp = 4 + Math.floor(scaleDay / 2);
+  let spd = (isTaka ? 34 : 26) + scaleDay * 2.2 + rand(0, 8);
+  if (scaleDay <= 2) spd *= 0.82;
+  if (state.assault) spd *= 0.96;
+  if (isKoko) spd += 10;
+  if (isMur) spd *= 0.85;
+  spd *= 1.08;
+  return {
+    t: i * 1.6, side, nestId: nest.id, x: nestMouthX(nest),
+    name, isBoss, isTaka, isGaze, isTono, isNgimo, isKoko, isMur,
+    hp, maxHp: hp, speed: spd,
+  };
+}
+
+function queueNightWave() {
+  ensureNestState();
+  const waves = nightWaveCount();
+  const scaleDay = combatDayScale();
+  const nestW = activeNestForSide(-1);
+  const nestE = activeNestForSide(1);
+  state.nestQ = [];
+  state.nestRel = 0;
+  state._nestW = nestW;
+  state._nestE = nestE;
+  for (let i = 0; i < waves; i++) {
+    const nest = (i % 2 === 0) ? nestW : nestE;
+    state.nestQ.push(makeNightSpec(i, waves, scaleDay, nest));
+  }
+}
+
+function emergeEnemy(spec) {
+  let nest;
+  if (spec.fromOutpost) {
+    const op = (state.outposts || []).find(o => o.id === spec.fromOutpost && !o.cleared);
+    nest = op
+      ? { id: 'op:' + op.id, x: op.x, side: op.side, short: op.short || '拠点', source: 'outpost' }
+      : activeNestForSide(spec.side);
+  } else {
+    nest = spec.side < 0 ? (state._nestW || activeNestForSide(-1)) : (state._nestE || activeNestForSide(1));
+  }
+  const x = nestMouthX(nest);
+  const e = {
+    x, y: GROUND_Y,
+    hp: spec.hp, maxHp: spec.maxHp, speed: spec.speed, side: spec.side,
+    name: spec.name, isBoss: !!spec.isBoss,
+    isTaka: !!spec.isTaka, isGaze: !!spec.isGaze, isTono: !!spec.isTono,
+    isNgimo: !!spec.isNgimo, isKoko: !!spec.isKoko, isMur: !!spec.isMur,
+    attackCd: 0.15, stealCd: 0, stunned: 0, anim: rand(0, 3), w: 18, h: 28,
+    emergeT: spec.isBoss ? 0.7 : 0.48, emergeMax: spec.isBoss ? 0.7 : 0.48,
+    fromNest: nest.id, fromOutpost: spec.fromOutpost || null,
+  };
+  enemies.push(e);
+  spawnSparks(x, GROUND_Y - 8, REDUCE_MOTION ? 3 : 7, ['#8040c0', '#ffb040', '#fff'], 70);
+  pushFx({ type: 'ring', x, y: GROUND_Y - 10, t: 0, life: 0.4, color: 'rgba(140,70,255,0.55)', r0: 4, r1: spec.isBoss ? 42 : 26 });
+  spawnFloat(x, GROUND_Y - 36, spec.isBoss ? 'ボス出現' : '出た', '#c8a0ff');
+  try { if (typeof audPlay === 'function') audPlay('nest'); } catch (_) {}
+  if (spec.isBoss) startBossCine(x, spec.name);
+  else if (enemies.filter(en => !en.isBoss).length === 1) spawnMeme(x, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
+  nestDirWarn(nest);
+  return e;
+}
+
+function beginDuskRaid() {
+  ensureNestState();
+  if (state.duskRaid) return;
+  state.duskRaid = true;
+  queueNightWave();
+  const w = activeNestForSide(-1), e = activeNestForSide(1);
+  const src = (w.source === 'outpost' || e.source === 'outpost') ? '拠点の口' : '遠巣';
+  toast(`夕暮れ　${w.short}と${e.short}（${src}）が目を覚ます`, 3.0);
+  nestDirWarn(w); nestDirWarn(e);
+  try { if (typeof audPlay === 'function') audPlay('nest'); } catch (_) {}
+}
+
+function tickNestQueue(dt) {
+  ensureNestState();
+  if (!state.duskRaid && !state.isNight) return;
+  if (!state.nestQ || !state.nestQ.length) return;
+  if (!state.running || state.over) return;
+  state.nestRel = (state.nestRel || 0) + dt;
+  while (state.nestQ.length && state.nestQ[0].t <= state.nestRel) {
+    emergeEnemy(state.nestQ.shift());
+  }
+}
+
+function tickMounts(dt) {
+  const M = ensureMountState();
+  const mount = equippedMount();
+  const moving = Math.abs(player.vx || 0) > 12;
+  if (state.dungeon || (state.bus && state.bus.carryPlayer)) {
+    M.stam = clamp(M.stam + 12 * dt, 0, 100);
+    return;
+  }
+  if (mount && moving) {
+    const drain = (M.stam < 18) ? mount.drain * 0.35 : mount.drain;
+    M.stam = clamp(M.stam - drain * dt, 0, 100);
+  } else {
+    const rec = mount ? mount.rec : 22;
+    M.stam = clamp(M.stam + rec * dt, 0, 100);
+  }
+}
+
+function mountSpots(spots) {
+  const M = ensureMountState();
+  for (const m of MOUNTS) {
+    const owned = !!M.owned[m.id];
+    const eq = M.eq === m.id;
+    let label, cost, can, why;
+    if (!owned) {
+      label = `【乗り物】${m.name}　乗る`;
+      cost = m.cost; can = true;
+    } else if (eq) {
+      label = `【乗り物】${m.short}から降りる`;
+      cost = 0; can = true;
+    } else {
+      label = `【乗り物】${m.name}に乗る`;
+      cost = 0; can = true;
+    }
+    spots.push({
+      id: 'mnt_' + m.id, x: m.x, r: 40, cost, can, why, local: true, mount: true,
+      label,
+      buy() {
+        const S = ensureMountState();
+        if (!S.owned[m.id]) {
+          S.owned[m.id] = true;
+          S.eq = m.id;
+          spawnBuildFx(m.x, m.short);
+          toast(m.name + '　乗った　スタミナに注意', 2.4);
+          story(m.name + '　近場はこれ　遠路はロケバス', 2.2);
+          return true;
+        }
+        if (S.eq === m.id) {
+          S.eq = null;
+          toast(m.short + 'を停めた', 1.6);
+          spawnMeme(m.x, GROUND_Y - 40, '降りた');
+          return true;
+        }
+        S.eq = m.id;
+        toast(m.name + 'に乗り換えた', 1.8);
+        spawnMeme(m.x, GROUND_Y - 40, '乗り換え');
+        return true;
+      },
+    });
+  }
+}
+
+function drawNests(nightish) {
+  const sides = [-1, 1];
+  for (const side of sides) {
+    const nest = activeNestForSide(side);
+    const sx = wx(nest.x);
+    if (sx < -80 || sx > W + 80) continue;
+    const lit = !!(state.duskRaid || state.isNight);
+    const col = nest.source === 'outpost' ? '#5a2030' : '#3a2a18';
+    drawSoftShadow(sx, GROUND_Y, 20, lit ? 0.45 : 0.22);
+    drawPixelRect(sx - 22, GROUND_Y - 18, 44, 18, nightish ? '#1a1210' : col);
+    drawPixelRect(sx - 10, GROUND_Y - 28, 20, 12, '#1a1010');
+    // mouth
+    const mouth = sx + (side < 0 ? 14 : -14);
+    drawPixelRect(mouth - 6, GROUND_Y - 16, 12, 16, lit ? '#2a1030' : '#141010');
+    if (lit) {
+      const pulse = 0.28 + Math.sin(state.animT * 5) * 0.12;
+      ctx.globalAlpha = pulse;
+      const g = ctx.createRadialGradient(mouth, GROUND_Y - 8, 2, mouth, GROUND_Y - 8, 28);
+      g.addColorStop(0, 'rgba(255,160,60,0.7)');
+      g.addColorStop(0.5, 'rgba(160,60,255,0.35)');
+      g.addColorStop(1, 'rgba(80,0,40,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(mouth - 30, GROUND_Y - 36, 60, 40);
+      ctx.globalAlpha = 1;
+      if (!REDUCE_MOTION && Math.sin(state.animT * 7 + nest.x) > 0.4) {
+        drawPixelRect(mouth + rand(-4, 4), GROUND_Y - 20 + rand(-6, 0), 2, 3, '#ffb040');
+      }
+    }
+    ctx.fillStyle = lit ? '#ffb040' : '#8a7060';
+    ctx.font = '6px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(nest.short, sx, GROUND_Y - 34);
+    if (lit) ctx.fillText(nest.source === 'outpost' ? '拠点口' : '巣', sx, GROUND_Y - 44);
+  }
+}
+
+function drawMountStands() {
+  const M = ensureMountState();
+  for (const m of MOUNTS) {
+    const sx = wx(m.x);
+    if (sx < -50 || sx > W + 50) continue;
+    const owned = !!M.owned[m.id];
+    const eq = M.eq === m.id;
+    drawPixelRect(sx - 10, GROUND_Y - 8, 20, 8, '#3a2a18');
+    if (m.id === 'chari') {
+      drawPixelRect(sx - 8, GROUND_Y - 14, 5, 5, '#222');
+      drawPixelRect(sx + 3, GROUND_Y - 14, 5, 5, '#222');
+      drawPixelRect(sx - 6, GROUND_Y - 18, 12, 3, '#6a4030');
+    } else if (m.id === 'scooter') {
+      drawPixelRect(sx - 8, GROUND_Y - 12, 16, 5, '#445');
+      drawPixelRect(sx + 4, GROUND_Y - 20, 3, 10, '#889');
+    } else {
+      drawPixelRect(sx - 12, GROUND_Y - 16, 22, 10, '#6a4828');
+      drawPixelRect(sx + 8, GROUND_Y - 22, 6, 8, '#5a3820');
+    }
+    ctx.fillStyle = eq ? '#ffd700' : (owned ? '#8cf' : '#c8a878');
+    ctx.font = '6px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(owned ? (eq ? '乗車中' : m.short) : m.short, sx, GROUND_Y - 26);
+  }
+}
+
+function drawNestChevrons() {
+  if (!state.duskRaid && !state.isNight) return;
+  for (const side of [-1, 1]) {
+    const nest = activeNestForSide(side);
+    const sx = nest.x - (state.cameraX || 0);
+    if (sx >= 20 && sx <= W - 20) continue;
+    const edgeX = side < 0 ? 18 : W - 18;
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#c8a0ff';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(side < 0 ? '◀巣' : '巣▶', edgeX, 72);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawSenpaiFace(dx, dy, size, flip) {
+  const im = SPR.face || SPR.senpai || SPR.icon;
+  if (!im) return false;
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  const s = size;
+  ctx.beginPath();
+  ctx.ellipse(dx, dy, s * 0.46, s * 0.5, 0, 0, Math.PI * 2);
+  ctx.clip();
+  if (flip) {
+    ctx.translate(dx, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(im, -s / 2, -s / 2, s, s);
+  } else {
+    ctx.drawImage(im, dx - s / 2, dy - s / 2, s, s);
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = '#1a0a00';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(dx, dy, s * 0.46, s * 0.5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+  return true;
 }
 
 function startNight() {
@@ -7645,61 +8093,11 @@ function startNight() {
   toast(`Night ${state.day} — ${shortenMsg(nline, 48)}`, 3.4);
   story(nline, 3.6);
   spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
-  // 序盤は学習用に波を抑え、攻勢は combatDayScale でソフトキャップ
-  const waves = nightWaveCount();
-  const scaleDay = combatDayScale();
-  const nightGen = state.fxGen;
-  for (let i = 0; i < waves; i++) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const wall = side < 0 ? structures.leftWall : structures.rightWall;
-    const spawnX = side < 0
-      ? (wall.level > 0 ? wall.x - 220 - i * 30 : -400 - i * 40)
-      : (wall.level > 0 ? wall.x + 220 + i * 30 : 400 + i * 40);
-    setTimeout(() => {
-      if (!state.running || !state.isNight || state.fxGen !== nightGen) return;
-      const isBoss = scaleDay >= 8 && i === 0;
-      let name = isBoss ? pick(BOSS_NAMES)
-        : (scaleDay >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
-        : pick(ENEMY_NAMES_JP);
-      // たかり後輩を夜ごとに最低1体混ぜる
-      if (!isBoss && i === 1) name = 'たかり後輩';
-      // TD v29寄せ：遠野笑顔／ンギモ／こ↑こ↓／MUR を中盤以降に混ぜる
-      if (!isBoss && scaleDay >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
-      if (!isBoss && scaleDay >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
-      const isTaka = name.indexOf('たかり') >= 0;
-      if (!isBoss && state.heatEvent === 'gaze_sun' && i === 3) name = pick(['野獣の眼光', '迫真の淫獣', name]);
-      const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
-      const isTono = name.indexOf('遠野') >= 0;
-      const isNgimo = name.indexOf('ンギモ') >= 0;
-      const isKoko = name.indexOf('こ↑こ↓') >= 0;
-      const isMur = name.indexOf('MUR') >= 0;
-      let hp = isBoss ? (12 + scaleDay) : (2 + Math.floor(scaleDay / 2));
-      if (isTaka) hp = 3 + Math.floor(scaleDay / 3);
-      if (isMur) hp = 5 + Math.min(scaleDay, 14);
-      if (isNgimo) hp = 4 + Math.floor(scaleDay / 2);
-      let spd = (isTaka ? 34 : 26) + scaleDay * 2.2 + rand(0, 8);
-      if (scaleDay <= 2) spd *= 0.82;
-      if (state.assault) spd *= 0.96;
-      if (isKoko) spd += 10;
-      if (isMur) spd *= 0.85;
-      enemies.push({
-        x: spawnX,
-        y: GROUND_Y,
-        hp, maxHp: hp,
-        speed: spd,
-        side,
-        name,
-        isBoss, isTaka, isGaze, isTono, isNgimo, isKoko, isMur,
-        attackCd: 0,
-        stealCd: 0,
-        stunned: 0,
-        anim: rand(0, 3),
-        w: 18, h: 28,
-      });
-      if (isBoss) startBossCine(spawnX, name);
-      else if (i === 0) spawnMeme(spawnX, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
-    }, i * 1800);
-  }
+  ensureNestState();
+  if (!state.duskRaid) queueNightWave();
+  const w = state._nestW || activeNestForSide(-1);
+  const e = state._nestE || activeNestForSide(1);
+  toast(`夜襲　${w.short}／${e.short}の口から進軍`, 2.8);
 }
 
 function lockPlayVisual() {
@@ -7736,6 +8134,9 @@ function startDay() {
   try { spawnDawnFx(); } catch (_) {}
   try { ex2OnDayStart(); } catch (_) {}
   try { advOnDayStart(); } catch (_) {}
+  state.duskRaid = false;
+  state.nestQ = [];
+  state.nestRel = 0;
   try {
     ensureExploreState();
     if (state.explorePerks.income && state._exIncomeDay !== (state.day | 0)) {
@@ -8056,6 +8457,12 @@ function buildSaveBlob() {
     raidForm: state.raidForm === 'rush' || state.raidForm === 'fort' ? state.raidForm : 'std',
     lastReport: state.lastReport ? Object.assign({}, state.lastReport) : null,
     _reportsFiled: state._reportsFiled | 0,
+    mounts: {
+      owned: Object.assign({}, (state.mounts && state.mounts.owned) || {}),
+      eq: (state.mounts && state.mounts.eq) || null,
+      stam: clamp((state.mounts && state.mounts.stam) | 0, 0, 100),
+    },
+    _ledgerHint: !!state._ledgerHint,
     savedAt: Date.now(),
   };
 }
@@ -8195,6 +8602,22 @@ function applySave(d) {
   state.ex2 = (d.ex2 && typeof d.ex2 === 'object') ? d.ex2 : {}; state.dungeon = null; state.encounter = null;
   state.adv = (d.adv && typeof d.adv === 'object') ? d.adv : {};
   try { ensureAdvState(); } catch (_) {}
+  state.mounts = (d.mounts && typeof d.mounts === 'object') ? {
+    owned: Object.assign({}, d.mounts.owned || {}),
+    eq: d.mounts.eq || null,
+    stam: clamp(d.mounts.stam == null ? 100 : +d.mounts.stam, 0, 100),
+  } : { owned: {}, eq: null, stam: 100 };
+  try { ensureMountState(); } catch (_) {}
+  state._ledgerHint = !!d._ledgerHint;
+  state.duskRaid = !!d.isNight;
+  state.nestQ = [];
+  state.nestRel = 0;
+  try {
+    if (state.isNight) {
+      queueNightWave();
+      state.nestRel = Math.min(state.dayTimer || 0, nightWaveCount() * 1.6);
+    }
+  } catch (_) {}
   state.caches = Array.isArray(d.caches) ? d.caches.filter(c => c && isFinite(+c.x)).map(c => Object.assign({}, c)) : [];
   state.reachL = Math.min(0, +d.reachL || 0); state.reachR = Math.max(0, +d.reachR || 0);
   state.cacheDay = d.cacheDay | 0; state.cacheToday = d.cacheToday | 0; state.scoutCacheToday = d.scoutCacheToday | 0;
@@ -8412,6 +8835,12 @@ function resetGame() {
   state.ex2 = {}; state.dungeon = null; state.encounter = null;
   state.adv = {};
   try { ensureAdvState(); } catch (_) {}
+  state.mounts = { owned: {}, eq: null, stam: 100 };
+  state.duskRaid = false;
+  state.nestQ = [];
+  state.nestRel = 0;
+  state._ledgerHint = false;
+  state._payLock = 0;
   state.caches = []; state.reachL = 0; state.reachR = 0;
   state.cacheDay = 0; state.cacheToday = 0; state.scoutCacheToday = 0;
   state._cachesOpened = 0; state._exIncomeDay = 0; state.scoutBuffT = 0; state._cacheWalk = 0;
@@ -8571,6 +9000,14 @@ function tickPresentation(dt, rawDt) {
 function updateMoveEssential(dt) {
   // 移動・カメラ・向き — update 例外でも必ず動く
   if (state.dungeon) { try { updateDungeonMove(dt); } catch (_) { state.dungeon = null; } return 0; }
+  if (state.bus && state.bus.carryPlayer) {
+    player.x = state.bus.x;
+    player.vx = 0;
+    const lookB = (player.facing || 1) * 36;
+    const targetCamB = player.x - W / 2 + lookB;
+    state.cameraX += (targetCamB - state.cameraX) * Math.min(1, dt * 4.2);
+    return 0;
+  }
   let input = 0;
   try {
     if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
@@ -8595,8 +9032,15 @@ function update(dt) {
   try { updateExplore(dt); } catch (_) {}
   try { updateEx2(dt); } catch (_) {}
   try { updateAdv(dt); } catch (_) {}
+  if (state._payLock > 0) state._payLock -= dt;
+  try { tickMounts(dt); } catch (_) {}
+  try { tickNestQueue(dt); } catch (_) {}
   // 昼夜
   state.dayTimer += dt;
+  if (!state.isNight && state.running && !state.over) {
+    const remainD = (state.dayLength || 52) - state.dayTimer;
+    if (remainD < 7 && remainD > 0) { try { beginDuskRaid(); } catch (_) {} }
+  }
   const len = state.isNight ? state.nightLength : state.dayLength;
   if (state.dayTimer >= len) {
     if (state.isNight) {
@@ -8700,8 +9144,9 @@ function update(dt) {
       spawnCoinSparkle(c.x, c.y);
       coinsOnGround.splice(i, 1);
       try { if (typeof audPlay === 'function') audPlay('coin'); } catch (_) {}
-      spawnMeme(player.x, GROUND_Y - 36, '+1');
-      if (Math.random() < 0.35) spawnMeme(player.x + 20, GROUND_Y - 50, pick(LORE.coinPickup));
+      spawnFloat(c.x, c.y - 12, '+1', '#ffe566');
+      pushFx({ type: 'pay', x: c.x, y: c.y, tx: player.x, ty: GROUND_Y - 36, t: 0, life: 0.28 });
+      if (Math.random() < 0.28) spawnMeme(player.x + 20, GROUND_Y - 50, pick(LORE.coinPickup));
     }
   }
 
@@ -8871,6 +9316,8 @@ function update(dt) {
         }
         spawnArrowHit(e.x, GROUND_Y, a.vx);
         e._flash = 0.14;
+        e.x += Math.sign(a.vx || e.side) * 7;
+        spawnFloat(e.x, GROUND_Y - 36, '-' + (a.dmg || 1), a.iced ? '#8cf' : '#ffe8a0');
         state.hitStop = Math.max(state.hitStop, 0.04);
         if (e.hp <= 0) {
           spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
@@ -8905,6 +9352,10 @@ function update(dt) {
     e.anim = (e.anim || 0) + dt;
     if (e.stunned > 0) e.stunned -= dt;
     if (e._snareSlow > 0) e._snareSlow -= dt;
+    if ((e.emergeT || 0) > 0) {
+      e.emergeT -= dt;
+      continue;
+    }
     // 眼光デバフ：近距離で視線
     if (e.isGaze && Math.abs(e.x - player.x) < 220) {
       state.gazeT = Math.max(state.gazeT, 0.6);
@@ -8962,9 +9413,11 @@ function update(dt) {
         }
         wall.hp -= wd;
         e.attackCd = 0.9;
+        wall._flash = 0.22;
         spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
         spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
-        shake(1.5, 0.08);
+        spawnFloat(wall.x, GROUND_Y - 54, '-' + wd, '#f84');
+        shake(1.2, 0.08);
         if (wall.hp <= 0) {
           wall.hp = 0;
           wall.level = 0;
@@ -8986,8 +9439,8 @@ function update(dt) {
         e.attackCd = 0.8;
         const cl = pick(LORE.campHit);
         spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
-        shake(4, 0.15);
-        screenFlash('rgba(255,120,40,0.2)', 0.08);
+        spawnFloat(0, GROUND_Y - 64, '-' + cdmg, '#ff8844');
+        shake(3, 0.12);
         spawnSparks(0, GROUND_Y - 30, 5, ['#ff6600', '#ffcc33'], 80);
         if (structures.campfire.hp < 40) {
           toast(cl, 2);
@@ -9028,13 +9481,23 @@ function update(dt) {
   const riskTag = (state.heatRisk | 0) >= 50 ? ` <span style="color:${(state.heatRisk|0)>=80?'#f44':'#fa8'}">熱${state.heatRisk|0}</span>` : '';
   const chTag = ` ${chapterName(state.chapter)}`;
   const asTag = state.assault ? ' <span style="color:#f96">攻勢</span>' : '';
-  const cmTag = ` <span style="color:#8cf">内政${state.civilTier|0}</span>/<span style="color:#fa8">軍事${state.miliTier|0}</span>`;
-  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
+  const cmTag = ` <span style="color:#8cf">民${state.civilTier|0}</span>/<span style="color:#fa8">陣${state.miliTier|0}</span>`;
+  const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
+  const mt = mount ? ` <span style="color:${((state.mounts.stam)|0) < 18 ? '#f84' : '#8cf'}">${mount.short}${Math.round(state.mounts.stam)}</span>` : '';
+  const nestTag = (state.duskRaid || state.isNight) ? ' <span style="color:#c8a0ff">巣進軍</span>' : '';
+  const faceImg = `<img src="assets/doya.jpg" alt="先輩" width="28" height="28" style="object-fit:cover;object-position:center 20%;border:1px solid #ffd700;vertical-align:middle;margin-right:4px">`;
+  left.innerHTML = `${faceImg}<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${mt}${nestTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
   const spot = nearestSpot();
+  const blocked = !spot ? nearbySpots()[0] : null;
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
-  right.innerHTML = spot
-    ? `<span class="meme">支払い可</span><br>${spot.label}<br><span class="gold">コスト ${spot.cost}</span>`
-    : (() => { const eh = [((typeof advHudHint === 'function') ? advHudHint() : ''), ((typeof exploreHudHint === 'function') ? exploreHudHint() : ''), ((typeof ex2HudHint === 'function') ? ex2HudHint() : '')].filter(Boolean).join('<br>'); return eh ? `${sk}<br>${eh}` : `${sk}<br>T＝アイス／麦茶　湿度・熱中症に注意`; })();
+  if (spot) {
+    right.innerHTML = `<span class="meme">現地払い</span><br>${spot.label}<br><span class="gold">${spot.cost}🪙　スペース</span>`;
+  } else if (blocked && !blocked.can) {
+    right.innerHTML = `${blocked.label}<br><span style="color:#fa8">${blocked.why || '今は払えない'}</span>`;
+  } else {
+    const eh = [((typeof advHudHint === 'function') ? advHudHint() : ''), ((typeof exploreHudHint === 'function') ? exploreHudHint() : ''), ((typeof ex2HudHint === 'function') ? ex2HudHint() : '')].filter(Boolean).join('<br>');
+    right.innerHTML = eh ? `${sk}<br>${eh}` : `${sk}<br>現地へ行って払う　遠路はロケバス`;
+  }
 }
 
 
@@ -9697,6 +10160,8 @@ function draw() {
   try { drawAdvLayer(nightish); } catch (_) {}
   try { drawEncounter(); } catch (_) {}
   drawLocationBus();
+  try { drawNests(nightish); } catch (_) {}
+  try { drawMountStands(); } catch (_) {}
   drawMidsummerFx();
   drawMissionMarker();
 
@@ -9708,30 +10173,38 @@ function draw() {
   drawMiliGadgets();
   drawTorchLights();
 
-  // ショップヒント円
+  // ショップヒント円（最寄り1件＋他件数。無効は理由）
   if (state.running) {
+    const focus = nearestSpot() || nearbySpots()[0];
     for (const s of shopSpots()) {
-      if (!s.can) continue;
       const near = Math.abs(player.x - s.x) <= s.r;
-      ctx.strokeStyle = near ? '#ffd700' : 'rgba(255,215,0,0.25)';
-      ctx.lineWidth = 2;
+      if (!near && !s.can && !s.mount) continue;
+      ctx.strokeStyle = near && s === focus ? '#ffd700' : (s.can ? 'rgba(255,215,0,0.28)' : 'rgba(180,160,120,0.2)');
+      ctx.lineWidth = near && s === focus ? 3 : 2;
       ctx.beginPath();
-      ctx.arc(wx(s.x), GROUND_Y - 4, 12, 0, Math.PI * 2);
+      ctx.arc(wx(s.x), GROUND_Y - 4, s.mount ? 14 : 12, 0, Math.PI * 2);
       ctx.stroke();
-      if (near) {
-        // パルス光環
-        ctx.globalAlpha = 0.25 + Math.sin(state.animT * 5) * 0.1;
-        ctx.strokeStyle = '#fff8c0';
-        ctx.beginPath();
-        ctx.arc(wx(s.x), GROUND_Y - 4, 16 + Math.sin(state.animT * 5) * 2, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = '#ffd700';
-        ctx.font = '8px "Press Start 2P"';
-        ctx.textAlign = 'center';
-        ctx.fillText(`[SPACE] ${s.cost}🪙`, wx(s.x), GROUND_Y - 70);
-        ctx.fillStyle = '#ff6b9d';
-        ctx.fillText(s.label, wx(s.x), GROUND_Y - 84);
+    }
+    if (focus) {
+      const others = nearbySpots().filter(s => s !== focus).length;
+      ctx.globalAlpha = 0.28 + Math.sin(state.animT * 5) * 0.1;
+      ctx.strokeStyle = focus.can ? '#fff8c0' : '#c88';
+      ctx.beginPath();
+      ctx.arc(wx(focus.x), GROUND_Y - 4, 17 + Math.sin(state.animT * 5) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.font = '8px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = focus.can ? '#ffd700' : '#fa8';
+      const ready = focus.can
+        ? `[SPACE] ${focus.cost}🪙`
+        : (focus.why || '今は払えない');
+      ctx.fillText(ready, wx(focus.x), GROUND_Y - 78);
+      ctx.fillStyle = focus.mount ? '#8cf' : '#ff6b9d';
+      ctx.fillText(focus.label, wx(focus.x), GROUND_Y - 92);
+      if (others) {
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('他' + others + '件　近い方を払う', wx(focus.x), GROUND_Y - 64);
       }
     }
   }
@@ -9797,15 +10270,15 @@ function draw() {
   for (const a of arrows) {
     const dir = a.vx > 0 ? 1 : -1;
     ctx.globalAlpha = 0.25;
-    ctx.fillStyle = '#ffe8a0';
-    ctx.fillRect(wx(a.x) - dir * 10, a.y - 1, 10, 4);
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#fff8d0';
-    ctx.fillRect(wx(a.x) - dir * 5, a.y, 6, 2);
+    ctx.fillStyle = a.color || '#ffe8a0';
+    ctx.fillRect(wx(a.x) - dir * 14, a.y - 2, 16, 5);
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(wx(a.x) - dir * 8, a.y, 10, 3);
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#fff';
-    ctx.fillRect(wx(a.x), a.y, 9, 2);
-    drawPixelRect(wx(a.x) + (dir > 0 ? 8 : -2), a.y - 1, 3, 4, '#ffd700');
+    ctx.fillRect(wx(a.x), a.y - 1, 11, 3);
+    drawPixelRect(wx(a.x) + (dir > 0 ? 10 : -3), a.y - 2, 4, 5, a.iced ? '#8cf' : '#ffd700');
   }
 
   // プレイヤー
@@ -9918,16 +10391,26 @@ function draw() {
     } else if (f.type === 'pay') {
       const p = Math.min(1, f.t / f.life);
       drawCoin(wx(f.tx - (1 - p) * (f.tx - player.x)), GROUND_Y - 20 - Math.sin(p * Math.PI) * 40);
+    } else if (f.type === 'float') {
+      const a = 1 - f.t / f.life;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color || '#ffe8a0';
+      ctx.font = '9px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText(f.text || '', wx(f.x), f.y + (f.vy || -46) * f.t);
+      ctx.globalAlpha = 1;
     }
   }
 
-  // 名前プレート
+  try { drawNestChevrons(); } catch (_) {}
+
+  // 名前プレート（顔の上）
   ctx.fillStyle = '#ff6b9d';
   ctx.font = '8px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('野獣先輩', wx(player.x), GROUND_Y - 72);
+  ctx.fillText('野獣先輩', wx(player.x), GROUND_Y - 102);
   ctx.fillStyle = '#ffd700';
-  ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 84);
+  ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 114);
 
   // 湿度ヘイズ
   drawGroundFog(phase);
@@ -10250,7 +10733,7 @@ function drawPond(phase) {
 }
 
 // ---------- ロケバス／聖地／攻勢 ----------
-function startLocationBus(fromXOrCamp, toId, quiet, mode) {
+function startLocationBus(fromXOrCamp, toId, quiet, mode, carryPlayer) {
   const L = landmarkById(toId);
   if (!L || state.bus) return false;
   const fromX = (fromXOrCamp === 0 || fromXOrCamp == null) ? 0 : +fromXOrCamp;
@@ -10264,11 +10747,12 @@ function startLocationBus(fromXOrCamp, toId, quiet, mode) {
     x: fromX, tx: L.x,
     fromId: fromX === 0 ? 'camp' : null,
     toId: L.id, t: 0, cargo, returning: false, opId: null,
+    carryPlayer: !!carryPlayer,
   };
   if (!quiet) {
-    toast(pick(LORE.busDepart));
-    story(`【内政】ロケバス　→${L.short}`, 2.0);
-    spawnMeme(fromX, GROUND_Y - 55, 'バス!');
+    toast((carryPlayer ? 'ロケバス　' : '') + pick(LORE.busDepart) + (carryPlayer ? '　→' + L.short : ''), 2.2);
+    story((carryPlayer ? '遠路ワープ　' : '') + `ロケバス　→${L.short}`, 2.0);
+    spawnMeme(fromX, GROUND_Y - 55, carryPlayer ? '乗車!' : 'バス!');
   }
   return true;
 }
@@ -10291,7 +10775,7 @@ function startRaidBus(opId) {
     x: 0, tx: op.x,
     fromId: 'camp', toId: opId, t: 0,
     cargo: cargoW, vans, returning: false, opId: op.id,
-    form,
+    form, carryPlayer: true,
   };
   try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
   toast(pick(LORE.assaultOpen) + '　' + raidFormName(form).split('（')[0]);
@@ -10379,8 +10863,10 @@ function tickLocationBus(dt) {
   const dir = Math.sign(b.tx - b.x) || 1;
   b.x += dir * speed * dt;
   for (const w of (b.cargo || [])) w.x = b.x;
+  if (b.carryPlayer) { player.x = b.x; player.vx = 0; }
   if ((dir > 0 && b.x >= b.tx) || (dir < 0 && b.x <= b.tx)) {
     b.x = b.tx;
+    if (b.carryPlayer) player.x = b.tx;
     if (b.mode === 'raid') {
       const op = (state.outposts || []).find(o => o.id === b.opId);
       if (op && !op.cleared) {
@@ -10394,6 +10880,10 @@ function tickLocationBus(dt) {
       // 先鋒を部室側へ戻す
       for (const v of (b.vans || [])) {
         v.x = (op && op.side > 0) ? structures.rightWall.x - 28 : structures.leftWall.x + 28;
+      }
+      if (b.carryPlayer) {
+        player.x = b.tx;
+        toast('降車　拠点前', 1.8);
       }
       toast(pick(LORE.busArrive));
       state.bus = null;
@@ -10411,15 +10901,22 @@ function tickLocationBus(dt) {
         w.side = L.side;
       }
     }
+    if (b.carryPlayer && b.toId !== 'camp') {
+      player.x = b.tx;
+      toast('降車　' + ((L && L.short) || '到着') + '　近場は乗り物', 2.2);
+      b.carryPlayer = false;
+    }
     if (!b.returning && !state.isNight && b.toId !== 'camp') {
       b.returning = true;
       b.tx = 0;
       b.fromId = L ? L.id : null;
       b.toId = 'camp';
       b.t = 0;
-      if (L) story(`【内政】バス　${L.short}→部室`, 1.6);
+      b.carryPlayer = false;
+      if (L) story(`バス空車　${L.short}→部室`, 1.6);
       return;
     }
+    if (b.carryPlayer) player.x = b.tx;
     state.bus = null;
   }
 }
@@ -10690,7 +11187,7 @@ function drawLocationBus() {
     dest = b.toId === 'camp' ? '部室' : ((landmarkById(b.toId) || {}).short || '…');
   }
   ctx.fillStyle = '#ffd700';
-  ctx.fillText('→' + dest, sx, GROUND_Y - 42 + bob);
+  ctx.fillText((b.carryPlayer ? '乗車→' : '→') + dest, sx, GROUND_Y - 42 + bob);
   // 排気煙
   if (state.gfxDeep && Math.sin(state.animT * 9) > 0) {
     ctx.globalAlpha = 0.35;
@@ -11200,6 +11697,14 @@ function drawCampfire(x, y) {
 function drawWall(wall, isLeft) {
   ctx.imageSmoothingEnabled = false;
   const x = wx(wall.x);
+  if (wall._flash > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#ff6644';
+    ctx.fillRect(x - 18, GROUND_Y - 50, 36, 50);
+    ctx.restore();
+    wall._flash -= 0.04;
+  }
   if (wall.level <= 0) {
     const bob = Math.sin(state.animT * 2 + wall.x * 0.01) * 1;
     // バリケード：斜め丸太＋縄
@@ -11352,152 +11857,94 @@ function drawYajyu(x, y, facing) {
   const squash = (walking && !state.titleCine && fi % 2 === 0) ? 1 : 0;
   const flip = facing < 0;
   const body = (walking && !state.titleCine && walkFrames) ? walkFrames[fi] : (idleFrames ? idleFrames[fi % idleFrames.length] : null);
-  // 必ず地面に見えるコントラスト体（スプライト失敗時のドット体）
-  {
-    const by = y - 40 + bob + squash;
-    ctx.fillStyle = '#1a0a00';
-    ctx.fillRect(x - 12, by + 2, 24, 38);
-    ctx.fillStyle = '#ffb040';
-    ctx.fillRect(x - 10, by, 20, 36);
-    ctx.fillStyle = '#ffe080';
-    ctx.fillRect(x - 8, by - 12, 16, 14);
-    ctx.fillStyle = '#1a1210';
-    ctx.fillRect(x - 11, by - 18, 22, 10);
-    ctx.fillStyle = '#ffd700';
-    ctx.fillRect(x - 9, by - 24, 18, 8);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x - 5, by - 8, 3, 3);
-    ctx.fillRect(x + 2, by - 8, 3, 3);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(x - 4, by - 7, 2, 2);
-    ctx.fillRect(x + 3, by - 7, 2, 2);
+  const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
+  const rideLift = mount ? 8 : 0;
+  // 乗り物（顔の下）
+  if (mount) {
+    const mx = x, my = y - 2 + bob;
+    if (mount.id === 'chari') {
+      drawPixelRect(mx - 16, my - 8, 7, 7, '#222');
+      drawPixelRect(mx + 8, my - 8, 7, 7, '#222');
+      drawPixelRect(mx - 12, my - 14, 24, 5, '#6a4030');
+      drawPixelRect(mx + (flip ? -14 : 8), my - 22, 3, 10, '#444');
+    } else if (mount.id === 'scooter') {
+      drawPixelRect(mx - 14, my - 8, 28, 6, '#334');
+      drawPixelRect(mx - 12, my - 14, 18, 6, '#556');
+      drawPixelRect(mx + (flip ? -12 : 8), my - 26, 3, 14, '#99a');
+      drawPixelRect(mx + (flip ? -16 : 6), my - 28, 8, 3, '#ff6b9d');
+    } else {
+      drawPixelRect(mx - 20, my - 16, 36, 12, '#6a4828');
+      drawPixelRect(mx + (flip ? -22 : 12), my - 24, 10, 10, '#5a3820');
+      drawPixelRect(mx + (flip ? 12 : -20), my - 10, 8, 4, '#4a2818');
+      drawPixelRect(mx - 6, my - 20, 10, 4, '#ffd700');
+    }
   }
-  // 歩行砂塵
+  {
+    const by = y - 36 + bob + squash - rideLift;
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(x - 11, by + 2, 22, 30);
+    ctx.fillStyle = '#c87838';
+    ctx.fillRect(x - 9, by, 18, 28);
+    ctx.fillStyle = '#3a1020';
+    ctx.fillRect(x + (flip ? 6 : -12), by + 4, 6, 20);
+  }
   if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
     ctx.globalAlpha = 0.35;
     drawPixelRect(x + (flip ? 6 : -10), y - 2, 3, 2, '#c8a878');
-    drawPixelRect(x + (flip ? 10 : -14), y - 3, 2, 1, '#a08060');
     ctx.globalAlpha = 1;
   }
-  if (body) {
+  if (body && !mount) {
     try { blitOutlined(x - 16, y - 44 + bob + squash, body, PAL, 2, flip); } catch (_) {}
   }
-  if (SPR.senpai) {
-    try {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
-    } catch (_) {}
+  // 顔：実写参照を十分な大きさで（リーゼント重ね塗りしない）
+  const faceY = y - 58 + bob - rideLift;
+  const faceSz = 52;
+  const gotFace = drawSenpaiFace(x, faceY, faceSz, flip);
+  if (!gotFace) {
+    ctx.fillStyle = '#ffe0b0';
+    ctx.fillRect(x - 16, faceY - 18, 32, 34);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 8, faceY - 4, 6, 6);
+    ctx.fillRect(x + 4, faceY - 4, 6, 6);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x - 6, faceY - 2, 3, 3);
+    ctx.fillRect(x + 6, faceY - 2, 3, 3);
   }
-  // リーゼントシルエット（野獸先輩）
-  const hx = flip ? -1 : 1;
-  blitOutlined(x - 12, y - 58 + bob, [
-    '..KKKK.',
-    '.KKKkKK',
-    'KKkKKKK',
-    '.KKKKK.',
-    '..K.K..',
-  ], Object.assign({}, PAL, { K: '#1a1210', k: '#3a2820' }), 2, flip);
-  // 前髪ツヤ
-  drawPixelRect(x + hx * 2, y - 56 + bob, 3, 2, '#4a3830');
-  drawPixelRect(x + hx * 4, y - 54 + bob, 2, 1, '#6a5040');
-
-  // 王冠（王道を征く）＋きらめき
-  const cy = y - 70 + bob;
-  blitOutlined(x - 12, cy, [
-    '.G.G.G.G.',
-    'GgGgGgGgG',
-    'GGGUUGGGG',
-    '.GGGGGGG.',
-    '..G...G..',
+  // 王冠は顔の上（クリップしない）
+  const cy = faceY - 30;
+  blitOutlined(x - 16, cy, [
+    '.G.G.G.G.G.',
+    'GgGgGgGgGgG',
+    'GGGGUUGGGGG',
+    '.GGGGGGGGG.',
+    '..G.....G..',
   ], PAL, 2, false);
-  // 宝石点滅
-  if (Math.sin(state.animT * 8) > 0.2) {
-    drawPixelRect(x - 1, cy + 4, 3, 3, '#fff');
-    drawPixelRect(x - 8, cy + 2, 2, 2, '#ff6b9d');
-    drawPixelRect(x + 6, cy + 2, 2, 2, '#8af');
+  if (Math.sin(state.animT * 8) > 0.15) {
+    drawPixelRect(x - 1, cy + 6, 4, 4, '#fff');
+    drawPixelRect(x - 10, cy + 3, 3, 3, '#ff6b9d');
+    drawPixelRect(x + 8, cy + 3, 3, 3, '#8af');
   }
-  // 王冠グロー
   if (GFX.quality !== 'low' || state.titleCine) {
-    const pulse = 0.2 + Math.sin(state.animT * 3) * 0.1;
-    ctx.globalAlpha = pulse;
+    ctx.globalAlpha = 0.16 + Math.sin(state.animT * 3) * 0.06;
     ctx.fillStyle = '#ffd700';
     ctx.beginPath();
-    ctx.arc(x, cy + 6, 14 + Math.sin(state.animT * 2) * 2, 0, Math.PI * 2);
+    ctx.arc(x, cy + 8, 16, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // マント／影の揺れ（Crowns風シルエット）
-  {
-    const capeSway = Math.sin(state.animT * 3.2) * 2 + (state.wind || 0) * 0.8;
-    const cx0 = x + (flip ? 10 : -14) + capeSway;
-    ctx.globalAlpha = 0.55;
-    drawPixelRect(cx0, y - 40 + bob, 6, 22, '#3a1020');
-    drawPixelRect(cx0 + (flip ? -2 : 2), y - 28 + bob, 5, 14, '#5a1830');
-    drawPixelRect(cx0 + 1, y - 38 + bob, 2, 6, chapterTheme().accent);
-    ctx.globalAlpha = 1;
+  if (state.humidity >= 70 || state.titleCine) {
+    drawPixelRect(x + (flip ? -18 : 14), faceY + 8, 2, 4, '#8cf');
   }
-  // 汗のきらめき
-  if (state.humidity >= 55 || state.titleCine) {
-    const sweaty = state.humidity >= 70 || state.titleCine;
-    if (sweaty && Math.sin(state.animT * 10 + x) > 0.15) {
-      drawPixelRect(x + (flip ? -12 : 10), y - 34 + bob, 2, 4, '#8cf');
-      drawPixelRect(x + (flip ? -8 : 6), y - 28 + bob, 2, 3, '#dff');
-      drawPixelRect(x + (flip ? -14 : 12), y - 40 + bob, 1, 2, '#fff');
-    }
-  }
-  // 表情（湿度・眼光・ミッション・真夏）
-  {
-    const eyeY = y - 42 + bob;
-    const eyeLX = x + (flip ? -6 : -2);
-    const eyeRX = x + (flip ? 2 : 6);
-    let mood = 'normal';
-    if (state.gazeT > 0) mood = 'gaze';
-    else if (state.humidity >= 75 || state.heatEvent === 'heatwave') mood = 'hot';
-    else if (state.mission) mood = 'focus';
-    else if ((state.bond && (state.bond.crew|0) >= 30) && Math.sin(state.animT * 1.5) > 0.7) mood = 'smile';
-    else if (structures.campfire.hp < structures.campfire.maxHp * 0.35) mood = 'hurt';
-    // 白目
-    drawPixelRect(eyeLX, eyeY, 3, 3, '#fff');
-    drawPixelRect(eyeRX, eyeY, 3, 3, '#fff');
-    if (mood === 'gaze') {
-      drawPixelRect(eyeLX + 1, eyeY, 2, 3, '#f22');
-      drawPixelRect(eyeRX + 1, eyeY, 2, 3, '#f22');
-      // 眼光ビーム片鱗
-      ctx.globalAlpha = 0.35;
-      ctx.strokeStyle = '#f44';
-      ctx.beginPath();
-      ctx.moveTo(eyeRX + 2, eyeY + 1);
-      ctx.lineTo(eyeRX + (flip ? -18 : 18), eyeY - 8);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    } else if (mood === 'hot') {
-      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
-      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 2, '#222');
-      // 口アヘ気味
-      drawPixelRect(x - 2, y - 32 + bob, 5, 2, '#c66');
-      drawPixelRect(x - 1, y - 30 + bob, 3, 2, '#844');
-    } else if (mood === 'focus') {
-      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
-      drawPixelRect(eyeRX, eyeY + 1, 2, 2, '#222');
-      drawPixelRect(x - 3, y - 32 + bob, 6, 1, '#422'); // 引き締め口
-    } else if (mood === 'smile') {
-      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 1, '#222');
-      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 1, '#222');
-      drawPixelRect(x - 3, y - 32 + bob, 6, 2, '#c66');
-      drawPixelRect(x - 2, y - 31 + bob, 4, 1, '#422');
-    } else if (mood === 'hurt') {
-      drawPixelRect(eyeLX, eyeY + 1, 3, 1, '#222');
-      drawPixelRect(eyeRX, eyeY + 1, 3, 1, '#222');
-      drawPixelRect(x - 2, y - 32 + bob, 4, 2, '#844');
-    } else {
-      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
-      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 2, '#222');
-    }
-  }
-
   if (state.gazeT > 0) {
-    ctx.strokeStyle = 'rgba(255,60,60,0.6)';
-    ctx.strokeRect(x - 20, y - 72, 40, 72);
+    ctx.strokeStyle = 'rgba(255,60,60,0.55)';
+    ctx.strokeRect(x - 28, faceY - 34, 56, 90);
+  }
+  const M = state.mounts;
+  if (mount && M) {
+    ctx.fillStyle = M.stam < 18 ? '#f84' : '#8cf';
+    ctx.font = '6px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(mount.short + ' ' + Math.round(M.stam), x, y + 14);
   }
 }
 
@@ -11618,6 +12065,12 @@ function drawArcher(x, y, u) {
 
 function drawEnemy(x, y, e) {
   ctx.imageSmoothingEnabled = false;
+  const emerge = Math.max(0, e.emergeT || 0);
+  const emergeP = e.emergeMax ? emerge / e.emergeMax : 0;
+  if (emergeP > 0) {
+    y = y + emergeP * 26;
+    ctx.globalAlpha = 1 - emergeP * 0.55;
+  }
   const fi = frameIndex(e.isKoko ? 10 : 6, 4);
   const stunBob = e.stunned > 0 ? Math.sin(state.animT * 22) * 2 : 0;
   let frames = FR_ENEMY;
@@ -11717,14 +12170,16 @@ function drawEnemy(x, y, e) {
   ctx.textAlign = 'center';
   ctx.fillText(e.name, x, y - 48 + stunBob);
   drawBar(x - 14, y + 4, 28, 3, e.hp / e.maxHp, '#f44', '#333');
+  if (emergeP > 0) ctx.globalAlpha = 1;
 }
 try {
   window.__YK = {
-    get state() { return state; }, player, ADV, SAVE_KEY,
+    get state() { return state; }, player, ADV, SAVE_KEY, MOUNTS, NEST_DEFS,
     inspectAdvCue, inspectAdvGraffiti, inspectAdvBox, enterAdvDungeon,
     advDungeonInteract, exitDungeon, resetGame, applySave, buildSaveBlob,
-    saveGame, shopSpots, nearestSpot, ensureAdvState, scoutForage, playerSpeedMul,
-    openBranchPanel, closeBranchPanel,
+    saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
+    openBranchPanel, closeBranchPanel, ensureMountState, equippedMount, activeNestForSide,
+    beginDuskRaid, queueNightWave, emergeEnemy, startLocationBus, startRaidBus, tryPay,
   };
 } catch (_) {}
 </script>
