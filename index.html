@@ -331,6 +331,37 @@
   #choice-panel button.cost-ok { border-color:#ffd700; box-shadow:0 0 8px rgba(255,215,0,.2); }
   #choice-panel button.cost-ng { opacity:.5; }
   #choice-panel button.close-btn { background:#333; border-color:#888; margin-top:6px; }
+  #choice-panel button:active { transform: scale(0.97); filter: brightness(1.2); }
+  #choice-panel .panel-hint {
+    font-size: 10px; color: #c9a227; text-align: center; margin: 4px 0 8px;
+    animation: hintPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes hintPulse {
+    0%,100% { opacity: .55; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-1px); }
+  }
+  #choice-panel button.flash {
+    animation: btnflash .28s ease-out;
+    border-color: #fff !important;
+    box-shadow: 0 0 16px rgba(255,215,0,.55);
+  }
+  #choice-panel .panel-card.pulse {
+    animation: cardpulse .35s ease-out;
+  }
+  #choice-panel .tabs button.flash-tab {
+    animation: btnflash .28s ease-out;
+  }
+  @keyframes btnflash {
+    0% { filter: brightness(1.6); }
+    100% { filter: brightness(1); }
+  }
+  @keyframes cardpulse {
+    0% { box-shadow: 0 0 0 2px #5a3a10, 0 0 28px rgba(255,215,0,.45); }
+    100% { box-shadow: 0 0 0 2px #5a3a10, 0 8px 24px rgba(0,0,0,.55), inset 0 0 20px rgba(255,215,0,.06); }
+  }
+  #choice-panel .fb-hint {
+    font-size: clamp(8px, 2.2vw, 10px); color: #8a7; margin: 2px 0 6px;
+  }
   #ach-toast {
     position:absolute; left:50%; bottom: calc(var(--pad-h) + var(--safe-b) + 8px);
     transform:translateX(-50%); z-index:22; pointer-events:none;
@@ -350,6 +381,7 @@
     line-height: 1.45; border-radius: 8px;
   }
   #choice-panel button:hover { background: #7a3a2a; border-color: #ffd700; }
+  #choice-panel button:focus-visible { outline: 2px solid #ffd700; outline-offset: 2px; }
   #choice-panel h2 { text-shadow: 0 0 12px rgba(255,215,0,.35); }
   #btn-skill { border-color: #ff6b9d !important; color: #ffb0d0; }
   #btn-skill small { color: #ff8; }
@@ -481,7 +513,7 @@
       <p>
         下北沢（自称）　湿度114514　真夏（汗）<br>
         王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
-        いいよ！こいよ！　バリケード　先輩砲台<br>
+        いいよ！こいよ！　迫真バリケード　先輩砲台／部室トリオ／胸ぐらスネア／810地雷<br>
         下北横断→攻勢　内政／軍事　ロケバスで隣の聖地へ<br>
         <span style="color:#888">パッド／キーボード　おかのした</span>
       </p>
@@ -897,6 +929,8 @@ const state = {
   assault: false,     // 攻勢モード（平定後も継続）
   outposts: [],       // 敵拠点
   miliTier: 0,        // 軍事全体ボーナス（0..3）
+  snares: [],         // 胸ぐらスネア {x,side}
+  mines: [],          // 810地雷 {x,armed}
   civilTier: 0,       // 内政全体ボーナス（0..3）
   bankTier: 0,        // 810運用Lv（利息）
   endCut: -1,
@@ -946,10 +980,10 @@ const LANDMARKS = [
 /** 敵拠点テンプレ（攻勢で破壊→次章聖地が買える） */
 const OUTPOST_DEFS = [
   { id: 'op_w1', name: 'たかり拠点・西', short: '西拠点', side: -1, x: -620, hp: 36, unlockChapter: 1, kind: 'taka',   retal: 'swarm' },
-  { id: 'op_e1', name: '覗き見拠点・東', short: '東拠点', side:  1, x:  600, hp: 38, unlockChapter: 1, kind: 'peep',   retal: 'gaze' },
+  { id: 'op_e1', name: 'ほら見ろよ見ろよ塔・東', short: '見ろよ塔', side:  1, x:  600, hp: 38, unlockChapter: 1, kind: 'peep',   retal: 'gaze' },
   { id: 'op_w2', name: '井の頭裏拠点',   short: '裏拠点西', side: -1, x: -860, hp: 52, unlockChapter: 2, kind: 'tono',   retal: 'smile' },
   { id: 'op_e2', name: '吉祥寺ンギモ窟', short: 'ンギモ窟', side:  1, x:  840, hp: 54, unlockChapter: 2, kind: 'ngimo',  retal: 'heavy' },
-  { id: 'op_w3', name: '外縁MUR砦・西', short: 'MUR西', side: -1, x: -1100, hp: 72, unlockChapter: 3, kind: 'mur',    retal: 'elite' },
+  { id: 'op_w3', name: '外縁114514砦・西', short: '114514砦', side: -1, x: -1100, hp: 72, unlockChapter: 3, kind: 'mur',    retal: 'elite' },
   { id: 'op_e3', name: '外縁こ↑こ↓塔', short: 'こ↑塔', side:  1, x: 1080, hp: 70, unlockChapter: 3, kind: 'koko',   retal: 'rush' },
 ];
 const OUTPOST_KIND_COLOR = {
@@ -974,6 +1008,29 @@ function landmarksForChapter(ch) {
 function facilityLv(id) {
   return clamp((state.facility[id] | 0), 0, 2);
 }
+
+/** TD共有タワー名 → 軍事／内政呼称（先輩砲台／部室トリオ／胸ぐらスネア／114514砲／ほら見ろよ見ろよ塔／810銀行／迫真バリケード／810地雷） */
+function miliGunName(tier) {
+  const t = tier | 0;
+  if (t >= 2) return '114514砲';
+  if (t >= 1) return 'ほら見ろよ見ろよ塔';
+  return '先輩砲台';
+}
+function miliGunNameShort(tier) {
+  const t = tier | 0;
+  if (t >= 2) return '114514';
+  if (t >= 1) return '見ろよ塔';
+  return '先輩砲';
+}
+function miliWallName(level) {
+  const lv = level | 0;
+  if (lv >= 2) return '迫真石バリケード';
+  return '迫真バリケード';
+}
+function miliVanguardName() { return '部室トリオ'; }
+function miliSnareName() { return '胸ぐらスネア'; }
+function miliMineName() { return '810地雷'; }
+
 function activeOutposts() {
   return (state.outposts || []).filter(o => !o.cleared);
 }
@@ -1227,11 +1284,16 @@ function openBranchPanel(tab) {
   if (state.isNight) { toast('夜はパネル不可　防衛に集中', 2.0); return; }
   if (state.over || state.won) return;
   // 既に開いていればタブ切替OK。未開かつ停止中は昼の選択待ちなど — ボタンからは通常 running
+  const prevTab = state.panelOpen;
   state.panelOpen = tab || state.panelOpen || 'civil';
   state.running = false;
   const panel = document.getElementById('choice-panel');
   const title = document.getElementById('choice-title');
   const btns = document.getElementById('choice-btns');
+  if (prevTab !== state.panelOpen) {
+    const tabJa = ({ civil:'内政', mili:'軍事', mission:'ロケ日程', bond:'関係・やりこみ' })[state.panelOpen] || '';
+    if (tabJa) toast('パネル　' + tabJa, 1.1);
+  }
   title.textContent = '';
   btns.innerHTML = '';
   // tabs
@@ -1254,7 +1316,7 @@ function openBranchPanel(tab) {
   btns.appendChild(meta);
   title.textContent = ({
     civil: '【内政パネル】施設・作業員・バス',
-    mili: '【軍事パネル】砲台・先鋒・教練',
+    mili: '【軍事】先輩砲台・部室トリオ・スネア・地雷',
     mission: '【ロケ日程】撮影ミッション',
     bond: '【関係・やりこみ】',
   })[state.panelOpen] || 'パネル';
@@ -1266,13 +1328,19 @@ function openBranchPanel(tab) {
     b.className = (!enabled || (cost > 0 && state.coins < cost)) ? 'cost-ng' : 'cost-ok';
     b.disabled = !enabled;
     b.onclick = () => {
+      b.classList.add('flash');
+      setTimeout(() => b.classList.remove('flash'), 300);
       if (cost > 0) {
-        if (!panelPay(cost, fn)) return;
+        if (!panelPay(cost, fn)) {
+          toast('コイン不足　フィードバック', 1.2);
+          return;
+        }
+        toast('支払った　' + cost + '🪙', 1.0);
       } else {
         fn();
         checkAchievements();
       }
-      if (!state.panelOpen) return; // 閉じたあとは再オープンしない
+      if (!state.panelOpen) return;
       openBranchPanel(state.panelOpen);
     };
     btns.appendChild(b);
@@ -1298,7 +1366,7 @@ function openBranchPanel(tab) {
       });
     }
     if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
-      addBtn(`810運用 Lv${state.bankTier}→${state.bankTier+1}`, 3 + state.bankTier * 2, () => {
+      addBtn(`810銀行運用 Lv${state.bankTier}→${state.bankTier+1}`, 3 + state.bankTier * 2, () => {
         state.bankTier++; toast(pick(LORE.civilUp)); return true;
       });
     }
@@ -1324,33 +1392,55 @@ function openBranchPanel(tab) {
       const sideJa = side === 'left' ? '西' : '東';
       if (wall.level < 2) {
         const cost = wall.level === 0 ? 3 : 6;
-        addBtn(`${sideJa}バリケード ${wall.level===0?'建設':'石強化'}`, cost, () => {
+        addBtn(`${sideJa}${miliWallName(Math.max(1, wall.level||1))} ${wall.level===0?'建設':'石強化'}`, cost, () => {
           wall.level++; wall.maxHp = wall.level===1?40:90; wall.hp = wall.maxHp;
           if (side==='left') wall.x -= wall.level===1?90:110; else wall.x += wall.level===1?90:110;
-          toast(pick(LORE.wallBuild)); return true;
+          toast(miliWallName(wall.level)+'！ '+pick(LORE.wallBuild)); return true;
         });
       }
       if (wall.level >= 1) {
         const guns = units.filter(u => u.side===side && u.role!=='vanguard');
-        if (guns.length < 3) addBtn(`${sideJa}砲台設置 (${guns.length}/3)`, 4 + guns.length * 2, () => {
+        if (guns.length < 3) addBtn(`${sideJa}${miliGunName(0)}設置 (${guns.length}/3)`, 4 + guns.length * 2, () => {
           units.push({ side, role:'gun', tier:0, x: wall.x+(side==='left'?20:-20), y:GROUND_Y, cooldown:1, hp:1, meme:pick(LORE.hireMeme) });
-          bumpBond('kohai', 2); toast(pick(LORE.hire)); return true;
+          bumpBond('kohai', 2); toast(miliGunName(0)+'　'+pick(LORE.hire)); return true;
         });
         for (let gi=0; gi<guns.length; gi++) {
           const g = guns[gi];
-          if ((g.tier|0) < 2) addBtn(`${sideJa}砲台T${g.tier|0}→${(g.tier|0)+1}`, 3+(g.tier|0)*2, () => {
-            g.tier = (g.tier|0)+1; toast(pick(LORE.miliUp)); return true;
+          if ((g.tier|0) < 2) addBtn(`${sideJa}${miliGunName(g.tier)}→${miliGunName((g.tier|0)+1)}`, 3+(g.tier|0)*2, () => {
+            g.tier = (g.tier|0)+1; toast(miliGunName(g.tier)+'　強化'); return true;
           });
         }
         const vans = units.filter(u => u.side===side && u.role==='vanguard');
-        if (vans.length < 1) addBtn(`${sideJa}先鋒編成`, 5, () => {
-          units.push({ side, role:'vanguard', tier:0, x:wall.x+(side==='left'?35:-35), y:GROUND_Y, cooldown:99, hp:1, meme:'先鋒' });
-          toast(pick(LORE.miliUp)); return true;
+        if (vans.length < 1) addBtn(`${sideJa}${miliVanguardName()}編成`, 5, () => {
+          units.push({ side, role:'vanguard', tier:0, x:wall.x+(side==='left'?35:-35), y:GROUND_Y, cooldown:99, hp:1, meme:miliVanguardName() });
+          toast(miliVanguardName()+'　編成'); return true;
         });
-        if (wall.hp < wall.maxHp) addBtn(`${sideJa}壁修理`, 2, () => {
+        if (wall.hp < wall.maxHp) addBtn(`${sideJa}${miliWallName(wall.level)}修理`, 2, () => {
           wall.hp = Math.min(wall.maxHp, wall.hp+25); return true;
         });
       }
+    }
+    {
+      const sn = state.snares || [];
+      if (sn.length < 2) addBtn(`${miliSnareName()}設置 (${sn.length}/2)`, 3, () => {
+        if (!state.snares) state.snares = [];
+        const side = Math.random() < 0.5 ? 'left' : 'right';
+        const wall = side === 'left' ? structures.leftWall : structures.rightWall;
+        const x = (wall.level > 0 ? wall.x : (side==='left'?-120:120)) + (side==='left'?40:-40);
+        state.snares.push({ x, side });
+        toast(miliSnareName()+'　設置　敵を掴んで遅延', 2.2);
+        spawnMeme(x, GROUND_Y - 40, 'スネア');
+        return true;
+      });
+      const mn = state.mines || [];
+      if (mn.length < 3) addBtn(`${miliMineName()}埋設 (${mn.length}/3)`, 2, () => {
+        if (!state.mines) state.mines = [];
+        const x = rand(-150, 150);
+        state.mines.push({ x, armed: true });
+        toast(miliMineName()+'　埋設　夜に起爆', 2.2);
+        spawnMeme(x, GROUND_Y - 30, '810');
+        return true;
+      });
     }
     if (state.miliTier < 3 && (units.length >= 1 || state.assault)) {
       addBtn(`軍事教練 Lv${state.miliTier}→${state.miliTier+1}`, 4 + state.miliTier * 3, () => {
@@ -1415,9 +1505,25 @@ function openBranchPanel(tab) {
   closeB.type = 'button';
   closeB.className = 'close-btn';
   closeB.textContent = '閉じる（ゲーム再開）';
-  closeB.onclick = () => closeBranchPanel();
+  closeB.onclick = () => { closeB.classList.add('flash'); closeBranchPanel(); };
   btns.appendChild(closeB);
+  const hint = document.createElement('div');
+  hint.className = 'fb-hint panel-hint';
+  const tabHint = ({
+    civil: '内政：施設Lv・作業員・810銀行・ロケバス',
+    mili: '軍事：先輩砲台／部室トリオ／胸ぐらスネア／810地雷／迫真バリケード',
+    mission: 'ロケ日程：ミッション選択で進行',
+    bond: '関係：後輩・撮影班・街',
+  })[state.panelOpen] || '';
+  hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
+  btns.insertBefore(hint, btns.firstChild);
   panel.classList.add('show');
+  const card = panel.querySelector('.panel-card');
+  if (card) {
+    card.classList.remove('pulse');
+    void card.offsetWidth;
+    card.classList.add('pulse');
+  }
 }
 
 function spawnRetaliation(op, dmg) {
@@ -2228,7 +2334,7 @@ function shopSpots() {
   // 左右壁アップグレード / 建設
   for (const side of ['left', 'right']) {
     const wall = side === 'left' ? structures.leftWall : structures.rightWall;
-    const label = wall.level === 0 ? '【軍事】バリケード建設' : wall.level === 1 ? '【軍事】石バリケード強化' : '【軍事】壁は最大';
+    const label = wall.level === 0 ? '【軍事】迫真バリケード建設' : wall.level === 1 ? '【軍事】迫真石バリケード強化' : '【軍事】バリケード最大';
     const cost = wall.level === 0 ? 3 : wall.level === 1 ? 6 : 99;
     const can = wall.level < 2;
     spots.push({
@@ -2274,7 +2380,7 @@ function shopSpots() {
       cost,
       can,
       branch: 'mili',
-      label: `【軍事】砲台設置 (${count}/3)`,
+      label: `【軍事】${miliGunName(0)}設置 (${count}/3)`,
       buy() {
         if (units.filter(u => u.side === side && u.role !== 'vanguard').length >= 3) return false;
         const line = pick(LORE.hire);
@@ -2289,7 +2395,7 @@ function shopSpots() {
         });
         toast(line);
         spawnMeme(wall.x, GROUND_Y - 50, units[units.length - 1].meme);
-        story('【軍事】砲台　' + units[units.length - 1].meme, 2.2);
+        story('【軍事】' + miliGunName(0) + '　' + units[units.length - 1].meme, 2.2);
         return true;
       }
     });
@@ -2303,16 +2409,16 @@ function shopSpots() {
         cost: 5,
         can: true,
         branch: 'mili',
-        label: `【軍事】先鋒編成 (${vanCount}/1)・侵攻強化`,
+        label: `【軍事】${miliVanguardName()} (${vanCount}/1)・侵攻強化`,
         buy() {
           units.push({
             side, role: 'vanguard', tier: 0,
             x: wall.x + (side === 'left' ? 35 : -35),
             y: GROUND_Y, cooldown: 99, hp: 1,
-            meme: '先鋒',
+            meme: miliVanguardName(),
           });
           toast(pick(LORE.miliUp));
-          story('先鋒　ロケバス侵攻で拠点に追加ダメージ', 2.4);
+          story(miliVanguardName() + '　ロケバス侵攻で拠点に追加ダメージ', 2.4);
           spawnMeme(wall.x, GROUND_Y - 50, '先鋒');
           return true;
         }
@@ -2332,12 +2438,12 @@ function shopSpots() {
         cost: 3 + (g.tier | 0) * 2,
         can: true,
         branch: 'mili',
-        label: `【軍事】砲台強化 Tier${(g.tier|0)}→${(g.tier|0)+1}`,
+        label: `【軍事】${miliGunName(g.tier)}→${miliGunName((g.tier|0)+1)}`,
         buy() {
           g.tier = (g.tier | 0) + 1;
           toast(pick(LORE.miliUp));
-          story('砲台強化　射程／火力アップ', 2.0);
-          spawnMeme(g.x, GROUND_Y - 50, 'T' + g.tier);
+          story(miliGunName(g.tier) + '　射程／火力アップ', 2.0);
+          spawnMeme(g.x, GROUND_Y - 50, miliGunNameShort(g.tier));
           return true;
         }
       });
@@ -2362,6 +2468,56 @@ function shopSpots() {
         return true;
       }
     });
+  }
+  // 軍事：胸ぐらスネア
+  {
+    const sn = state.snares || [];
+    if (sn.length < 2 && (structures.leftWall.level >= 1 || structures.rightWall.level >= 1)) {
+      spots.push({
+        id: 'snare',
+        x: 110,
+        r: 40,
+        cost: 3,
+        can: true,
+        branch: 'mili',
+        label: `【軍事】${miliSnareName()} (${sn.length}/2)`,
+        buy() {
+          if (!state.snares) state.snares = [];
+          const side = structures.leftWall.level >= 1 && Math.random() < 0.5 ? 'left' : (structures.rightWall.level>=1?'right':'left');
+          const wall = side === 'left' ? structures.leftWall : structures.rightWall;
+          const x = (wall.level > 0 ? wall.x : 0) + (side === 'left' ? 45 : -45);
+          state.snares.push({ x, side });
+          toast(miliSnareName() + '　設置', 2.0);
+          story('胸ぐらで足止め　（迫真）', 2.0);
+          spawnMeme(x, GROUND_Y - 40, 'スネア');
+          return true;
+        }
+      });
+    }
+  }
+  // 軍事：810地雷
+  {
+    const mn = state.mines || [];
+    if (mn.length < 3) {
+      spots.push({
+        id: 'mine810',
+        x: -110,
+        r: 40,
+        cost: 2,
+        can: true,
+        branch: 'mili',
+        label: `【軍事】${miliMineName()} (${mn.length}/3)`,
+        buy() {
+          if (!state.mines) state.mines = [];
+          const x = rand(-160, 160);
+          state.mines.push({ x, armed: true });
+          toast(miliMineName() + '　埋設', 2.0);
+          story('810地雷　夜の進路に', 2.0);
+          spawnMeme(x, GROUND_Y - 28, '810');
+          return true;
+        }
+      });
+    }
   }
   // 内政：作業員（上限を内政で拡張）
   {
@@ -3039,6 +3195,8 @@ function buildSaveBlob() {
       hp: o.hp, maxHp: o.maxHp, cleared: !!o.cleared, unlockChapter: o.unlockChapter | 0,
     })),
     miliTier: state.miliTier | 0,
+    snares: (state.snares || []).map(s => ({ x: s.x, side: s.side })),
+    mines: (state.mines || []).map(m => ({ x: m.x, armed: !!m.armed })),
     civilTier: state.civilTier | 0,
     bankTier: state.bankTier | 0,
     savedAt: Date.now(),
@@ -3103,6 +3261,8 @@ function applySave(d) {
   state.assault = !!d.assault;
   state.outposts = Array.isArray(d.outposts) ? d.outposts.map(o => Object.assign({}, o)) : [];
   state.miliTier = clamp(d.miliTier | 0, 0, 3);
+  state.snares = Array.isArray(d.snares) ? d.snares.map(s => ({ x: +s.x || 0, side: s.side === 'right' ? 'right' : 'left' })) : [];
+  state.mines = Array.isArray(d.mines) ? d.mines.map(m => ({ x: +m.x || 0, armed: m.armed !== false })) : [];
   state.civilTier = clamp(d.civilTier | 0, 0, 3);
   state.bankTier = clamp(d.bankTier | 0, 0, 3);
   state.dayChoiceDone = !!d.dayChoiceDone;
@@ -3227,6 +3387,8 @@ function resetGame() {
   state.assault = false;
   state.outposts = [];
   state.miliTier = 0;
+  state.snares = [];
+  state.mines = [];
   state.civilTier = 0;
   state.bankTier = 0;
   state.endCut = -1;
@@ -3614,11 +3776,15 @@ function update(dt) {
     }
   }
 
+  // 胸ぐらスネア／810地雷
+  tickMiliGadgets(dt);
+
   // 敵
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.anim = (e.anim || 0) + dt;
     if (e.stunned > 0) e.stunned -= dt;
+    if (e._snareSlow > 0) e._snareSlow -= dt;
     // 眼光デバフ：近距離で視線
     if (e.isGaze && Math.abs(e.x - player.x) < 220) {
       state.gazeT = Math.max(state.gazeT, 0.6);
@@ -3626,7 +3792,7 @@ function update(dt) {
     // たかり後輩：壁より先輩のコインを優先して寄る／近接で窃盗
     if (e.isTaka && state.coins > 0 && Math.abs(e.x - player.x) < 280) {
       const dir = Math.sign(player.x - e.x) || e.side;
-      const slow = e.stunned > 0 ? 0.25 : 1;
+      const slow = (e.stunned > 0 ? 0.25 : 1) * (e._snareSlow > 0 ? 0.35 : 1);
       e.x += dir * e.speed * 1.15 * slow * dt;
       e.stealCd = (e.stealCd || 0) - dt;
       if (Math.abs(e.x - player.x) < 36 && e.stealCd <= 0) {
@@ -3655,9 +3821,9 @@ function update(dt) {
       const dir = Math.sign(targetX - e.x) || e.side;
       // 壁を超えたらキャンプへ
       if (wall.level === 0 || wall.hp <= 0) {
-        e.x += Math.sign(0 - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * dt;
+        e.x += Math.sign(0 - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * dt;
       } else if ((e.side < 0 && e.x < wall.x - 12) || (e.side > 0 && e.x > wall.x + 12)) {
-        e.x += Math.sign((wall.x - e.side * 12) - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * dt;
+        e.x += Math.sign((wall.x - e.side * 12) - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * dt;
       } else {
         blocking = true;
       }
@@ -4178,6 +4344,27 @@ function draw() {
     ctx.fillRect(moonX - 50, moonY - 50, 100, 100);
     drawPixelRect(moonX - 8, moonY - 8, 16, 16, '#d8e4ff');
     drawPixelRect(moonX - 4, moonY - 2, 4, 4, '#a0b0d0');
+    // 夜景差：街灯列＋湿度もや＋遠景ネオン帯
+    ctx.globalAlpha = 0.35;
+    for (let i = 0; i < 8; i++) {
+      const lx = ((i * 110 - state.cameraX * 0.15) % (W + 40) + W + 40) % (W + 40) - 20;
+      const tw = 0.5 + Math.sin(state.animT * 2.5 + i) * 0.3;
+      ctx.globalAlpha = 0.25 + tw * 0.35;
+      const lg = ctx.createRadialGradient(lx, GROUND_Y - 36, 1, lx, GROUND_Y - 36, 28);
+      lg.addColorStop(0, 'rgba(255,220,140,0.55)');
+      lg.addColorStop(1, 'rgba(255,180,60,0)');
+      ctx.fillStyle = lg;
+      ctx.fillRect(lx - 28, GROUND_Y - 60, 56, 60);
+      drawPixelRect(lx - 1, GROUND_Y - 40, 2, 40, '#444');
+      drawPixelRect(lx - 4, GROUND_Y - 44, 8, 5, '#ffe080');
+    }
+    ctx.globalAlpha = 0.12 + Math.min(0.18, (state.humidity|0) / 500);
+    ctx.fillStyle = '#406080';
+    ctx.fillRect(0, GROUND_Y - 90, W, 90);
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = state.assault ? '#ff4060' : '#ff6b9d';
+    ctx.fillRect(0, GROUND_Y - 70, W, 3);
+    ctx.globalAlpha = 1;
   }
 
   // 遠景
@@ -4223,6 +4410,7 @@ function draw() {
   drawSoftShadow(wx(structures.rightWall.x), GROUND_Y, 14, 0.25);
   drawWall(structures.leftWall, true);
   drawWall(structures.rightWall, false);
+  drawMiliGadgets();
   drawTorchLights();
 
   // ショップヒント円
@@ -4833,6 +5021,80 @@ function drawMissionMarker() {
   ctx.fillStyle = '#fc8';
   ctx.fillText(m.progress + '/' + m.need, sx, GROUND_Y - 84 + bob);
 }
+function tickMiliGadgets(dt) {
+  if (!state.snares) state.snares = [];
+  if (!state.mines) state.mines = [];
+  // スネア：近接敵を掴んで遅延
+  for (const s of state.snares) {
+    for (const e of enemies) {
+      if (Math.abs(e.x - s.x) < 38) {
+        e._snareSlow = Math.max(e._snareSlow || 0, 0.55);
+        if (Math.random() < 0.02) spawnMeme(e.x, GROUND_Y - 48, '胸ぐら');
+      }
+    }
+  }
+  // 地雷：夜のみ起爆
+  if (!state.isNight) return;
+  for (let i = state.mines.length - 1; i >= 0; i--) {
+    const m = state.mines[i];
+    if (!m.armed) continue;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      if (Math.abs(e.x - m.x) < 28) {
+        m.armed = false;
+        e.hp = (e.hp || 1) - (2 + Math.min(2, state.miliTier|0));
+        e._flash = 0.25;
+        e.stunned = Math.max(e.stunned || 0, 0.8);
+        spawnMeme(m.x, GROUND_Y - 40, '810!');
+        toast(miliMineName() + '　起爆', 1.4);
+        spawnSparks(m.x, GROUND_Y - 20, 8, ['#ff8', '#f44', '#ffd700'], 140);
+        shake(5, 0.18);
+        if (e.hp <= 0) {
+          bestiaryKill(e.name || '後輩');
+          enemies.splice(j, 1);
+          dropCoin(m.x, 1);
+        }
+        state.mines.splice(i, 1);
+        break;
+      }
+    }
+  }
+}
+
+function drawMiliGadgets() {
+  for (const s of (state.snares || [])) {
+    const sx = wx(s.x);
+    if (sx < -40 || sx > W + 40) continue;
+    drawPixelRect(sx - 6, GROUND_Y - 8, 12, 4, '#5a3a20');
+    drawPixelRect(sx - 8, GROUND_Y - 14, 4, 8, '#c9a227');
+    drawPixelRect(sx + 4, GROUND_Y - 14, 4, 8, '#c9a227');
+    // 掴みアーム
+    const pinch = Math.sin(state.animT * 5 + s.x) * 2;
+    ctx.strokeStyle = '#ff6b9d'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx - 10, GROUND_Y - 16);
+    ctx.lineTo(sx - 2 + pinch, GROUND_Y - 22);
+    ctx.moveTo(sx + 10, GROUND_Y - 16);
+    ctx.lineTo(sx + 2 - pinch, GROUND_Y - 22);
+    ctx.stroke();
+    ctx.fillStyle = '#fc8';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('スネア', sx, GROUND_Y - 26);
+  }
+  for (const m of (state.mines || [])) {
+    const sx = wx(m.x);
+    if (sx < -40 || sx > W + 40) continue;
+    const blink = m.armed && state.isNight && Math.sin(state.animT * 10) > 0;
+    drawPixelRect(sx - 5, GROUND_Y - 6, 10, 5, '#333');
+    drawPixelRect(sx - 3, GROUND_Y - 8, 6, 3, blink ? '#f44' : '#8a2020');
+    ctx.fillStyle = '#8af';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('810', sx, GROUND_Y - 12);
+  }
+}
+
 function drawLocationBus() {
   const b = state.bus;
   if (!b) return;
@@ -5034,6 +5296,40 @@ function drawLandmarkScenery(sx, L, nightish) {
     ctx.lineTo(sx - 10, GROUND_Y - 40);
     ctx.stroke();
   }
+  // 夜景差：窓明かり・街灯フレア・ネオン強調
+  if (nightish) {
+    const flicker = 0.55 + Math.sin(state.animT * 4 + sx * 0.03) * 0.25;
+    // 窓明かり（聖地差）
+    ctx.globalAlpha = flicker;
+    const winCol = id === 'kabuki' ? '#ff6b9d' : id === 'yamanote' ? '#ffe080' : '#ffe8a0';
+    drawPixelRect(sx - 10, GROUND_Y - 22, 5, 5, winCol);
+    drawPixelRect(sx + 4, GROUND_Y - 22, 5, 5, winCol);
+    if (ch >= 2) drawPixelRect(sx - 2, GROUND_Y - 30, 4, 4, '#ffd070');
+    ctx.globalAlpha = 1;
+    if (id === 'kabuki') {
+      ctx.globalAlpha = 0.35 + Math.sin(state.animT * 8) * 0.2;
+      const g = ctx.createRadialGradient(sx, GROUND_Y - 40, 2, sx, GROUND_Y - 40, 50);
+      g.addColorStop(0, 'rgba(255,80,160,0.5)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx - 50, GROUND_Y - 70, 100, 70);
+      ctx.globalAlpha = 1;
+    }
+    if (id === 'inokashira' || id === 'gaien_w') {
+      // 夜の水面反射
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#8cf';
+      ctx.fillRect(sx - 48, GROUND_Y - 4, 36, 2);
+      ctx.globalAlpha = 1;
+    }
+    if (id === 'yamanote' || id === 'kichijoji') {
+      // 夜のヘッドライト帯
+      ctx.globalAlpha = 0.15 + Math.sin(state.animT * 3) * 0.05;
+      ctx.fillStyle = '#ffe8a0';
+      ctx.fillRect(sx - 40, GROUND_Y - 8, 70, 3);
+      ctx.globalAlpha = 1;
+    }
+  }
 }
 
 function drawLandmarkBuilding(sx, L, opened, nightish) {
@@ -5159,12 +5455,36 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
     ctx.fillRect(sx - 36, GROUND_Y - 40, 30, 40);
     const fac = facilityLv(L.id);
     if (fac >= 1) {
-      // 施設看板
-      drawPixelRect(sx - 14, GROUND_Y - 62, 28, 8, fac >= 2 ? '#ffd700' : '#c9a227');
+      // 施設看板＋等級で見た目差
+      drawPixelRect(sx - 14, GROUND_Y - 62, 28, 8, fac >= 3 ? '#ff6b9d' : fac >= 2 ? '#ffd700' : '#c9a227');
       ctx.fillStyle = '#1a1008';
       ctx.font = '5px "Press Start 2P"';
       ctx.textAlign = 'center';
       ctx.fillText('Lv' + fac, sx, GROUND_Y - 56);
+      // Lv2+: 旗
+      if (fac >= 2) {
+        const fy = GROUND_Y - 70 - fac * 2;
+        drawPixelRect(sx + 18, GROUND_Y - 50, 2, 28 + fac * 2, '#888');
+        drawPixelRect(sx + 20, fy, 14, 8, fac >= 3 ? '#ff6b9d' : '#ffd700');
+        ctx.fillStyle = '#1a1008';
+        ctx.font = '4px "Press Start 2P"';
+        ctx.fillText(fac >= 3 ? 'MAX' : '施設', sx + 27, fy + 6);
+      }
+      // Lv3: 屋根金縁＋煙
+      if (fac >= 3) {
+        drawPixelRect(sx - 26, GROUND_Y - 36, 52, 2, '#ffd700');
+        const smokeY = GROUND_Y - 48 - ((state.animT * 18) % 20);
+        ctx.globalAlpha = 0.4;
+        drawPixelRect(sx + 8, smokeY, 4, 4, '#ccc');
+        drawPixelRect(sx + 12, smokeY - 6, 3, 3, '#aaa');
+        ctx.globalAlpha = 1;
+      }
+      // 作業員がいる施設は足元に作業マーク
+      if ((state.workers || []).some(w => w.lmId === L.id)) {
+        ctx.fillStyle = '#8cf';
+        ctx.font = '5px "Press Start 2P"';
+        ctx.fillText('作業中', sx, GROUND_Y + 12);
+      }
     }
     if (state.mission && state.mission.lmId === L.id && state.gfxDeep) {
       const pulse = 0.35 + Math.sin(state.animT * 8) * 0.15;
@@ -5294,8 +5614,22 @@ function drawCampfire(x, y) {
     ctx.fillStyle = cg;
     ctx.fillRect(x - 40, y - 60, 80, 70);
   }
-  blitOutlined(x - 8 + sway * 0.3, y - 40, FR_FLAME[fi], PAL, 3, false);
-  const emberN = Math.max(2, Math.round((state.isNight ? 10 : 5) * (GFX.emberMul || 1)));
+  blitOutlined(x - 8 + sway * 0.3, y - 40, FR_FLAME[fi], PAL, 3 + Math.min(2, state.civilTier|0), false);
+  // 内政Lvでたき火規模差
+  if ((state.civilTier|0) >= 2) {
+    const cg2 = ctx.createRadialGradient(x, y - 28, 4, x, y - 28, 50 + (state.bankTier|0)*6);
+    cg2.addColorStop(0, 'rgba(255,200,80,0.35)');
+    cg2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = cg2;
+    ctx.fillRect(x - 55, y - 70, 110, 80);
+  }
+  if ((state.bankTier|0) >= 1) {
+    ctx.fillStyle = '#8af';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('810銀行', x, y - 72);
+  }
+  const emberN = Math.max(2, Math.round((state.isNight ? 10 : 5) * (GFX.emberMul || 1) * (1 + (state.civilTier|0)*0.25)));
   for (let i = 0; i < emberN; i++) {
     const px = x + Math.sin(state.animT * 3 + i * 1.7) * (10 + i);
     const py = y - 28 - ((state.animT * 50 + i * 19) % 48);
@@ -5341,7 +5675,7 @@ function drawWall(wall, isLeft) {
     ctx.fillStyle = 'rgba(255,215,0,0.55)';
     ctx.font = '8px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('バリケード', x, GROUND_Y - 30);
+    ctx.fillText(miliWallName(), x, GROUND_Y - 30);
     return;
   }
   const wood = wall.level === 1;
@@ -5355,6 +5689,14 @@ function drawWall(wall, isLeft) {
   ctx.ellipse(x, GROUND_Y + 3, wood ? 18 : 22, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+  // 軍事Lv／壁Lvでオーラ差
+  if ((wall.level|0) >= 2 || (state.miliTier|0) >= 2) {
+    const ag = ctx.createRadialGradient(x, GROUND_Y - 30, 4, x, GROUND_Y - 30, 40);
+    ag.addColorStop(0, 'rgba(255,107,157,0.22)');
+    ag.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ag;
+    ctx.fillRect(x - 40, GROUND_Y - 70, 80, 70);
+  }
 
   if (wood) {
     // 木壁：横ログ積み＋節＋縄帯
@@ -5442,7 +5784,7 @@ function drawWall(wall, isLeft) {
   ctx.fillStyle = wood ? '#c9a227' : '#d0d0e8';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText(wood ? '木壁' : '石壁', x, GROUND_Y - h - 16);
+  ctx.fillText(miliWallName(wall.level), x, GROUND_Y - h - 16);
   drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, wood ? '#8c4' : '#4cf', '#333');
 }
 
@@ -5586,7 +5928,7 @@ function drawArcher(x, y, u) {
     ctx.fillStyle = '#ff6b9d';
     ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('先鋒', x, y - 40 + bob);
+    ctx.fillText('トリオ', x, y - 40 + bob);
     if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 48 + bob, 24, 24);
     return;
   }
@@ -5632,9 +5974,9 @@ function drawArcher(x, y, u) {
     blitPixels(bowX - 2, y - 28 + bob, ['Y','F'], PAL, 2, false);
   }
   ctx.fillStyle = '#8af';
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = '5px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('砲台', x, y - 56 + bob);
+  ctx.fillText(miliGunNameShort(u.tier|0), x, y - 62 + bob);
 }
 
 function drawEnemy(x, y, e) {
@@ -5694,6 +6036,44 @@ function drawEnemy(x, y, e) {
     ctx.font = '7px "Press Start 2P"';
     ctx.textAlign = 'center';
     ctx.fillText('（）', x, y - 54);
+  }
+  // 敵表情
+  {
+    const ey = y - 28 + stunBob;
+    const flip = e.side > 0;
+    const lx = x + (flip ? -6 : -4);
+    const rx = x + (flip ? 2 : 4);
+    drawPixelRect(lx, ey, 3, 3, '#fff');
+    drawPixelRect(rx, ey, 3, 3, '#fff');
+    if (e.stunned > 0) {
+      drawPixelRect(lx, ey + 1, 3, 1, '#222');
+      drawPixelRect(rx, ey + 1, 3, 1, '#222');
+      drawPixelRect(x - 2, ey + 8, 5, 2, '#844');
+    } else if (e.isGaze || e.isMur) {
+      drawPixelRect(lx + 1, ey, 2, 3, '#f22');
+      drawPixelRect(rx + 1, ey, 2, 3, '#f22');
+    } else if (e.isTono) {
+      drawPixelRect(lx + 1, ey + 1, 2, 1, '#222');
+      drawPixelRect(rx + 1, ey + 1, 2, 1, '#222');
+      drawPixelRect(x - 3, ey + 7, 6, 2, '#c66');
+    } else if (e.isTaka) {
+      drawPixelRect(lx + 1, ey + 1, 2, 2, '#222');
+      drawPixelRect(rx + 1, ey + 1, 2, 2, '#222');
+      drawPixelRect(x - 2, ey + 7, 4, 2, '#422'); // ニヤ
+    } else if (e.isKoko) {
+      drawPixelRect(lx + 1, ey, 2, 2, '#222');
+      drawPixelRect(rx + 1, ey + 1, 2, 2, '#222'); // 非対称
+    } else if (e.isBoss) {
+      drawPixelRect(lx, ey, 3, 3, '#f44');
+      drawPixelRect(rx, ey, 3, 3, '#f44');
+    } else if ((e.hp || 1) <= 1) {
+      drawPixelRect(lx + 1, ey + 1, 2, 1, '#222');
+      drawPixelRect(rx + 1, ey + 1, 2, 1, '#222');
+      drawPixelRect(x - 2, ey + 8, 4, 1, '#844');
+    } else {
+      drawPixelRect(lx + 1, ey + 1, 2, 2, '#222');
+      drawPixelRect(rx + 1, ey + 1, 2, 2, '#222');
+    }
   }
   ctx.fillStyle = e.isTaka ? '#ff8' : e.isMur ? '#33ffee' : e.isTono ? '#ffe066' : '#f88';
   ctx.font = '6px "Press Start 2P"';
