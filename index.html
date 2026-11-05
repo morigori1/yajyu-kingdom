@@ -185,18 +185,50 @@
 
   #overlay {
     position: absolute; inset: 0;
-    background: rgba(0,0,0,.84);
+    background: linear-gradient(180deg, rgba(4,6,16,.55) 0%, rgba(8,10,20,.72) 45%, rgba(12,8,6,.78) 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 14px; z-index: 20; text-align: center;
     padding: max(24px, var(--safe-t)) 20px calc(24px + var(--safe-b));
     overflow: auto;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+    transition: background 1.2s ease;
+  }
+  #overlay.cine-dawn {
+    background: linear-gradient(180deg, rgba(255,160,90,.18) 0%, rgba(20,16,30,.55) 40%, rgba(10,8,14,.7) 100%);
   }
   #overlay h1 {
     font-size: clamp(16px, 5vw, 24px);
     color: #ffd700;
     line-height: 1.7;
+    text-shadow: 0 0 12px rgba(255,215,0,.45), 2px 2px 0 #000;
+    animation: crownPulse 2.8s ease-in-out infinite;
+  }
+  #overlay h1 .meme {
+    display: inline-block;
+    background: linear-gradient(90deg, #ffd700, #fff8c8, #ff6b9d, #ffd700);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: crownShine 3.2s linear infinite;
+    filter: drop-shadow(0 0 6px rgba(255,215,0,.55));
+  }
+  @keyframes crownShine {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 220% 50%; }
+  }
+  @keyframes crownPulse {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.02); filter: brightness(1.12); }
+  }
+  #title-faces img {
+    animation: faceGlow 3.5s ease-in-out infinite;
+  }
+  @keyframes faceGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,215,0,0); }
+    50% { box-shadow: 0 0 14px 2px rgba(255,215,0,.35); }
   }
   #overlay p {
     font-size: clamp(11px, 3.2vw, 13px);
@@ -359,7 +391,7 @@
     <canvas id="c" width="960" height="540"></canvas>
     <div id="hint">PC: A/D・←→ 移動 ／ スペース・クリックで支払い　｜　スマホ: 下のパッド</div>
     <div id="overlay">
-      <h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span></h1>
+      <h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span> 👑</h1>
       <p>
         下北沢（自称）　湿度114514　真夏（汗）<br>
         王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
@@ -681,6 +713,8 @@ const state = {
   dawnFxT: 0,
   slowMoT: 0,
   clearPillarT: 0,
+  titleCine: true,
+  titleDawn: 0,
 };
 
 // ワールド座標: キャンプが x=0
@@ -734,9 +768,13 @@ const GFX = {
   grassDense: true,
   water: true,
   pillars: true,
+  softShadow: true,
+  torches: true,
+  heatHaze: true,
   starCount: 55,
   emberMul: 1,
   sparkMul: 1,
+  mistMul: 1,
 };
 
 function detectQuality() {
@@ -746,21 +784,30 @@ function detectQuality() {
     || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '');
   const mem = navigator.deviceMemory || (mobile ? 3 : 8);
   const cores = navigator.hardwareConcurrency || 4;
-  return (mobile && (mem <= 4 || cores <= 4)) ? 'low' : 'high';
+  // モバイルはさらに低寄り（感動演出は残し、粒子・グラデを削る）
+  if (mobile) {
+    const tiny = (window.innerWidth || 800) < 700 || mem <= 4 || cores <= 4;
+    return tiny ? 'low' : ((mem <= 6 || cores <= 6) ? 'low' : 'high');
+  }
+  return (mem <= 2 || cores <= 2) ? 'low' : 'high';
 }
 
 function applyQuality() {
   GFX.quality = detectQuality();
   const low = GFX.quality === 'low';
-  GFX.fxMax = low ? 36 : 84;
+  GFX.fxMax = low ? 28 : 84;
   GFX.aurora = !low;
   GFX.godRays = !low;
   GFX.grassDense = !low;
-  GFX.water = true; // 水面は軽量のまま常時
+  GFX.water = true;
   GFX.pillars = true;
-  GFX.starCount = low ? 20 : 58;
-  GFX.emberMul = low ? 0.35 : 1;
-  GFX.sparkMul = low ? 0.55 : 1;
+  GFX.softShadow = !low;
+  GFX.torches = true;
+  GFX.heatHaze = !low;
+  GFX.starCount = low ? 14 : 58;
+  GFX.emberMul = low ? 0.25 : 1;
+  GFX.sparkMul = low ? 0.45 : 1;
+  GFX.mistMul = low ? 0.35 : 1;
   const chip = document.getElementById('gfx-chip');
   if (chip) {
     const label = GFX.mode === 'auto' ? `画質:自動(${GFX.quality === 'low' ? '低' : '高'})`
@@ -841,6 +888,19 @@ function spawnCoinSparkle(x, y) {
   pushFx({ type: 'ring', x, y: y - 4, t: 0, life: 0.35, color: 'rgba(255,215,0,0.55)', r0: 4, r1: 22 });
 }
 
+
+function spawnKillEcho(x, y, heavy) {
+  // 微スロー＋余韻リング
+  state.slowMoT = Math.max(state.slowMoT, heavy ? 0.55 : 0.22);
+  state.hitStop = Math.max(state.hitStop, heavy ? 0.1 : 0.05);
+  shake(heavy ? 6 : 2.5, heavy ? 0.35 : 0.12);
+  spawnSparks(x, y - 24, heavy ? 12 : 6, ['#ff6b9d', '#ffd700', '#fff'], 130);
+  pushFx({ type: 'ring', x, y: y - 22, t: 0, life: heavy ? 0.7 : 0.45, color: 'rgba(255,215,0,0.5)', r0: 8, r1: heavy ? 70 : 42 });
+  pushFx({ type: 'ring', x, y: y - 22, t: 0, life: heavy ? 0.55 : 0.35, color: 'rgba(255,107,157,0.4)', r0: 4, r1: heavy ? 50 : 30 });
+  if (GFX.quality !== 'low') {
+    pushFx({ type: 'ring', x, y: y - 22, t: 0, life: 0.85, color: 'rgba(255,255,255,0.25)', r0: 2, r1: heavy ? 90 : 55 });
+  }
+}
 
 function spawnArrowHit(x, y, vx) {
   const dir = Math.sign(vx) || 1;
@@ -935,7 +995,7 @@ function spawnWinFx() {
 function spawnMistAmbient(dt) {
   // 湿度モヤ：高湿度ほど発生
   if (state.humidity < 45) return;
-  if (Math.random() > (state.humidity - 40) * 0.012 * dt * 60) return;
+  if (Math.random() > (state.humidity - 40) * 0.012 * (GFX.mistMul || 1) * dt * 60) return;
   const px = state.cameraX + rand(0, W);
   pushFx({
     type: 'mist',
@@ -1712,8 +1772,12 @@ function winCheck() {
 function showEnd(win) {
   const ov = document.getElementById('overlay');
   ov.classList.remove('hidden');
+  ov.classList.remove('cine-dawn');
+  // 終了後も背景シネマを軽く再開
+  state.titleCine = true;
+  state.titleDawn = win ? 0.7 : 0.15;
   const pack = win ? LORE.win : LORE.lose;
-  ov.innerHTML = `<h1 class="meme">${pack.title}</h1>
+  ov.innerHTML = `<h1><span class="meme">${pack.title}</span></h1>
        <p>${pack.body}Day ${state.day} ／ コイン ${state.coins}</p>
        <button id="startBtn" type="button">${pack.btn}</button>`;
   document.getElementById('startBtn').onclick = resetGame;
@@ -1721,7 +1785,11 @@ function showEnd(win) {
 
 // ---------- リセット ----------
 function resetGame() {
-  document.getElementById('overlay').classList.add('hidden');
+  const ov = document.getElementById('overlay');
+  ov.classList.add('hidden');
+  ov.classList.remove('cine-dawn');
+  state.titleCine = false;
+  state.titleDawn = 0;
   fitCanvas();
   state.running = true;
   state.over = false;
@@ -1779,7 +1847,14 @@ function loop(now) {
   const scale = state.hitStop > 0 ? 0.15 : (state.slowMoT > 0 ? 0.42 : 1);
   const dt = raw * scale;
   if (state.running && !state.over) update(dt);
-  else tickPresentation(dt, raw);
+  else {
+    tickPresentation(dt, raw);
+    if (state.titleCine) {
+      // シネマカメラ：ゆっくり左右に漂う
+      state.cameraX = Math.sin(state.animT * 0.25) * 70 + Math.sin(state.animT * 0.07) * 30;
+      state.nightSway = Math.sin(state.animT * 1.2) * 1.2;
+    }
+  }
   draw();
   requestAnimationFrame(loop);
 }
@@ -1792,6 +1867,23 @@ function tickPresentation(dt, rawDt) {
   if (state.flashT > 0) state.flashT -= r;
   if (state.skillRingT > 0) state.skillRingT -= r;
   if (state.winFxT > 0) state.winFxT -= r;
+  // タイトル導入：徐々に夜が明ける
+  if (state.titleCine && !state.running) {
+    state.titleDawn = Math.min(1, (state.titleDawn || 0) + r * 0.11);
+    const ov = document.getElementById('overlay');
+    if (ov && !ov.classList.contains('hidden')) {
+      if (state.titleDawn > 0.35) ov.classList.add('cine-dawn');
+      else ov.classList.remove('cine-dawn');
+    }
+    // 王冠きらめき粒子（低頻度）
+    if (GFX.quality !== 'low' && Math.random() < 0.08 * r * 60) {
+      pushFx({
+        type: 'spark', x: player.x + rand(-10, 10), y: GROUND_Y - 70 + rand(-6, 4),
+        vx: rand(-20, 20), vy: rand(-50, -10), t: 0, life: 0.5,
+        color: pick(['#ffd700', '#fff8c8', '#fff']), size: 2,
+      });
+    }
+  }
   state.animT += dt;
   spawnMistAmbient(dt);
   const emberChance = (state.isNight ? 0.35 : 0.12) * (GFX.emberMul || 1);
@@ -2006,8 +2098,7 @@ function update(dt) {
           if (Math.random() < 0.55) dropCoin(e.x, 1);
           if (e.isTaka && Math.random() < 0.5) dropCoin(e.x, 1);
           onSacredKill();
-          shake(e.isBoss || e.isMur ? 6 : 2.5, e.isBoss ? 0.35 : 0.12);
-          spawnSparks(e.x, GROUND_Y - 24, e.isBoss ? 12 : 6, ['#ff6b9d', '#ffd700', '#fff'], 130);
+          spawnKillEcho(e.x, GROUND_Y, e.isBoss || e.isMur);
           enemies.splice(j, 1);
         }
         break;
@@ -2139,6 +2230,10 @@ function update(dt) {
 // 時刻・光（Two Crowns風の昼夜ブレンド）
 // =========================================================
 function dayPhase() {
+  // タイトルシネマ：夜→夜明けへ
+  if (state.titleCine && !state.running) {
+    return lerp(0.92, 0.22, clamp(state.titleDawn, 0, 1));
+  }
   // 0=夜明け 0.25=昼 0.55=夕暮れ 0.75=夜 1=深夜寄り
   if (!state.running && state.over && !state.won) return 0.85;
   if (state.isNight) {
@@ -2182,7 +2277,93 @@ function mixHex(c1, c2, t) {
   return '#' + [r,g,bl].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
+
+function drawTorchLights() {
+  if (!GFX.torches) return;
+  const nightish = state.isNight || (state.titleCine && state.titleDawn < 0.55);
+  if (!nightish && !(state.titleCine && state.titleDawn < 0.7)) return;
+  const posts = [];
+  // 門灯（壁）
+  for (const w of [structures.leftWall, structures.rightWall]) {
+    if (w.level > 0) posts.push({ x: w.x, y: GROUND_Y - (w.level === 1 ? 50 : 70), gate: true });
+  }
+  // トーチ列：領地内に等間隔
+  const lx = structures.leftWall.level > 0 ? structures.leftWall.x + 40 : -120;
+  const rx = structures.rightWall.level > 0 ? structures.rightWall.x - 40 : 120;
+  const step = GFX.quality === 'low' ? 90 : 70;
+  for (let x = lx; x <= rx; x += step) {
+    if (Math.abs(x) < 28) continue; // たき火付近はスキップ
+    posts.push({ x, y: GROUND_Y - 34, gate: false });
+  }
+  // タイトル時は仮のトーチ列
+  if (state.titleCine && posts.length < 3) {
+    for (let i = -3; i <= 3; i++) posts.push({ x: i * 70, y: GROUND_Y - 34, gate: false });
+  }
+  const maxL = GFX.quality === 'low' ? 6 : posts.length;
+  for (let i = 0; i < Math.min(posts.length, maxL); i++) {
+    const p = posts[i];
+    const sx = wx(p.x);
+    const flick = 0.85 + Math.sin(state.animT * 7 + p.x * 0.05) * 0.15;
+    // ポール
+    drawPixelRect(sx - 1, p.y, 3, GROUND_Y - p.y, '#3a2818');
+    // 炎
+    const fi = ((state.animT * 10 + i) | 0) % 3;
+    drawPixelRect(sx - 2, p.y - 6 - fi, 5, 6 + fi, fi === 0 ? '#ff6600' : '#ffcc33');
+    drawPixelRect(sx, p.y - 8 - fi, 2, 3, '#fff8d0');
+    // 暖かい光
+    const rad = (p.gate ? 70 : 48) * flick;
+    const g = ctx.createRadialGradient(sx, p.y - 4, 2, sx, p.y - 4, rad);
+    g.addColorStop(0, `rgba(255,180,70,${0.28 * flick})`);
+    g.addColorStop(0.45, `rgba(255,120,40,${0.1 * flick})`);
+    g.addColorStop(1, 'rgba(255,80,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(sx - rad, p.y - rad, rad * 2, rad * 2);
+    // 地面の光だまり
+    ctx.globalAlpha = 0.16 * flick;
+    ctx.fillStyle = '#ffaa44';
+    ctx.beginPath();
+    ctx.ellipse(sx, GROUND_Y + 1, rad * 0.45, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawHeatWave() {
+  if (!GFX.heatHaze) return;
+  const h = state.humidity || 0;
+  if (h < 55 && !(state.titleCine && state.titleDawn > 0.5)) return;
+  const strength = state.titleCine ? 0.12 : clamp((h - 50) / 200, 0, 0.2);
+  const bands = GFX.quality === 'low' ? 4 : 8;
+  ctx.save();
+  for (let i = 0; i < bands; i++) {
+    const y = GROUND_Y - 90 + i * 10 + Math.sin(state.animT * 2.5 + i) * 3;
+    const ox = Math.sin(state.animT * 3.2 + i * 1.3) * (3 + strength * 20);
+    ctx.globalAlpha = strength * (0.35 + (i % 2) * 0.2);
+    ctx.fillStyle = h >= 75 ? 'rgba(255,160,180,0.5)' : 'rgba(255,230,180,0.45)';
+    ctx.fillRect(ox, y, W, 2);
+  }
+  // 汗のきらめき（空中の光粒）
+  if (h >= 60 || (state.titleCine && state.titleDawn > 0.4)) {
+    const n = GFX.quality === 'low' ? 4 : 10;
+    for (let i = 0; i < n; i++) {
+      const px = ((i * 97 + state.animT * 40 * (1 + i * 0.02)) % W);
+      const py = GROUND_Y - 30 - ((state.animT * 25 + i * 40) % 100);
+      ctx.globalAlpha = 0.25 + Math.sin(state.animT * 6 + i) * 0.15;
+      ctx.fillStyle = i % 2 ? '#fff' : '#aef';
+      ctx.fillRect(px, py, 2, 2);
+    }
+  }
+  ctx.restore();
+}
+
 function drawSoftShadow(x, y, w, alpha) {
+  if (!GFX.softShadow) {
+    ctx.globalAlpha = (alpha || 0.28) * 0.7;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - w, y, w * 2, 3);
+    ctx.globalAlpha = 1;
+    return;
+  }
   ctx.globalAlpha = alpha || 0.28;
   ctx.fillStyle = '#000';
   ctx.beginPath();
@@ -2379,6 +2560,7 @@ function draw() {
   drawSoftShadow(wx(structures.rightWall.x), GROUND_Y, 14, 0.25);
   drawWall(structures.leftWall, true);
   drawWall(structures.rightWall, false);
+  drawTorchLights();
 
   // ショップヒント円
   if (state.running) {
@@ -2565,6 +2747,7 @@ function draw() {
   // 湿度ヘイズ
   drawGroundFog(phase);
   drawHumidityHaze();
+  drawHeatWave();
 
   // 夜間ヴィネット＋たき火ライト体積
   if (nightish) {
@@ -2730,6 +2913,18 @@ function drawPond(phase) {
   const pondX = wx(96);
   const pondY = GROUND_Y - 2;
   const night = (phase || 0) >= 0.68;
+  if (GFX.quality === 'low') {
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = night ? '#1e3248' : '#468cb0';
+    ctx.beginPath();
+    ctx.ellipse(pondX, pondY, 34, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#e8f8ff';
+    ctx.fillRect(pondX - 10, pondY - 2, 16, 1);
+    ctx.globalAlpha = 1;
+    return;
+  }
   ctx.save();
   ctx.beginPath();
   ctx.ellipse(pondX, pondY, 38, 8, 0, 0, Math.PI * 2);
@@ -2948,31 +3143,66 @@ function drawCoin(x, y) {
 
 function drawYajyu(x, y, facing) {
   ctx.imageSmoothingEnabled = false;
-  const walking = Math.abs(player.vx) > 10;
-  const fi = walking ? frameIndex(9, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
-  const bob = walking ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
+  const walking = Math.abs(player.vx) > 10 || state.titleCine;
+  const fi = walking && !state.titleCine ? frameIndex(9, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
+  const bob = (walking && !state.titleCine) ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
   const flip = facing < 0;
-  const body = walking ? FR_WALK[fi] : FR_IDLE[fi];
+  const body = (walking && !state.titleCine) ? FR_WALK[fi] : FR_IDLE[fi % FR_IDLE.length];
   blitOutlined(x - 16, y - 44 + bob, body, PAL, 2, flip);
   if (SPR.senpai) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
   }
-  // 王冠ハイライト（王道を征く）
-  const cy = y - 66 + bob;
-  blitOutlined(x - 10, cy, [
-    '.G.G.G.',
-    'GgGgGgG',
-    'GGGUGGG',
-    '.GGGGG.',
+  // リーゼントシルエット（野獸先輩）
+  const hx = flip ? -1 : 1;
+  blitOutlined(x - 12, y - 58 + bob, [
+    '..KKKK.',
+    '.KKKkKK',
+    'KKkKKKK',
+    '.KKKKK.',
+    '..K.K..',
+  ], Object.assign({}, PAL, { K: '#1a1210', k: '#3a2820' }), 2, flip);
+  // 前髪ツヤ
+  drawPixelRect(x + hx * 2, y - 56 + bob, 3, 2, '#4a3830');
+  drawPixelRect(x + hx * 4, y - 54 + bob, 2, 1, '#6a5040');
+
+  // 王冠（王道を征く）＋きらめき
+  const cy = y - 70 + bob;
+  blitOutlined(x - 12, cy, [
+    '.G.G.G.G.',
+    'GgGgGgGgG',
+    'GGGUUGGGG',
+    '.GGGGGGG.',
+    '..G...G..',
   ], PAL, 2, false);
-  if (state.humidity >= 70 && Math.sin(state.animT * 10) > 0.3) {
-    drawPixelRect(x + (flip ? -12 : 10), y - 34, 2, 4, '#8cf');
-    drawPixelRect(x + (flip ? -8 : 6), y - 28, 2, 3, '#aef');
+  // 宝石点滅
+  if (Math.sin(state.animT * 8) > 0.2) {
+    drawPixelRect(x - 1, cy + 4, 3, 3, '#fff');
+    drawPixelRect(x - 8, cy + 2, 2, 2, '#ff6b9d');
+    drawPixelRect(x + 6, cy + 2, 2, 2, '#8af');
+  }
+  // 王冠グロー
+  if (GFX.quality !== 'low' || state.titleCine) {
+    const pulse = 0.2 + Math.sin(state.animT * 3) * 0.1;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.arc(x, cy + 6, 14 + Math.sin(state.animT * 2) * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // 汗のきらめき
+  if (state.humidity >= 55 || state.titleCine) {
+    const sweaty = state.humidity >= 70 || state.titleCine;
+    if (sweaty && Math.sin(state.animT * 10 + x) > 0.15) {
+      drawPixelRect(x + (flip ? -12 : 10), y - 34 + bob, 2, 4, '#8cf');
+      drawPixelRect(x + (flip ? -8 : 6), y - 28 + bob, 2, 3, '#dff');
+      drawPixelRect(x + (flip ? -14 : 12), y - 40 + bob, 1, 2, '#fff');
+    }
   }
   if (state.gazeT > 0) {
     ctx.strokeStyle = 'rgba(255,60,60,0.6)';
-    ctx.strokeRect(x - 20, y - 68, 40, 68);
+    ctx.strokeRect(x - 20, y - 72, 40, 72);
   }
 }
 
