@@ -5212,12 +5212,26 @@ function drawLandmarkMap(phase, nightish) {
   drawOutposts(nightish);
   if (unlockedCount() > 0 || state.assault) {
     const sx = wx(0);
-    drawPixelRect(sx + 40, GROUND_Y - 26, 3, 26, '#888');
-    drawPixelRect(sx + 34, GROUND_Y - 32, 16, 10, state.assault ? '#8a2a1a' : '#2a6aaa');
-    ctx.fillStyle = '#fff';
+    // 部室バス停（屋根＋ベンチ＋時刻表）
+    drawSoftShadow(sx + 42, GROUND_Y, 22, 0.3);
+    drawPixelRect(sx + 28, GROUND_Y - 40, 3, 40, '#666');
+    drawPixelRect(sx + 28, GROUND_Y - 44, 36, 5, state.assault ? '#8a2a1a' : '#2a6aaa');
+    drawPixelRect(sx + 30, GROUND_Y - 42, 32, 2, '#ffd700');
+    drawPixelRect(sx + 32, GROUND_Y - 14, 20, 3, '#6a4a28'); // ベンチ
+    drawPixelRect(sx + 34, GROUND_Y - 18, 2, 4, '#6a4a28');
+    drawPixelRect(sx + 48, GROUND_Y - 18, 2, 4, '#6a4a28');
+    drawPixelRect(sx + 56, GROUND_Y - 34, 12, 16, '#1a1a1a'); // 時刻表
+    ctx.fillStyle = state.assault ? '#f84' : '#8cf';
     ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText(state.assault ? 'RAID' : 'BUS', sx + 42, GROUND_Y - 24);
+    ctx.fillText(state.assault ? 'RAID' : 'BUS', sx + 46, GROUND_Y - 48);
+    if (state.bus) {
+      const pulse = 0.4 + Math.sin(state.animT * 8) * 0.3;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('発車中', sx + 46, GROUND_Y - 56);
+      ctx.globalAlpha = 1;
+    }
   }
 }
 
@@ -5240,6 +5254,18 @@ function drawWorker(x, y, w) {
   // 袋／ツール
   drawPixelRect(x + 8 + wind, y - 18 + bob, 6, 8, '#8b5a2b');
   drawPixelRect(x + 9 + wind, y - 20 + bob, 4, 2, '#c9a227');
+  // 作業員表情
+  {
+    const ey = y - 28 + bob;
+    drawPixelRect(x - 3 + wind, ey, 2, 2, '#fff');
+    drawPixelRect(x + 2 + wind, ey, 2, 2, '#fff');
+    const busy = (w.workCd || 0) < 0.4;
+    drawPixelRect(x - 2 + wind, ey + 1, 2, 1, '#222');
+    drawPixelRect(x + 2 + wind, ey + 1, 2, 1, '#222');
+    if (busy || (state.bond && (state.bond.kohai|0) >= 15 && Math.sin(state.animT * 2 + x) > 0.5)) {
+      drawPixelRect(x - 2 + wind, ey + 5, 4, 2, '#c66');
+    }
+  }
   ctx.fillStyle = '#9cf';
   ctx.font = '5px "Press Start 2P"';
   ctx.textAlign = 'center';
