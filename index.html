@@ -1369,9 +1369,18 @@ const state = {
   mines: [],          // 810地雷 {x,armed}
   awakenA: false,     // サムライブルー片鱗（連射）
   awakenB: null,      // 'iced'|'gas' アイスティー砲／くっさガス片鱗
-  miliSub: 'west',    // 軍事パネル小タブ west|east|trap|raid
+  miliSub: 'west',    // 軍事パネル小タブ west|east|trap|raid|form|report
+  civilSub: 'people', // 内政小タブ people|supply|spot
   civilTier: 0,       // 内政全体ボーナス（0..3）
   bankTier: 0,        // 810運用Lv（利息）
+  supplyStock: 0,     // 補給物資 0..5（セーブ互換・旧欠落→0）
+  supplyLmId: null,   // 補給線の終点聖地
+  raidForm: 'std',    // 攻勢編成 std|rush|fort
+  lastReport: null,   // 戦果報告 {day,kills,coins,campDmg,raidDmg,form}
+  _nightKills: 0,
+  _nightCoin0: 0,
+  _nightCamp0: 0,
+  _raidDmgAcc: 0,
   endCut: -1,
   workerTimer: 0,
   // --- 厚バッチ: パネル／ロケ日程／関係／真夏／やりこみ ---
@@ -1470,7 +1479,7 @@ function facilityLv(id) {
   return clamp((state.facility[id] | 0), 0, 2);
 }
 
-/** TD共有タワー名 → 軍事／内政呼称（先輩砲台／部室トリオ／胸ぐらスネア／114514砲／ほら見ろよ見ろよ塔／810銀行／迫真バリケード／810地雷） */
+/** TD共有タワー名 → 軍事／内政呼称（野獣TDトーン寄せ） */
 function miliGunName(tier) {
   const t = tier | 0;
   if (t >= 2) return '114514砲';
@@ -1483,18 +1492,78 @@ function miliGunNameShort(tier) {
   if (t >= 1) return '見ろよ塔';
   return '先輩砲';
 }
+/** 覚醒・編成を反映した表示名（TD：迫真狙い撃ち／サムライブルー／見とけよ狙撃／イキスギ電撃／くっさガス） */
+function miliGunDisplay(u) {
+  const t = (u && u.tier) | 0;
+  const form = state.raidForm || 'std';
+  if (t >= 2) {
+    if (state.awakenA) return 'イキスギ電撃塔';
+    if (form === 'rush') return '114514砲・810焦土';
+    return '114514砲';
+  }
+  if (t >= 1) {
+    if (state.awakenB === 'gas') return 'ほら見ろよ見ろよ塔・くっさガス';
+    if (form === 'fort') return 'ほら見ろよ見ろよ塔・晒し上げ';
+    return 'ほら見ろよ見ろよ塔';
+  }
+  if (state.awakenA) return 'サムライブルー連射塔';
+  if (form === 'rush') return '見とけよ狙撃手';
+  return '先輩砲台';
+}
+function miliGunFlavor(tier) {
+  const t = tier | 0;
+  if (t >= 2) return 'TD：810焦土／円定規／イキスギ電撃';
+  if (t >= 1) return 'TD：晒し上げ／くっさガス／ハエ大群';
+  return 'TD：迫真狙い撃ち／サムライブルー／見とけよ狙撃';
+}
 function miliWallName(level) {
   const lv = level | 0;
   if (lv >= 2) return '迫真石バリケード';
   return '迫真バリケード';
 }
 function miliVanguardName() { return '部室トリオ'; }
+function miliVanguardFlavor() { return 'TD：便乗の輪／ホラホラ声援／観葉植物くん'; }
 function miliSnareName() { return '胸ぐらスネア'; }
+function miliSnareFlavor() { return 'TD：ふっとばし／アイスティー砲／生ビール砲'; }
 function miliMineName() { return '810地雷'; }
+function miliMineFlavor() { return 'TD：114514爆発／ぬるぬる泥床'; }
 function awakenAName() { return 'サムライブルー片鱗'; }
 function awakenBName(id) {
   if (id === 'gas') return 'くっさガス片鱗';
   return 'アイスティー砲片鱗';
+}
+function workerJobName(job) {
+  if (job === 'supply') return '補給線後輩';
+  if (job === 'film') return '撮影配置';
+  if (job === 'cheer') return '迫真応援団';
+  return '集金後輩';
+}
+function workerJobFlavor(job) {
+  if (job === 'supply') return '聖地↔部室の物資　壁修理／熱中症↓';
+  if (job === 'film') return 'ロケ撮影↑　班の絆';
+  if (job === 'cheer') return '砲台間隔↓　後輩の絆（TD応援団）';
+  return 'TD集金後輩　コイン収入';
+}
+function raidFormName(id) {
+  if (id === 'rush') return '突撃編成（見とけよ狙撃寄り）';
+  if (id === 'fort') return '要塞編成（晒し上げ／バリケード）';
+  return '標準編成（迫真狙い撃ち）';
+}
+function raidFormMul() {
+  const f = state.raidForm || 'std';
+  if (f === 'rush') return { dmg: 1.18, wall: 0.92, cd: 0.92 };
+  if (f === 'fort') return { dmg: 0.92, wall: 1.15, cd: 1.06 };
+  return { dmg: 1, wall: 1, cd: 1 };
+}
+function ensureCivilMiliExt() {
+  if (state.supplyStock == null) state.supplyStock = 0;
+  if (state.supplyLmId === undefined) state.supplyLmId = null;
+  if (!state.raidForm) state.raidForm = 'std';
+  if (!state.civilSub) state.civilSub = 'people';
+  if (state._nightKills == null) state._nightKills = 0;
+  if (state._nightCoin0 == null) state._nightCoin0 = 0;
+  if (state._nightCamp0 == null) state._nightCamp0 = 0;
+  if (state._raidDmgAcc == null) state._raidDmgAcc = 0;
 }
 function snareSlowDur() { return 0.45 + Math.min(0.35, (state.miliTier|0) * 0.12) + (state.awakenB === 'gas' ? 0.1 : 0); }
 function snareRange() { return 34 + Math.min(10, (state.miliTier|0) * 3); }
@@ -1606,6 +1675,14 @@ const ACH_DEFS = [
   { id: 'lm_all_ch1', name: '井の頭コンプ', check: () => landmarksForChapter(1).every(L => state.landmarks[L.id]) },
   { id: 'lm_all_ch2', name: '新宿コンプ', check: () => landmarksForChapter(2).every(L => state.landmarks[L.id]) },
   { id: 'ach_half', name: '実績半数', check: () => Object.keys(state.achievements||{}).length >= Math.ceil(ACH_DEFS.length * 0.45) },
+  { id: 'job_supply', name: '補給線後輩配置', check: () => workers.some(w => w.job === 'supply') },
+  { id: 'job_cheer', name: '迫真応援団配置', check: () => workers.some(w => w.job === 'cheer') },
+  { id: 'job_film', name: '撮影配置配置', check: () => workers.some(w => w.job === 'film') },
+  { id: 'supply3', name: '補給物資3', check: () => (state.supplyStock|0) >= 3 },
+  { id: 'form_rush', name: '突撃編成', check: () => state.raidForm === 'rush' },
+  { id: 'form_fort', name: '要塞編成', check: () => state.raidForm === 'fort' },
+  { id: 'report1', name: '戦果報告1回', check: () => !!(state.lastReport) },
+  { id: 'report5', name: '戦果報告5回', check: () => (state._reportsFiled|0) >= 5 },
 ];
 
 // ========== 収集・実績（completionism）語録図鑑／ロケ写真／塔スキン／章隠し ==========
@@ -1643,6 +1720,7 @@ const CODEX_QUOTES = (() => {
     ['qs_kirei', 0, 'share', 'すっごい綺麗…'],
     ['qs_350', 0, 'share', '1日…350円！'],
     ['qs_iikana', 0, 'share', 'いいかな？（念押し）'],
+    ['qs_report', 0, 'share', '戦果報告　撃破と補給の日誌'],
     // 崩壊イベント系フレーバー
     ['qc_hayarase', 3, 'collapse', '流行らせコラ！（世界の催促）'],
     ['qc_arimasu', 2, 'collapse', 'ありますあります（自販機の答え）'],
@@ -2716,11 +2794,18 @@ function openBranchPanel(tab) {
   const _cc = collectCounts();
   ensureHeatState();
   const _hev = heatEventDef(state.heatEvent);
-  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}<br>収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}　隠し${_cc.secret}`;
+  ensureCivilMiliExt();
+  const _jr = {
+    g: workers.filter(w => (w.job||'gather')==='gather').length,
+    s: workers.filter(w => w.job==='supply').length,
+    f: workers.filter(w => w.job==='film').length,
+    c: workers.filter(w => w.job==='cheer').length,
+  };
+  meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}　茶${state.icedTeaStock}麦${state.mugichaStock|0}　補給${state.supplyStock|0}/5<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}<br>民 集金${_jr.g}／補給${_jr.s}／撮影${_jr.f}／応援${_jr.c}　編成${raidFormName(state.raidForm||'std').split('（')[0]}<br>真夏 ${_hev?_hev.name:'—'}　湿度${state.humidity|0}　熱中症${state.heatRisk|0}　収集 実績${_cc.ach}　語録${_cc.codex}　写真${_cc.photo}　塔${_cc.skin}`;
   btns.appendChild(meta);
   title.textContent = ({
-    civil: '【内政パネル】施設・作業員・バス',
-    mili: '【軍事】砲台／トリオ／スネア／地雷／覚醒片鱗',
+    civil: '【内政】民の役割／補給線／施設',
+    mili: '【軍事】TD塔／編成／戦果',
     mission: '【ロケ日程】撮影ミッション',
     bond: '【関係・やりこみ】',
   })[state.panelOpen] || 'パネル';
@@ -2732,6 +2817,23 @@ function openBranchPanel(tab) {
       skin: '【塔スキン】',
       secret: '【章ごとの隠し】',
     })[state.collectSub] || '【収集】';
+  }
+  if (state.panelOpen === 'civil' && state.civilSub) {
+    title.textContent = ({
+      people: '【内政・民の役割】集金／補給／撮影／応援',
+      supply: '【内政・補給線】物資と終点',
+      spot: '【内政・施設】バス／銀行',
+    })[state.civilSub] || title.textContent;
+  }
+  if (state.panelOpen === 'mili' && state.miliSub) {
+    title.textContent = ({
+      west: '【軍事・西】TD塔名寄せ',
+      east: '【軍事・東】TD塔名寄せ',
+      trap: '【軍事・罠／覚醒】スネア・地雷・片鱗',
+      form: '【軍事・攻勢編成】標準／突撃／要塞',
+      raid: '【軍事・侵攻】バスと拠点',
+      report: '【軍事・戦果報告】夜明け日誌',
+    })[state.miliSub] || title.textContent;
   }
   if (state.panelOpen === 'mission') {
     title.textContent = ({
@@ -2767,42 +2869,129 @@ function openBranchPanel(tab) {
   };
 
   if (state.panelOpen === 'civil') {
+    ensureCivilMiliExt();
+    if (!state.civilSub) state.civilSub = 'people';
+    const csub = document.createElement('div');
+    csub.className = 'mili-subtabs';
+    for (const sd of [
+      { id: 'people', label: '民の役割' },
+      { id: 'supply', label: '補給線' },
+      { id: 'spot', label: '施設・バス' },
+    ]) {
+      const sb = document.createElement('button');
+      sb.type = 'button';
+      sb.className = 'mili-sub' + (state.civilSub === sd.id ? ' active' : '');
+      sb.textContent = sd.label;
+      sb.onclick = () => { state.civilSub = sd.id; openBranchPanel('civil'); };
+      csub.appendChild(sb);
+    }
+    btns.appendChild(csub);
+
     const maxW = 2 + Math.min(2, state.civilTier|0);
-    addBtn(`作業員を雇う (${workers.length}/${maxW})`, 3 + workers.length * 2, () => {
-      if (workers.length >= maxW) return false;
-      const unlocked = unlockedLandmarks();
-      let side = Math.random() < 0.5 ? -1 : 1, base = rand(-70,70), lmId = null;
-      if (unlocked.length) {
-        const L = unlocked[unlocked.length - 1];
-        side = L.side; base = L.x + rand(-18,18); lmId = L.id;
+    if (state.civilSub === 'people') {
+      addBtn(`作業員を雇う (${workers.length}/${maxW})　TD集金後輩`, 3 + workers.length * 2, () => {
+        if (workers.length >= maxW) return false;
+        const unlocked = unlockedLandmarks();
+        let side = Math.random() < 0.5 ? -1 : 1, base = rand(-70,70), lmId = null;
+        if (unlocked.length) {
+          const L = unlocked[unlocked.length - 1];
+          side = L.side; base = L.x + rand(-18,18); lmId = L.id;
+        }
+        workers.push({ x: base, y: GROUND_Y, side, bob: rand(0,3), workCd: 2, lmId, job: 'gather' });
+        bumpBond('kohai', 3); bumpBond('crew', 1);
+        try { if (typeof audPlay === 'function') audPlay('coin'); } catch (_) {}
+        toast(pick(LORE.workerHire) + '　' + workerJobName('gather')); return true;
+      }, workers.length < maxW);
+      // 役割切替（既存民）
+      workers.forEach((w, idx) => {
+        const cur = w.job || 'gather';
+        for (const job of ['gather', 'supply', 'film', 'cheer']) {
+          if (job === cur) continue;
+          // 補給は聖地1つ以上必要
+          const can = job !== 'supply' || unlockedCount() >= 1;
+          addBtn(`#${idx+1}→${workerJobName(job)}`, job === 'cheer' || job === 'supply' ? 1 : 0, () => {
+            if (job === 'supply' && unlockedCount() < 1) { toast('聖地が先', 1.5); return false; }
+            w.job = job;
+            if (job === 'supply' && !state.supplyLmId) {
+              const u = unlockedLandmarks();
+              if (u.length) state.supplyLmId = u[u.length - 1].id;
+            }
+            bumpBond(job === 'film' ? 'crew' : job === 'cheer' ? 'kohai' : 'town', 1);
+            try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
+            toast(workerJobName(job) + '　配置', 2.0);
+            story(workerJobFlavor(job), 2.0);
+            checkAchievements();
+            return true;
+          }, can);
+        }
+      });
+      if (!workers.length) addBtn('民がいない　まず雇う', 0, () => false, false);
+    } else if (state.civilSub === 'supply') {
+      const stock = state.supplyStock | 0;
+      addBtn(`補給物資 ${stock}/5　${state.supplyLmId ? '線・稼働中' : '終点未設定'}`, 0, () => {
+        toast(workerJobFlavor('supply'), 2.0); return false;
+      }, false);
+      for (const L of unlockedLandmarks()) {
+        const on = state.supplyLmId === L.id;
+        addBtn(`${on ? '✓' : ''}補給線終点→${L.short}`, on ? 0 : 1, () => {
+          state.supplyLmId = L.id;
+          // 供給役がいなければ1人切替提案は雇い済みから
+          const s = workers.find(w => w.job === 'supply') || workers[0];
+          if (s) { s.job = 'supply'; s.lmId = L.id; }
+          bumpBond('town', 2);
+          try { if (typeof audPlay === 'function') audPlay('coin'); } catch (_) {}
+          toast(`補給線　部室↔${L.short}`, 2.4);
+          story('物資が往復する　壁が息を吹き返す', 2.2);
+          checkAchievements();
+          return true;
+        }, !on);
       }
-      workers.push({ x: base, y: GROUND_Y, side, bob: rand(0,3), workCd: 2, lmId, job: 'gather' });
-      bumpBond('kohai', 3); bumpBond('crew', 1);
-      toast(pick(LORE.workerHire)); return true;
-    }, workers.length < maxW);
-    if (state.civilTier < 3 && unlockedCount() >= 1) {
-      addBtn(`内政整備 Lv${state.civilTier}→${state.civilTier+1}`, 4 + state.civilTier * 3, () => {
-        state.civilTier++; toast(pick(LORE.civilUp)); return true;
-      });
-    }
-    if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
-      addBtn(`810銀行運用 Lv${state.bankTier}→${state.bankTier+1}`, 3 + state.bankTier * 2, () => {
-        state.bankTier++; toast(pick(LORE.civilUp)); return true;
-      });
-    }
-    for (const L of unlockedLandmarks()) {
-      const lv = facilityLv(L.id);
-      if (lv < 2) addBtn(`${L.short}施設 Lv${lv}→${lv+1}`, 3 + lv * 3, () => {
-        state.facility[L.id] = lv + 1; bumpBond('town', 2); toast(pick(LORE.civilUp)); return true;
-      });
-      if (!state.bus) addBtn(`ロケバス発車→${L.short}`, 1, () => {
-        startLocationBus(0, L.id, false, 'civil'); bumpBond('crew', 1); return true;
-      });
-    }
-    if (!state.bus && unlockedCount()) {
-      addBtn('自動巡回タイマー短縮（整備）', 2, () => {
-        state.busAutoT = Math.min(state.busAutoT|0, 4); toast('バス早めに出る', 2.0); return true;
-      });
+      if (stock >= 1) {
+        addBtn(`物資消費で壁応急＋湿度↓ (${stock})`, 0, () => {
+          if ((state.supplyStock | 0) < 1) return false;
+          state.supplyStock--;
+          for (const wall of [structures.leftWall, structures.rightWall]) {
+            if (wall.level >= 1 && wall.hp < wall.maxHp) wall.hp = Math.min(wall.maxHp, wall.hp + 12);
+          }
+          state.humidity = clamp((state.humidity | 0) - 4, 0, 100);
+          state.heatRisk = clamp((state.heatRisk | 0) - 5, 0, 100);
+          bumpBond('crew', 1);
+          try { if (typeof audPlay === 'function') audPlay('day'); } catch (_) {}
+          toast('補給投下　壁応急／熱中症↓', 2.2);
+          return true;
+        });
+      }
+      if (state.civilTier < 3 && unlockedCount() >= 1) {
+        addBtn(`内政整備 Lv${state.civilTier}→${state.civilTier+1}`, 4 + state.civilTier * 3, () => {
+          state.civilTier++; toast(pick(LORE.civilUp)); return true;
+        });
+      }
+    } else {
+      // spot: 施設・バス・銀行
+      if (state.civilTier < 3 && unlockedCount() >= 1) {
+        addBtn(`内政整備 Lv${state.civilTier}→${state.civilTier+1}`, 4 + state.civilTier * 3, () => {
+          state.civilTier++; toast(pick(LORE.civilUp)); return true;
+        });
+      }
+      if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
+        addBtn(`810銀行運用 Lv${state.bankTier}→${state.bankTier+1}`, 3 + state.bankTier * 2, () => {
+          state.bankTier++; toast(pick(LORE.civilUp)); return true;
+        });
+      }
+      for (const L of unlockedLandmarks()) {
+        const lv = facilityLv(L.id);
+        if (lv < 2) addBtn(`${L.short}施設 Lv${lv}→${lv+1}`, 3 + lv * 3, () => {
+          state.facility[L.id] = lv + 1; bumpBond('town', 2); toast(pick(LORE.civilUp)); return true;
+        });
+        if (!state.bus) addBtn(`ロケバス発車→${L.short}`, 1, () => {
+          startLocationBus(0, L.id, false, 'civil'); bumpBond('crew', 1); return true;
+        });
+      }
+      if (!state.bus && unlockedCount()) {
+        addBtn('自動巡回タイマー短縮（整備）', 2, () => {
+          state.busAutoT = Math.min(state.busAutoT|0, 4); toast('バス早めに出る', 2.0); return true;
+        });
+      }
     }
   }
 
@@ -2815,7 +3004,9 @@ function openBranchPanel(tab) {
       { id: 'west', label: '西' },
       { id: 'east', label: '東' },
       { id: 'trap', label: '罠・覚醒' },
+      { id: 'form', label: '編成' },
       { id: 'raid', label: '侵攻' },
+      { id: 'report', label: '戦果' },
     ];
     for (const sd of subDefs) {
       const sb = document.createElement('button');
@@ -2846,8 +3037,12 @@ function openBranchPanel(tab) {
         const guns = units.filter(u => u.side===side && (u.role||'gun')!=='vanguard');
         if (guns.length < gMax) addBtn(`${sideJa}${miliGunNameShort(0)}設置 (${guns.length}/${gMax})`, 4 + guns.length * 2, () => {
           if (units.filter(u => u.side===side && (u.role||'gun')!=='vanguard').length >= gMax) return false;
-          units.push({ side, role:'gun', tier:0, x: wall.x+(side==='left'?20:-20)+rand(-6,6), y:GROUND_Y, cooldown:1, hp:1, meme:pick(LORE.hireMeme) });
-          bumpBond('kohai', 2); toast(miliGunName(0)+'　'+pick(LORE.hire)); return true;
+          const nu = { side, role:'gun', tier:0, x: wall.x+(side==='left'?20:-20)+rand(-6,6), y:GROUND_Y, cooldown:1, hp:1, meme:pick(LORE.hireMeme) };
+          units.push(nu);
+          bumpBond('kohai', 2);
+          toast(miliGunDisplay(nu)+'　'+pick(LORE.hire));
+          story(miliGunFlavor(0), 1.8);
+          return true;
         });
         // 一括強化：最安の未MAX砲を1段階
         const upgable = guns.filter(g => (g.tier|0) < 2);
@@ -2855,13 +3050,24 @@ function openBranchPanel(tab) {
           const g = upgable.sort((a,b)=>(a.tier|0)-(b.tier|0))[0];
           const next = (g.tier|0)+1;
           addBtn(`${sideJa}砲強化→${miliGunNameShort(next)} (残${upgable.length})`, 3+(g.tier|0)*2, () => {
-            g.tier = next; toast(miliGunName(g.tier)+'　強化'); return true;
+            g.tier = next;
+            toast(miliGunDisplay(g)+'　強化');
+            story(miliGunFlavor(g.tier), 1.8);
+            checkAchievements();
+            return true;
           });
+        }
+        if (guns.length) {
+          addBtn(`${sideJa}配備: ` + guns.map(g => miliGunDisplay(g)).join('／'), 0, () => {
+            toast(miliGunFlavor(guns[0].tier|0), 2.0); return false;
+          }, false);
         }
         const vans = units.filter(u => u.side===side && u.role==='vanguard');
         if (vans.length < 1) addBtn(`${sideJa}${miliVanguardName()}`, 5, () => {
           units.push({ side, role:'vanguard', tier:0, x:wall.x+(side==='left'?35:-35), y:GROUND_Y, cooldown:99, hp:1, meme:miliVanguardName() });
-          toast(miliVanguardName()+'　編成'); return true;
+          toast(miliVanguardName()+'　編成');
+          story(miliVanguardFlavor(), 1.8);
+          return true;
         });
         if (wall.hp < wall.maxHp) addBtn(`${sideJa}修理 HP${wall.hp|0}/${wall.maxHp|0}`, 2, () => {
           wall.hp = Math.min(wall.maxHp, wall.hp+25); return true;
@@ -2891,7 +3097,9 @@ function openBranchPanel(tab) {
         const wall = side === 'left' ? structures.leftWall : structures.rightWall;
         const x = (wall.level > 0 ? wall.x : (side==='left'?-120:120)) + (side==='left'?40:-40);
         state.snares.push({ x, side });
-        toast(miliSnareName()+'　設置', 2.0); spawnMeme(x, GROUND_Y - 40, 'スネア'); return true;
+        toast(miliSnareName()+'　設置', 2.0);
+        story(miliSnareFlavor(), 1.6);
+        spawnMeme(x, GROUND_Y - 40, 'スネア'); return true;
       });
       const mn = state.mines || [];
       const mMax = mineMax();
@@ -2901,7 +3109,9 @@ function openBranchPanel(tab) {
         let x = rand(-160, 160);
         for (let t=0;t<6;t++){ const c=rand(-170,170); if(state.mines.every(m=>Math.abs(m.x-c)>36)){x=c;break;} }
         state.mines.push({ x, armed: true });
-        toast(miliMineName()+'　埋設（夜）', 2.0); spawnMeme(x, GROUND_Y - 30, '810'); return true;
+        toast(miliMineName()+'　埋設（夜）', 2.0);
+        story(miliMineFlavor(), 1.6);
+        spawnMeme(x, GROUND_Y - 30, '810'); return true;
       });
       if (state.miliTier < 3 && (units.length >= 1 || state.assault || sn.length || mn.length)) {
         addBtn(`軍事教練 Lv${state.miliTier}→${state.miliTier+1}`, 4 + state.miliTier * 3, () => {
@@ -2941,7 +3151,31 @@ function openBranchPanel(tab) {
       } else {
         addBtn(`✓${awakenBName(state.awakenB)}　発動中`, 0, () => { toast('覚醒B稼働中', 1.4); return false; }, false);
       }
+    } else if (state.miliSub === 'form') {
+      ensureCivilMiliExt();
+      for (const fid of ['std', 'rush', 'fort']) {
+        const on = (state.raidForm || 'std') === fid;
+        addBtn(`${on ? '✓' : ''}${raidFormName(fid)}`, on ? 0 : 2, () => {
+          state.raidForm = fid;
+          try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
+          toast(raidFormName(fid) + '　採用', 2.2);
+          story('攻勢編成が塔名トーンを寄せる（TD名寄せ）', 2.0);
+          checkAchievements();
+          return true;
+        }, !on);
+      }
+      addBtn('標準＝迫真狙い撃ち　突撃＝見とけよ狙撃　要塞＝晒し上げ', 0, () => false, false);
+      const form = raidFormMul();
+      addBtn(`補正 ダメージ×${form.dmg.toFixed(2)}　壁耐久×${form.wall.toFixed(2)}　砲間隔×${form.cd.toFixed(2)}`, 0, () => false, false);
+      if (state.miliTier < 3 && (units.length >= 1 || state.assault)) {
+        addBtn(`軍事教練 Lv${state.miliTier}→${state.miliTier+1}`, 4 + state.miliTier * 3, () => {
+          state.miliTier++; toast(pick(LORE.miliUp)); return true;
+        });
+      }
     } else if (state.miliSub === 'raid') {
+      addBtn(`現編成: ${raidFormName(state.raidForm||'std').split('（')[0]}　補給${state.supplyStock|0}`, 0, () => {
+        state.miliSub = 'form'; openBranchPanel('mili'); return false;
+      }, false);
       if ((state.assault || activeOutposts().length) && !state.bus) {
         for (const op of activeOutposts()) {
           addBtn(`侵攻→${op.short} HP${op.hp|0}`, 3 + (state.chapter|0) * 2, () => {
@@ -2958,6 +3192,21 @@ function openBranchPanel(tab) {
           state.miliTier++; toast(pick(LORE.miliUp)); return true;
         });
       }
+    } else if (state.miliSub === 'report') {
+      const r = state.lastReport;
+      if (!r) {
+        addBtn('戦果なし　夜を越えると自動報告', 0, () => false, false);
+      } else {
+        addBtn(`Day${r.day}　撃破${r.kills}　＋🪙${r.coins}　部室傷${r.campDmg}`, 0, () => {
+          story(`【戦果】${raidFormName(r.form||'std')}　撃破${r.kills}　侵攻ダメ${r.raidDmg|0}`, 2.4);
+          try { if (typeof audPlay === 'function') audPlay('day'); } catch (_) {}
+          return false;
+        }, false);
+        if (r.raidDmg) addBtn(`侵攻累計ダメ ${r.raidDmg}`, 0, () => false, false);
+        if (r.jobs) addBtn(`民内訳 集金${r.jobs.gather|0}/補給${r.jobs.supply|0}/撮影${r.jobs.film|0}/応援${r.jobs.cheer|0}`, 0, () => false, false);
+        addBtn(`補給残 ${r.supply|0}　報告累計${state._reportsFiled|0}`, 0, () => false, false);
+      }
+      addBtn('夜→朝で自動戦果　関係・任務・音と連動', 0, () => false, false);
     }
   }
 
@@ -4196,7 +4445,49 @@ function archerCdMul() {
   m *= Math.max(0.72, 1 - (state.miliTier | 0) * 0.07);
   m *= Math.max(0.9, 1 - ((state.bond && state.bond.kohai)|0) / 800);
   if (state.awakenA) m *= 0.78; // サムライブルー片鱗：連射
+  // 迫真応援団：砲台付近にいると間隔↓（TD応援団トーン）
+  const cheers = workers.filter(w => w.job === 'cheer').length;
+  if (cheers) m *= Math.max(0.82, 1 - cheers * 0.06);
+  // 攻勢編成
+  try { m *= (raidFormMul().cd || 1); } catch (_) {}
   return m;
+}
+
+function noteKill() {
+  if (state.isNight) state._nightKills = (state._nightKills | 0) + 1;
+}
+
+function fileBattleReport() {
+  ensureCivilMiliExt();
+  const kills = state._nightKills | 0;
+  const coinsG = Math.max(0, (state.coins | 0) - (state._nightCoin0 | 0));
+  const campD = Math.max(0, (state._nightCamp0 | 0) - (structures.campfire.hp | 0));
+  const raidD = state._raidDmgAcc | 0;
+  const form = state.raidForm || 'std';
+  state.lastReport = {
+    day: state.day | 0,
+    kills, coins: coinsG, campDmg: campD, raidDmg: raidD, form,
+    supply: state.supplyStock | 0,
+    jobs: {
+      gather: workers.filter(w => (w.job || 'gather') === 'gather').length,
+      supply: workers.filter(w => w.job === 'supply').length,
+      film: workers.filter(w => w.job === 'film').length,
+      cheer: workers.filter(w => w.job === 'cheer').length,
+    },
+  };
+  state._reportsFiled = (state._reportsFiled | 0) + 1;
+  state._nightKills = 0;
+  state._raidDmgAcc = 0;
+  const r = state.lastReport;
+  const line = `戦果 Day${r.day}　撃破${r.kills}　＋🪙${r.coins}　部室傷${r.campDmg}` + (r.raidDmg ? `　侵攻${r.raidDmg}` : '');
+  toast(line, 3.4);
+  story(`【戦果報告】${raidFormName(r.form)}　${line}`, 3.2);
+  try { if (typeof audPlay === 'function') audPlay('day'); } catch (_) {}
+  if (r.kills >= 3) bumpBond('kohai', 1);
+  if (r.campDmg === 0 && r.kills >= 1) bumpBond('crew', 1);
+  if ((r.jobs && r.jobs.supply) > 0 && (r.supply|0) >= 1) bumpBond('town', 1);
+  try { unlockCodexId('qs_report', true); } catch (_) {}
+  checkAchievements();
 }
 
 
@@ -5133,6 +5424,11 @@ const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '�
 function startNight() {
   state.isNight = true;
   state.dayTimer = 0;
+  ensureCivilMiliExt();
+  state._nightKills = 0;
+  state._nightCoin0 = state.coins | 0;
+  state._nightCamp0 = structures.campfire.hp | 0;
+  state._raidDmgAcc = state._raidDmgAcc | 0;
   saveGame(true);
   screenFlash('rgba(40,20,80,0.35)', 0.35);
   shake(2, 0.2);
@@ -5489,6 +5785,14 @@ function buildSaveBlob() {
     weeklyDone: Object.assign({}, state.weeklyDone || {}),
     chapterQuest: state.chapterQuest ? Object.assign({}, state.chapterQuest) : null,
     chapterQuestDone: Object.assign({}, state.chapterQuestDone || {}),
+    // 文民／軍事パネル拡張（旧セーブ欠落→applyで既定）
+    miliSub: state.miliSub || 'west',
+    civilSub: state.civilSub || 'people',
+    supplyStock: state.supplyStock | 0,
+    supplyLmId: state.supplyLmId || null,
+    raidForm: state.raidForm === 'rush' || state.raidForm === 'fort' ? state.raidForm : 'std',
+    lastReport: state.lastReport ? Object.assign({}, state.lastReport) : null,
+    _reportsFiled: state._reportsFiled | 0,
     savedAt: Date.now(),
   };
 }
@@ -5564,9 +5868,19 @@ function applySave(d) {
   state.mines = Array.isArray(d.mines) ? d.mines.map(m => ({ x: +m.x || 0, armed: m.armed !== false })) : [];
   state.awakenA = !!d.awakenA;
   state.awakenB = (d.awakenB === 'gas' || d.awakenB === 'iced') ? d.awakenB : null;
-  state.miliSub = (d.miliSub === 'east' || d.miliSub === 'trap' || d.miliSub === 'raid') ? d.miliSub : 'west';
+  state.miliSub = (d.miliSub === 'east' || d.miliSub === 'trap' || d.miliSub === 'raid' || d.miliSub === 'form' || d.miliSub === 'report') ? d.miliSub : 'west';
+  state.civilSub = (d.civilSub === 'supply' || d.civilSub === 'spot') ? d.civilSub : 'people';
   state.civilTier = clamp(d.civilTier | 0, 0, 3);
   state.bankTier = clamp(d.bankTier | 0, 0, 3);
+  state.supplyStock = clamp(d.supplyStock | 0, 0, 5);
+  state.supplyLmId = d.supplyLmId || null;
+  state.raidForm = (d.raidForm === 'rush' || d.raidForm === 'fort') ? d.raidForm : 'std';
+  state.lastReport = d.lastReport ? Object.assign({}, d.lastReport) : null;
+  state._reportsFiled = Math.max(0, d._reportsFiled | 0);
+  state._nightKills = 0;
+  state._nightCoin0 = state.coins | 0;
+  state._nightCamp0 = 100;
+  state._raidDmgAcc = 0;
   // 旧セーブ欠落フィールドは安全既定
   state.bond = {
     kohai: clamp((d.bond && d.bond.kohai) | 0, 0, 100),
@@ -5651,7 +5965,7 @@ function applySave(d) {
       x: +w.x || 0, y: GROUND_Y, side: w.side || 0,
       bob: rand(0, 3), workCd: rand(1, 3),
       lmId: w.lmId || null,
-      job: w.job || 'gather',
+      job: (w.job === 'supply' || w.job === 'film' || w.job === 'cheer') ? w.job : 'gather',
     });
   }
   state.killCombo = 0; state.comboTimer = 0; state.gazeT = 0;
@@ -5738,8 +6052,18 @@ function resetGame() {
   state.awakenA = false;
   state.awakenB = null;
   state.miliSub = 'west';
+  state.civilSub = 'people';
   state.civilTier = 0;
   state.bankTier = 0;
+  state.supplyStock = 0;
+  state.supplyLmId = null;
+  state.raidForm = 'std';
+  state.lastReport = null;
+  state._reportsFiled = 0;
+  state._nightKills = 0;
+  state._nightCoin0 = 0;
+  state._nightCamp0 = 0;
+  state._raidDmgAcc = 0;
   state.endCut = -1;
   state.workerTimer = 0;
   state.panelOpen = null;
@@ -5913,6 +6237,7 @@ function update(dt) {
     if (state.isNight) {
       // 朝へ
       enemies.length = 0; // 残敵逃走
+      try { fileBattleReport(); } catch (_) {}
       state.day++;
       startDay();
       winCheck();
@@ -6045,18 +6370,60 @@ function update(dt) {
         w.x += (target - w.x) * Math.min(1, dt * 1.4);
       }
       if (w.workCd <= 0) {
-        w.workCd = 4.5 + rand(0, 2);
-        // 地面にコイン or 直接収入（軽め）
-        const pay = 1 + (facilityLv(w.lmId) >= 2 ? 1 : 0) + ((state.civilTier | 0) >= 2 && Math.random() < 0.35 ? 1 : 0) + (Math.random() < bondMul('kohai') - 1 ? 1 : 0);
-        if (Math.random() < 0.55) {
-          dropCoin(w.x + rand(-12, 12), pay);
+        const job = w.job || 'gather';
+        w.workCd = (job === 'supply' ? 5.5 : job === 'cheer' ? 6.0 : job === 'film' ? 5.0 : 4.5) + rand(0, 2);
+        if (job === 'supply') {
+          // 補給線：物資蓄積＋壁微回復＋熱中症↓
+          if ((state.supplyStock | 0) < 5 && Math.random() < 0.55 + (state.civilTier|0) * 0.08) {
+            state.supplyStock = Math.min(5, (state.supplyStock | 0) + 1);
+            spawnMeme(w.x, GROUND_Y - 40, '補給+');
+            if ((state.supplyStock | 0) >= 3) checkAchievements();
+          }
+          const tgtLm = state.supplyLmId || w.lmId;
+          if (tgtLm) w.lmId = tgtLm;
+          for (const wall of [structures.leftWall, structures.rightWall]) {
+            if (wall.level >= 1 && wall.hp < wall.maxHp && Math.random() < 0.35) {
+              wall.hp = Math.min(wall.maxHp, wall.hp + 2);
+            }
+          }
+          if (Math.random() < 0.3) {
+            state.heatRisk = clamp((state.heatRisk | 0) - 1, 0, 100);
+          }
+          if (Math.random() < 0.2) bumpBond('town', 1);
+        } else if (job === 'film') {
+          if (Math.random() < 0.4) {
+            state.filmShots = (state.filmShots | 0) + 1;
+            spawnMeme(w.x, GROUND_Y - 40, '📷');
+            if (Math.random() < 0.35) bumpBond('crew', 1);
+            try {
+              if (state.mission && state.mission.kind === 'film') {
+                state.mission.progress = Math.min(state.mission.need|0, (state.mission.progress|0) + 1);
+              }
+            } catch (_) {}
+          } else {
+            spawnMeme(w.x, GROUND_Y - 40, 'ロケ');
+          }
+        } else if (job === 'cheer') {
+          spawnMeme(w.x, GROUND_Y - 40, pick(['応援!', 'やりますねぇ', 'ホラホラ']));
+          if (Math.random() < 0.25) bumpBond('kohai', 1);
+          // 隣接砲のクール微短縮
+          for (const u of units) {
+            if ((u.role || 'gun') === 'vanguard') continue;
+            if (Math.abs(u.x - w.x) < 90) u.cooldown = Math.max(0, (u.cooldown || 0) - 0.15);
+          }
         } else {
-          state.coins += pay;
-          spawnMeme(w.x, GROUND_Y - 40, pick(LORE.workerWork));
+          // 集金後輩（TD）
+          const pay = 1 + (facilityLv(w.lmId) >= 2 ? 1 : 0) + ((state.civilTier | 0) >= 2 && Math.random() < 0.35 ? 1 : 0) + (Math.random() < bondMul('kohai') - 1 ? 1 : 0);
+          if (Math.random() < 0.55) {
+            dropCoin(w.x + rand(-12, 12), pay);
+          } else {
+            state.coins += pay;
+            spawnMeme(w.x, GROUND_Y - 40, pick(LORE.workerWork));
+          }
         }
         if (Math.random() < 0.25) pushFx({
           type: 'spark', x: w.x, y: GROUND_Y - 20, vx: rand(-10,10), vy: -40,
-          t: 0, life: 0.4, color: '#ffd700', size: 2,
+          t: 0, life: 0.4, color: job === 'supply' ? '#8cf' : job === 'cheer' ? '#f8a' : '#ffd700', size: 2,
         });
       }
     }
@@ -6152,6 +6519,7 @@ function update(dt) {
           if (e.isTaka && Math.random() < 0.5) dropCoin(e.x, 1);
           onSacredKill();
           bestiaryKill(e.name || '?');
+          noteKill();
           if (e.isBoss) bumpBond('kohai', 3);
           checkAchievements();
           spawnKillEcho(e.x, GROUND_Y, e.isBoss || e.isMur);
@@ -6225,7 +6593,15 @@ function update(dt) {
     e.attackCd -= dt;
     if (wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20) {
       if (e.attackCd <= 0) {
-        wall.hp -= 3 + Math.floor(state.day * 0.85);
+        let wd = 3 + Math.floor(state.day * 0.85);
+        try { wd = Math.max(1, Math.round(wd / (raidFormMul().wall || 1))); } catch (_) {}
+        // 補給物資があれば被弾軽減
+        if ((state.supplyStock | 0) > 0 && Math.random() < 0.2) {
+          state.supplyStock--;
+          wd = Math.max(1, Math.floor(wd * 0.7));
+          spawnMeme(wall.x, GROUND_Y - 62, '補給防');
+        }
+        wall.hp -= wd;
         e.attackCd = 0.9;
         spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
         spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
@@ -6245,7 +6621,9 @@ function update(dt) {
     } else if (Math.abs(e.x - 0) < 28) {
       // たき火ダメージ
       if (e.attackCd <= 0) {
-        structures.campfire.hp -= 6 + Math.floor(state.day * 0.9);
+        let cdmg = 6 + Math.floor(state.day * 0.9);
+        try { cdmg = Math.max(1, Math.round(cdmg / (raidFormMul().wall || 1))); } catch (_) {}
+        structures.campfire.hp -= cdmg;
         e.attackCd = 0.8;
         const cl = pick(LORE.campHit);
         spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
@@ -6992,10 +7370,44 @@ function draw() {
     drawCoin(wx(c.x), c.y);
   }
 
+  // 補給線（部室↔聖地）
+  if (state.supplyLmId && workers.some(w => w.job === 'supply')) {
+    const Lm = landmarkById(state.supplyLmId);
+    if (Lm) {
+      const x0 = wx(0), x1 = wx(Lm.x), y = GROUND_Y - 6;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(120,200,255,0.45)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x1, y - 8);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 物資パルス
+      const t = (state.animT || 0) * 0.35;
+      const px = x0 + (x1 - x0) * ((t % 1 + 1) % 1);
+      ctx.fillStyle = '#8cf';
+      ctx.beginPath();
+      ctx.arc(px, y - 8, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
   // 作業員
   for (const w of workers) {
     drawSoftShadow(wx(w.x), GROUND_Y, 9, 0.2);
     drawWorker(wx(w.x), GROUND_Y, w);
+    const job = w.job || 'gather';
+    if (job !== 'gather') {
+      ctx.save();
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = job === 'supply' ? '#8cf' : job === 'cheer' ? '#f8a' : '#fea';
+      ctx.globalAlpha = 0.85;
+      ctx.fillText(job === 'supply' ? '補給' : job === 'cheer' ? '応援' : '撮影', wx(w.x), GROUND_Y - 38);
+      ctx.restore();
+    }
   }
   // ユニット
   for (const u of units) {
@@ -7462,27 +7874,44 @@ function startLocationBus(fromXOrCamp, toId, quiet, mode) {
 function startRaidBus(opId) {
   const op = (state.outposts || []).find(o => o.id === opId && !o.cleared);
   if (!op || state.bus) return false;
-  const cargoW = workers.filter(w => Math.abs(w.x) < 200 || Math.abs(w.x - op.x) < 200).slice(0, 2);
-  const vans = units.filter(u => u.role === 'vanguard');
+  // 補給線／応援優先で積み込み
+  const ranked = workers.slice().sort((a, b) => {
+    const score = (w) => (w.job === 'supply' ? 3 : w.job === 'cheer' ? 2 : w.job === 'film' ? 1 : 0);
+    return score(b) - score(a);
+  });
+  const cargoW = ranked.filter(w => Math.abs(w.x) < 220 || Math.abs(w.x - op.x) < 220).slice(0, 2);
+  let vans = units.filter(u => u.role === 'vanguard');
+  const form = state.raidForm || 'std';
+  if (form === 'rush') vans = vans.slice(0, Math.max(1, vans.length)); // 全先鋒
+  if (form === 'fort') vans = vans.slice(0, 1); // 守り寄り・先鋒1
   state.bus = {
     mode: 'raid',
     x: 0, tx: op.x,
     fromId: 'camp', toId: opId, t: 0,
     cargo: cargoW, vans, returning: false, opId: op.id,
+    form,
   };
-  toast(pick(LORE.assaultOpen));
-  story(`【軍事】侵攻バス　→${op.short}`, 2.2);
-  spawnMeme(0, GROUND_Y - 55, '侵攻!');
+  try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
+  toast(pick(LORE.assaultOpen) + '　' + raidFormName(form).split('（')[0]);
+  story(`【軍事】侵攻バス　→${op.short}　${raidFormName(form)}`, 2.4);
+  spawnMeme(0, GROUND_Y - 55, form === 'rush' ? '突撃!' : form === 'fort' ? '堅守侵攻' : '侵攻!');
   screenFlash('rgba(255,80,40,0.15)', 0.2);
   return true;
 }
 
 function damageOutpost(op, dmg) {
   if (!op || op.cleared) return;
-  // 関係・軍事で実ダメージ微増
-  const mul = 1 + (state.miliTier|0) * 0.05 + ((state.bond && state.bond.crew)|0) / 500;
+  // 関係・軍事・攻勢編成で実ダメージ微増
+  const form = raidFormMul();
+  const supplyBonus = Math.min(0.12, (state.supplyStock | 0) * 0.03);
+  const mul = (1 + (state.miliTier|0) * 0.05 + ((state.bond && state.bond.crew)|0) / 500 + supplyBonus) * (form.dmg || 1);
   const real = Math.max(1, Math.round(dmg * mul));
   op.hp = Math.max(0, op.hp - real);
+  state._raidDmgAcc = (state._raidDmgAcc | 0) + real;
+  // 補給消費（侵攻成功片鱗）
+  if ((state.supplyStock | 0) > 0 && Math.random() < 0.45) {
+    state.supplyStock = Math.max(0, (state.supplyStock | 0) - 1);
+  }
   toast(pick(LORE.outpostHit) + ` −${real}`, 2.2);
   spawnMeme(op.x, GROUND_Y - 60, '-' + real);
   shake(3, 0.15);
@@ -7667,6 +8096,7 @@ function tickMiliGadgets(dt) {
           if (e.hp <= 0) {
             bestiaryKill(e.name || '?');
             onSacredKill();
+            noteKill();
             if (Math.random() < 0.4) dropCoin(e.x, 1);
             enemies.splice(j, 1);
           }
@@ -7705,6 +8135,7 @@ function tickMiliGadgets(dt) {
         spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
         bestiaryKill(e.name || '後輩');
         onSacredKill();
+        noteKill();
         if (Math.random() < 0.55) dropCoin(e.x, 1);
         checkAchievements();
         enemies.splice(j, 1);
