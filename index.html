@@ -348,7 +348,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-const SPR = { senpai: null, kohai: null, icon: null, ready: 0 };
+const SPR = { senpai: null, kohai: null, icon: null, tono: null, ready: 0 };
 function loadSpr(key, src) {
   const im = new Image();
   im.onload = () => { SPR[key] = im; SPR.ready++; };
@@ -358,6 +358,7 @@ function loadSpr(key, src) {
 loadSpr('senpai', 'assets/senpai_pixel.png');
 loadSpr('kohai', 'assets/kohai_pixel.png');
 loadSpr('icon', 'assets/senpai_icon.png');
+loadSpr('tono', 'assets/tono_smile_pixel.png');
 
 const W = canvas.width, H = canvas.height;
 const GROUND_Y = 380;
@@ -810,20 +811,15 @@ function archerCdMul() {
   return m;
 }
 
+
 // =========================================================
-// CRONWS風・微細ドット／フレームアニメ
-// nearest-neighbor 拡大、歩き／攻撃／夜揺らぎ
+// CRONWS級・微細ドット／陰影・アウトライン／多フレーム
 // =========================================================
-const PX = {
-  // 1マス=1論理px。描画時 scale で nearest 拡大
-  scale: 3,
-};
+const PX = { scale: 2 };
 
 function blitPixels(ox, oy, grid, palette, scale, flipX) {
-  // grid: 文字列配列。palette: char->css
-  const s = scale || PX.scale;
-  const h = grid.length;
-  const w = grid[0].length;
+  const s = scale == null ? PX.scale : scale;
+  const h = grid.length, w = grid[0].length;
   for (let y = 0; y < h; y++) {
     const row = grid[y];
     for (let x = 0; x < w; x++) {
@@ -833,128 +829,241 @@ function blitPixels(ox, oy, grid, palette, scale, flipX) {
       if (!col) continue;
       const dx = flipX ? (w - 1 - x) : x;
       ctx.fillStyle = col;
-      ctx.fillRect(Math.floor(ox + dx * s), Math.floor(oy + y * s), s, s);
+      ctx.fillRect((ox + dx * s) | 0, (oy + y * s) | 0, s, s);
     }
   }
 }
 
-const PAL_BODY = {
-  K: '#1a1a1a', B: '#2e2e2e', S: '#e8b898', D: '#c49a78',
-  G: '#ffd700', R: '#ff6b9d', W: '#f4f4f4', N: '#111111',
-  A: '#3a5a8a', C: '#5a3a20', F: '#ff6600', Y: '#ffcc33',
-  U: '#fff2a8', M: '#6a4060', E: '#2a1030', Z: '#f44',
-  T: '#8b5a2b', H: '#7a7a7a', P: '#4a4a4a', L: '#c8a060',
-  O: '#446688', X: '#ff88aa',
-};
+function blitOutlined(ox, oy, grid, palette, scale, flipX, outlineCol) {
+  const s = scale == null ? PX.scale : scale;
+  const h = grid.length, w = grid[0].length;
+  const oc = outlineCol || '#140a10';
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ch = grid[y][x];
+      if (ch === '.' || ch === ' ') continue;
+      if (!palette[ch] && ch !== '#') continue;
+      for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
+        const nx = x + dx, ny = y + dy;
+        let empty = nx < 0 || ny < 0 || nx >= w || ny >= h;
+        if (!empty) {
+          const nch = grid[ny][nx];
+          empty = (nch === '.' || nch === ' ');
+        }
+        if (empty) {
+          const sx = flipX ? (w - 1 - nx) : nx;
+          ctx.fillStyle = oc;
+          ctx.fillRect((ox + sx * s) | 0, (oy + ny * s) | 0, s, s);
+        }
+      }
+    }
+  }
+  blitPixels(ox, oy, grid, palette, s, flipX);
+}
 
-// 先輩歩き 2フレ（体のみ・顔はSPR）
-const FR_WALK = [
-  [
-    '..GGGGGG..',
-    '.G.GGGG.G.',
-    '..SSSSSS..',
-    '.SSSSSSSS.',
-    '..BBBBBB..',
-    '..BBBBBB..',
-    '..BB..BB..',
-    '..BB..BB..',
-  ],
-  [
-    '..GGGGGG..',
-    '.G.GGGG.G.',
-    '..SSSSSS..',
-    '.SSSSSSSS.',
-    '..BBBBBB..',
-    '..BBBBBB..',
-    '.BB....BB.',
-    'BB......BB',
-  ],
-];
-const FR_IDLE = [
-  [
-    '..GGGGGG..',
-    '.G.GGGG.G.',
-    '..SSSSSS..',
-    '.SSSSSSSS.',
-    '..BBBBBB..',
-    '..BBBBBB..',
-    '..BB..BB..',
-    '..BB..BB..',
-  ],
-];
-const FR_ARCH = [
-  [
-    '...AAAA...',
-    '..AAAAAA..',
-    '..SSSSSS..',
-    '..AAAAAA..',
-    '..AA..AA..',
-  ],
-  [
-    '...AAAA...',
-    '..AAAAAA..',
-    '..SSSSSS..',
-    '.LAAAAAA..',
-    '..AA..AA..',
-  ],
-];
-const FR_ENEMY = [
-  [
-    '..MMMMMM..',
-    '.MMMMMMMM.',
-    '.M.Z..Z.M.',
-    '..EEEEEE..',
-    '..EE..EE..',
-  ],
-  [
-    '..MMMMMM..',
-    '.MMMMMMMM.',
-    '.M.Z..Z.M.',
-    '..EEEEEE..',
-    '.EE....EE.',
-  ],
-];
-const FR_TAKA = [
-  [
-    '..XXXXXX..',
-    '.XXRRRRXX.',
-    '.X.Z..Z.X.',
-    '..EEEEEE..',
-    '..EE..EE..',
-  ],
-  [
-    '..XXXXXX..',
-    '.XXRRRRXX.',
-    '.X.Z..Z.X.',
-    '..EEEEEE..',
-    'EE......EE',
-  ],
-];
-const FR_GAZE = [
-  [
-    '..MMMMMM..',
-    'M.ZZZZZZ.M',
-    '.M.Z..Z.M.',
-    '..EEEEEE..',
-    '..EE..EE..',
-  ],
-  [
-    'R.MMMMMM.R',
-    'M.ZZZZZZ.M',
-    '.M.Z..Z.M.',
-    '..EEEEEE..',
-    '.EE....EE.',
-  ],
-];
-const FR_FLAME = [
-  ['..F.', '.FYF', 'FUYU', '.FY.'],
-  ['.F..', 'FYF.', 'UYUF', '..Y.'],
-  ['..F.', 'FYYF', '.UF.', 'FYF.'],
-];
+const PAL = {
+  N: '#140a10',
+  S: '#f0c8a8', D: '#d4a888', d: '#b88868',
+  K: '#1c1c22', B: '#2a2a32', b: '#3a3a44',
+  G: '#ffd700', g: '#e6b800', U: '#fff3a0',
+  R: '#ff6b9d', r: '#d44a78', X: '#ff9ec0',
+  A: '#3d6a9a', a: '#2a4e78', L: '#c8a060', l: '#a08040',
+  F: '#ff5500', Y: '#ffcc33', y: '#ffe9a0',
+  T: '#8b5a2b', t: '#6a4020', C: '#5a3a18',
+  H: '#8a8a90', h: '#5a5a62', P: '#3a3a40',
+  V: '#4a8a38', v: '#2f6a28', W: '#6b8f3a', w: '#5c4030',
+  M: '#6a4068', m: '#4a2848', E: '#2a1030', e: '#180818',
+  Z: '#ff3344', z: '#aa1020',
+  O: '#f5d0b0', o: '#e8a878', Q: '#ffe066', q: '#f0a020',
+  I: '#6aaa44', i: '#3a7028', J: '#c8e878',
+  c: '#44ddff', p: '#ff44aa',
+  u: '#0a0a12', s: '#1a2030',
+  '@': '#33ffee',
+  '1': '#f8f8f8', '2': '#c0c0c8',
+};
+// PAL_BODY alias for older refs
+const PAL_BODY = PAL;
 
 function frameIndex(speed, count) {
   return Math.floor(state.animT * speed) % count;
 }
+
+const FR_WALK = [
+  [
+    '......GGGG......',
+    '.....GgGGgG.....',
+    '......SSSS......',
+    '.....SSSSSS.....',
+    '.....SDSSDS.....',
+    '......BBBB......',
+    '.....BBBBBB.....',
+    '.....BBbBbB.....',
+    '......BBBB......',
+    '......B..B......',
+    '......B..B......',
+    '.....KK..KK.....',
+  ],
+  [
+    '......GGGG......',
+    '.....GgGGgG.....',
+    '......SSSS......',
+    '.....SSSSSS.....',
+    '.....SDSSDS.....',
+    '......BBBB......',
+    '.....BBBBBB.....',
+    '.....BBbBbB.....',
+    '......BBBB......',
+    '.....BB..B......',
+    '....KK....B.....',
+    '..........KK....',
+  ],
+  [
+    '......GGGG......',
+    '.....GgGGgG.....',
+    '......SSSS......',
+    '.....SSSSSS.....',
+    '.....SDSSDS.....',
+    '......BBBB......',
+    '.....BBBBBB.....',
+    '.....BBbBbB.....',
+    '......BBBB......',
+    '......B..BB.....',
+    '......B....KK...',
+    '.....KK.........',
+  ],
+  [
+    '......GGGG......',
+    '.....GgUUgG.....',
+    '......SSSS......',
+    '.....SSSSSS.....',
+    '.....SDSSDS.....',
+    '......BBBB......',
+    '.....BBBBBB.....',
+    '.....BBbBbB.....',
+    '......BBBB......',
+    '......B..B......',
+    '......B..B......',
+    '.....KK..KK.....',
+  ],
+];
+const FR_IDLE = [FR_WALK[0], FR_WALK[3]];
+
+const FR_ARCH = [
+  [
+    '......AAAA......',
+    '.....AAaAaA.....',
+    '......SSSS......',
+    '.....SDSSDS.....',
+    '......AAAA......',
+    '.....AAALAA.....',
+    '......A..A......',
+    '.....KK..KK.....',
+  ],
+  [
+    '......AAAA......',
+    '.....AAaAaA.....',
+    '......SSSS......',
+    '.....SDSSDS.....',
+    '......AAAA......',
+    '....LAAAAAA.....',
+    '......A..A......',
+    '....KK....KK....',
+  ],
+  [
+    '......AAAA......',
+    '.....AAaAaA.....',
+    '......SSSS......',
+    '.....SDSSDS.....',
+    '......AAAA......',
+    '.....AAAAAL.....',
+    '......A..A......',
+    '.....KK..KK.....',
+  ],
+  [
+    '......AAAA......',
+    '.....AAaAaA.....',
+    '......SSSS......',
+    '.....SDSSDS.....',
+    '......AAAA......',
+    '.....1AAAAA.....',
+    '......A..A......',
+    '.....KK..KK.....',
+  ],
+];
+
+function mkEnemyFrames(H, B, Z, X) {
+  return [
+    [
+      '.....HHHHHH......'.replace(/H/g, H),
+      '....HHHHHHHH....'.replace(/H/g, H),
+      ('....H.Z..Z.H....').replace(/H/g, H).replace(/Z/g, Z),
+      '.....HHHHHH......'.replace(/H/g, H),
+      '......BBBBBB......'.replace(/B/g, B).slice(0,16),
+      '.....BBXXBB.....'.replace(/B/g, B).replace(/X/g, X),
+      '......BB..BB......'.replace(/B/g, B).slice(0,16),
+      '.....KK..KK.....',
+    ],
+    [
+      '.....HHHHHH......'.replace(/H/g, H),
+      '....HHHHHHHH....'.replace(/H/g, H),
+      ('....H.Z..Z.H....').replace(/H/g, H).replace(/Z/g, Z),
+      '.....HHHHHH......'.replace(/H/g, H),
+      '......BBBBBB......'.replace(/B/g, B).slice(0,16),
+      '.....BBXXBB.....'.replace(/B/g, B).replace(/X/g, X),
+      '.....BB....BB....'.replace(/B/g, B),
+      '....KK......KK..',
+    ],
+    [
+      '.....HHHHHH......'.replace(/H/g, H),
+      '....HHHHHHHH....'.replace(/H/g, H),
+      ('....H.Z..Z.H....').replace(/H/g, H).replace(/Z/g, Z),
+      '.....HHHHHH......'.replace(/H/g, H),
+      '......BBBBBB......'.replace(/B/g, B).slice(0,16),
+      '.....BBXXBB.....'.replace(/B/g, B).replace(/X/g, X),
+      '......BB..BB......'.replace(/B/g, B).slice(0,16),
+      '.....KK..KK.....',
+    ],
+    [
+      '.....HHHHHH......'.replace(/H/g, H),
+      '....HHHHHHHH....'.replace(/H/g, H),
+      ('....H.Z..Z.H....').replace(/H/g, H).replace(/Z/g, Z),
+      '.....HHHHHH......'.replace(/H/g, H),
+      '......BBBBBB......'.replace(/B/g, B).slice(0,16),
+      '.....BBXXBB.....'.replace(/B/g, B).replace(/X/g, X),
+      '....BB......BB..'.replace(/B/g, B),
+      '..KK..........KK',
+    ],
+  ].map(fr => fr.map(r => (r + '................').slice(0, 16)));
+}
+
+const FR_ENEMY = mkEnemyFrames('M', 'E', 'Z', 'R');
+const FR_TAKA  = mkEnemyFrames('X', 'E', 'Z', 'r');
+const FR_GAZE  = mkEnemyFrames('M', 'E', 'Z', 'Z');
+const FR_TONO  = mkEnemyFrames('O', 'o', 'q', 'Q');
+const FR_NGIMO = mkEnemyFrames('I', 'i', 'J', 'Z');
+const FR_KOKO  = mkEnemyFrames('c', 'p', '1', 'R');
+const FR_MUR   = mkEnemyFrames('u', 's', '@', 'Z');
+
+const FR_FLAME = [
+  ['...F....','..FYF...','..FYyYF.','..FYyYF.','...FYF..','....C...'],
+  ['....F...','...FYF..','.FYyYyF.','..FyYyF.','...FYF..','....C...'],
+  ['...F.F..','..FYFY..','.FYyYyF.','..FYyF..','...YF...','....C...'],
+  ['..F.....','..FYF.F.','..FYyYF.','...FyF..','....Y...','....C...'],
+];
+
+const FR_COIN = [
+  ['..gg..','.gUUg.','gUSSUg','.gUUg.','..gg..'],
+  ['...g..','..gUg.','..gSg.','..gUg.','...g..'],
+  ['..gg..','.gUUg.','gUSSUg','.gUUg.','..gg..'],
+  ['.g....','gUg...','gSg...','gUg...','.g....'],
+];
+
+const TILE_GRASS = [
+  'VVvV',
+  'vVVv',
+  'VvVV',
+  'VVvV',
+];
 
 /** ショップスポット（壁前・キャンプ周辺） */
 function shopSpots() {
@@ -1178,9 +1287,10 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 const ENEMY_NAMES_JP = [
   'たかり後輩', '覗き見学者', '嫌がらせ先輩', '俊足後輩',
   '部室の主', 'ちび後輩', '盾持ち後輩', 'もぐり後輩',
-  '応援後輩', '跳び後輩', '鉄壁の見学者'
+  '応援後輩', '跳び後輩', '鉄壁の見学者',
+  '遠野笑顔', 'ンギモ', 'こ↑こ↓', 'MUR'
 ];
-const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '迫真の淫獣'];
+const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '迫真の淫獣', 'MUR・真'];
 
 function startNight() {
   state.isNight = true;
@@ -1205,19 +1315,30 @@ function startNight() {
         : pick(ENEMY_NAMES_JP);
       // たかり後輩を夜ごとに最低1体混ぜる
       if (!isBoss && i === 1) name = 'たかり後輩';
+      // TD v29寄せ：遠野笑顔／ンギモ／こ↑こ↓／MUR を中盤以降に混ぜる
+      if (!isBoss && state.day >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
+      if (!isBoss && state.day >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
       const isTaka = name.indexOf('たかり') >= 0;
       const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
+      const isTono = name.indexOf('遠野') >= 0;
+      const isNgimo = name.indexOf('ンギモ') >= 0;
+      const isKoko = name.indexOf('こ↑こ↓') >= 0;
+      const isMur = name.indexOf('MUR') >= 0;
+      let hp = isBoss ? (12 + state.day) : (2 + Math.floor(state.day / 2));
+      if (isTaka) hp = 3 + Math.floor(state.day / 3);
+      if (isMur) hp = 5 + state.day;
+      if (isNgimo) hp = 4 + Math.floor(state.day / 2);
+      let spd = (isTaka ? 36 : 28) + state.day * 3 + rand(0, 10);
+      if (isKoko) spd += 12;
+      if (isMur) spd *= 0.85;
       enemies.push({
         x: spawnX,
         y: GROUND_Y,
-        hp: isBoss ? (12 + state.day) : (isTaka ? 3 + Math.floor(state.day / 3) : (2 + Math.floor(state.day / 2))),
-        maxHp: isBoss ? (12 + state.day) : (isTaka ? 3 + Math.floor(state.day / 3) : (2 + Math.floor(state.day / 2))),
-        speed: (isTaka ? 36 : 28) + state.day * 3 + rand(0, 10),
+        hp, maxHp: hp,
+        speed: spd,
         side,
         name,
-        isBoss,
-        isTaka,
-        isGaze,
+        isBoss, isTaka, isGaze, isTono, isNgimo, isKoko, isMur,
         attackCd: 0,
         stealCd: 0,
         stunned: 0,
@@ -1656,31 +1777,21 @@ function draw() {
     drawPixelRect(W - 100, 40, 28, 28, '#ffe566');
   }
 
-  // 遠景丘（パララックス）
-  ctx.fillStyle = state.isNight ? '#1e2a1a' : '#5a8f4a';
-  for (let i = -3; i < 8; i++) {
-    const hx = wx(i * 280) * 0.4 + i * 100;
-    ctx.beginPath();
-    ctx.ellipse(hx + 200, GROUND_Y - 20, 160, 50, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // 遠景丘（ドットシルエット・パララックス）
+  drawParallaxHills();
 
-  // 地面
-  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, state.isNight ? '#2a2118' : '#5c4030');
-  drawPixelRect(0, GROUND_Y, W, 8, state.isNight ? '#3a3020' : '#6b8f3a');
-  // ドット草
-  ctx.fillStyle = state.isNight ? '#2f4a28' : '#4a7a35';
-  for (let x = -((state.cameraX | 0) % 16); x < W; x += 16) {
-    ctx.fillRect(x, GROUND_Y - 4, 3, 4);
-    ctx.fillRect(x + 7, GROUND_Y - 6, 2, 6);
-  }
+  // 地面タイル
+  drawGroundTiles();
 
   // 領地床の色（壁の内側）
   const lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
   const rx = structures.rightWall.level > 0 ? structures.rightWall.x : 40;
-  const territoryAlpha = state.isNight ? 0.15 : 0.12;
+  const territoryAlpha = state.isNight ? 0.18 : 0.14;
   ctx.fillStyle = `rgba(255, 215, 0, ${territoryAlpha})`;
   ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
+  // 金ドット縁
+  ctx.fillStyle = 'rgba(255,215,0,0.35)';
+  for (let x = wx(lx); x < wx(rx); x += 4) ctx.fillRect(x, GROUND_Y, 2, 2);
 
   // たき火
   drawCampfire(wx(0), GROUND_Y);
@@ -1795,28 +1906,85 @@ function drawBar(x, y, w, h, ratio, fg, bg) {
   ctx.strokeRect(x, y, w, h);
 }
 
+
+function drawParallaxHills() {
+  const night = state.isNight;
+  const bands = [
+    { col: night ? '#12181a' : '#3a6a4a', par: 0.15, h: 70 },
+    { col: night ? '#1a2420' : '#4a8055', par: 0.28, h: 48 },
+    { col: night ? '#243028' : '#5a9458', par: 0.42, h: 32 },
+  ];
+  for (const b of bands) {
+    ctx.fillStyle = b.col;
+    for (let i = -4; i < 10; i++) {
+      const base = i * 220 - (state.cameraX * b.par) % 220;
+      // pixel stepped hill
+      for (let px = 0; px < 240; px += 4) {
+        const rise = Math.sin((px + i * 40) * 0.03) * b.h + b.h * 0.4;
+        const top = GROUND_Y - rise;
+        ctx.fillRect((base + px) | 0, top | 0, 4, (GROUND_Y - top) | 0);
+      }
+    }
+  }
+  // 遠景木（ドット）
+  ctx.fillStyle = night ? '#1a2818' : '#2a5530';
+  for (let i = -2; i < 12; i++) {
+    const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160));
+    const x = tx - 40;
+    drawPixelRect(x + 6, GROUND_Y - 40, 4, 20, night ? '#2a1a10' : '#4a3020');
+    blitPixels(x, GROUND_Y - 58, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
+  }
+}
+
+function drawGroundTiles() {
+  const night = state.isNight;
+  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? '#2a2118' : '#5c4030');
+  // 表層草タイル
+  const off = ((state.cameraX | 0) % 8);
+  for (let x = -off; x < W + 8; x += 8) {
+    const row = ((x + (state.cameraX|0)) / 8 | 0);
+    const top = night ? '#2f4a28' : (row % 3 === 0 ? '#5a9a40' : '#4a8a38');
+    const mid = night ? '#3a3020' : '#6b8f3a';
+    drawPixelRect(x, GROUND_Y, 8, 3, top);
+    drawPixelRect(x, GROUND_Y + 3, 8, 5, mid);
+    // 草穂
+    if ((row + Math.floor(state.animT * 2)) % 4 === 0) {
+      drawPixelRect(x + 2, GROUND_Y - 4, 2, 4, top);
+      drawPixelRect(x + 5, GROUND_Y - 6, 1, 6, night ? '#3a5a30' : '#6aaa48');
+    }
+  }
+  // 土の影ライン
+  drawPixelRect(0, GROUND_Y + 8, W, 2, night ? '#1a140e' : '#3a2818');
+}
+
 function drawCampfire(x, y) {
   ctx.imageSmoothingEnabled = false;
   const sway = state.nightSway;
-  drawPixelRect(x - 14, y - 6, 28, 8, '#666');
+  // 石輪
+  blitOutlined(x - 16, y - 10, [
+    '..HH..HH..',
+    '.HhhHHhhH.',
+    'HhhhhhhhhH',
+    '.HHHHHHHH.',
+  ], PAL, 2, false);
   drawPixelRect(x - 10, y - 10, 8, 8, '#5a3a20');
   drawPixelRect(x + 2, y - 12, 8, 10, '#4a2a10');
-  // CRONWS風・炎3フレ
-  const fi = frameIndex(8, FR_FLAME.length);
-  blitPixels(x - 6 + sway * 0.3, y - 36, FR_FLAME[fi], PAL_BODY, 3, false);
-  // 夜の火粉
+  const fi = frameIndex(10, FR_FLAME.length);
+  blitOutlined(x - 8 + sway * 0.3, y - 40, FR_FLAME[fi], PAL, 3, false);
   if (state.isNight) {
-    for (let i = 0; i < 4; i++) {
-      const px = x + Math.sin(state.animT * 3 + i) * 10;
-      const py = y - 28 - ((state.animT * 40 + i * 13) % 36);
+    for (let i = 0; i < 6; i++) {
+      const px = x + Math.sin(state.animT * 3 + i * 1.7) * 12;
+      const py = y - 30 - ((state.animT * 45 + i * 17) % 42);
       drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
     }
   }
+  // 看板
   ctx.fillStyle = '#3d2b1f';
   ctx.fillRect(x + 18, y - 40, 4, 40);
   ctx.fillStyle = '#5a2a1a';
   ctx.fillRect(x + 10, y - 64, 78, 30);
   ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 2;
   ctx.strokeRect(x + 10, y - 64, 78, 30);
   ctx.fillStyle = '#ffd700';
   ctx.font = '7px "Press Start 2P"';
@@ -1826,7 +1994,7 @@ function drawCampfire(x, y) {
   ctx.fillText('部室・IKZO', x + 14, y - 38);
   if (SPR.icon) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.icon, x - 36, y - 48, 24, 24);
+    ctx.drawImage(SPR.icon, x - 36, y - 48, 28, 28);
   }
 }
 
@@ -1834,138 +2002,159 @@ function drawWall(wall, isLeft) {
   ctx.imageSmoothingEnabled = false;
   if (wall.level <= 0) {
     const x = wx(wall.x);
-    const bob = Math.sin(state.animT * 2 + wall.x) * 1;
-    drawPixelRect(x - 2, GROUND_Y - 16 + bob, 4, 16, '#5a4030');
-    ctx.fillStyle = 'rgba(255,215,0,0.5)';
+    const bob = Math.sin(state.animT * 2 + wall.x * 0.01) * 1;
+    blitOutlined(x - 6, GROUND_Y - 20 + bob, ['..T.','tTTT','tTtT','tTTT','..t.'], PAL, 3, false);
+    ctx.fillStyle = 'rgba(255,215,0,0.55)';
     ctx.font = '8px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('バリケード', x, GROUND_Y - 22);
+    ctx.fillText('バリケード', x, GROUND_Y - 26);
     return;
   }
   const x = wx(wall.x);
-  const h = wall.level === 1 ? 48 : 72;
-  const color = wall.level === 1 ? '#8b5a2b' : '#7a7a7a';
-  const dark = wall.level === 1 ? '#5a3a1a' : '#4a4a4a';
-  const sway = state.isNight ? state.nightSway * 0.4 : 0;
-  // 微細ドット積み上げ
-  const brickW = 5, brickH = 4;
+  const h = wall.level === 1 ? 52 : 76;
+  const wood = wall.level === 1;
+  const sway = state.isNight ? state.nightSway * 0.35 : 0;
+  const brickW = 4, brickH = 4;
   for (let row = 0; row < Math.ceil(h / brickH); row++) {
-    for (let col = 0; col < 4; col++) {
-      const ox = x - 10 + col * brickW + (row % 2) * 2;
+    for (let col = 0; col < 6; col++) {
+      const ox = x - 12 + col * brickW + (row % 2) * 2;
       const oy = GROUND_Y - (row + 1) * brickH;
-      const shade = (row + col) % 3 === 0 ? dark : color;
+      let shade;
+      if (wood) shade = (row + col) % 3 === 0 ? '#6a4020' : ((row + col) % 3 === 1 ? '#8b5a2b' : '#a07040');
+      else shade = (row + col) % 3 === 0 ? '#4a4a52' : ((row + col) % 3 === 1 ? '#7a7a84' : '#9a9aa4');
+      // outline edge
+      if (col === 0 || col === 5 || row === Math.ceil(h / brickH) - 1) {
+        drawPixelRect(ox + sway - 1, oy, 1, brickH, '#140a10');
+      }
       drawPixelRect(ox + sway, oy, brickW - 1, brickH - 1, shade);
+      // highlight
+      if ((row + col) % 4 === 0) drawPixelRect(ox + sway, oy, 1, 1, wood ? '#c09060' : '#c8c8d0');
     }
   }
-  for (let i = 0; i < 3; i++) {
-    drawPixelRect(x - 10 + i * 7 + sway, GROUND_Y - h - 8, 5, 8, color);
+  // 歯
+  for (let i = 0; i < 4; i++) {
+    const bx = x - 12 + i * 7 + sway;
+    drawPixelRect(bx, GROUND_Y - h - 10, 5, 10, wood ? '#8b5a2b' : '#7a7a84');
+    drawPixelRect(bx, GROUND_Y - h - 10, 5, 1, '#140a10');
   }
-  // 旗はためアニメ
-  const flagWave = Math.sin(state.animT * 6 + (isLeft ? 0 : 1)) * 2;
-  drawPixelRect(x + (isLeft ? -2 : 0), GROUND_Y - h - 28, 3, 28, '#333');
-  drawPixelRect(x + (isLeft ? -20 : 3) + flagWave, GROUND_Y - h - 28, 18, 12, '#ff6b9d');
+  const flagWave = Math.sin(state.animT * 7 + (isLeft ? 0 : 2)) * 3;
+  drawPixelRect(x + (isLeft ? -2 : 0), GROUND_Y - h - 30, 3, 30, '#222');
+  blitOutlined(x + (isLeft ? -22 : 4) + flagWave, GROUND_Y - h - 30, [
+    'RRRRRRRR',
+    'RrRRRRrR',
+    'RRR1RRRR',
+    'RrRRRRrR',
+    'RRRRRRRR',
+  ], PAL, 2, false);
   ctx.fillStyle = '#fff';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'left';
-  ctx.fillText('IKZO', x + (isLeft ? -18 : 5) + flagWave, GROUND_Y - h - 19);
+  ctx.fillText('IKZO', x + (isLeft ? -18 : 6) + flagWave, GROUND_Y - h - 18);
   drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, '#4c4', '#333');
 }
 
 function drawCoin(x, y) {
-  const spin = frameIndex(6, 2);
-  if (spin === 0) {
-    drawPixelRect(x - 5, y - 5, 10, 10, '#c9a000');
-    drawPixelRect(x - 3, y - 3, 6, 6, '#ffe566');
-    drawPixelRect(x - 1, y - 2, 2, 4, '#c9a000');
-  } else {
-    drawPixelRect(x - 2, y - 5, 4, 10, '#c9a000');
-    drawPixelRect(x - 1, y - 3, 2, 6, '#ffe566');
-  }
+  const fi = frameIndex(8, FR_COIN.length);
+  blitOutlined(x - 6, y - 6, FR_COIN[fi], PAL, 2, false);
 }
 
 function drawYajyu(x, y, facing) {
   ctx.imageSmoothingEnabled = false;
   const walking = Math.abs(player.vx) > 10;
-  const fi = walking ? frameIndex(7, FR_WALK.length) : 0;
-  const bob = walking ? (fi === 1 ? 1 : 0) : Math.sin(state.animT * 2) * 0.5;
+  const fi = walking ? frameIndex(9, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
+  const bob = walking ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
   const flip = facing < 0;
-  const body = walking ? FR_WALK[fi] : FR_IDLE[0];
-  blitPixels(x - 15, y - 40 + bob, body, PAL_BODY, 3, flip);
-  // Wiki顔（nearest-neighbor拡大）
+  const body = walking ? FR_WALK[fi] : FR_IDLE[fi];
+  blitOutlined(x - 16, y - 44 + bob, body, PAL, 2, flip);
   if (SPR.senpai) {
     ctx.imageSmoothingEnabled = false;
-    const fw = 32, fh = 32;
-    ctx.drawImage(SPR.senpai, x - 16, y - 56 + bob, fw, fh);
+    ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
   }
-  // 王冠（常時・王道を征く）微細ドット
-  const cy = y - 60 + bob;
-  drawPixelRect(x - 9, cy, 18, 5, '#ffd700');
-  drawPixelRect(x - 9, cy - 4, 4, 4, '#ffd700');
-  drawPixelRect(x - 2, cy - 6, 4, 6, '#ffe566');
-  drawPixelRect(x + 5, cy - 4, 4, 4, '#ffd700');
-  drawPixelRect(x - 1, cy - 8, 2, 2, '#fff2a8'); // 宝石
-  // 高湿度の汗パーティクル
-  if (state.humidity >= 70 && Math.sin(state.animT * 9) > 0.4) {
-    drawPixelRect(x + (flip ? -10 : 8), y - 30, 2, 3, '#8cf');
+  // 王冠ハイライト（王道を征く）
+  const cy = y - 66 + bob;
+  blitOutlined(x - 10, cy, [
+    '.G.G.G.',
+    'GgGgGgG',
+    'GGGUGGG',
+    '.GGGGG.',
+  ], PAL, 2, false);
+  if (state.humidity >= 70 && Math.sin(state.animT * 10) > 0.3) {
+    drawPixelRect(x + (flip ? -12 : 10), y - 34, 2, 4, '#8cf');
+    drawPixelRect(x + (flip ? -8 : 6), y - 28, 2, 3, '#aef');
   }
-  // 眼光デバフ時の輪郭
   if (state.gazeT > 0) {
-    ctx.strokeStyle = 'rgba(255,80,80,0.55)';
-    ctx.strokeRect(x - 18, y - 62, 36, 62);
+    ctx.strokeStyle = 'rgba(255,60,60,0.6)';
+    ctx.strokeRect(x - 20, y - 68, 40, 68);
   }
 }
 
 function drawArcher(x, y, u) {
   ctx.imageSmoothingEnabled = false;
   const shooting = (u._shotFlash || 0) > 0;
-  const fi = shooting ? 1 : frameIndex(3, FR_ARCH.length);
-  const bob = Math.sin(state.animT * 3 + (u.x || 0)) * 0.6 + state.nightSway * 0.2;
-  blitPixels(x - 12, y - 30 + bob, FR_ARCH[fi], PAL_BODY, 3, u.side === 'left');
+  const fi = shooting ? 3 : frameIndex(4, FR_ARCH.length);
+  const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
+  blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
   if (SPR.kohai) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.kohai, x - 12, y - 44 + bob, 24, 24);
+    ctx.drawImage(SPR.kohai, x - 14, y - 52 + bob, 28, 28);
   }
-  // 弓の線
   ctx.strokeStyle = '#c8a060';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  const bowX = u.side === 'left' ? x - 10 : x + 10;
-  ctx.arc(bowX, y - 20 + bob, 8, -1, 1);
+  const bowX = u.side === 'left' ? x - 12 : x + 12;
+  ctx.arc(bowX, y - 22 + bob, 9, -1.1, 1.1);
   ctx.stroke();
   if (shooting) {
-    drawPixelRect(bowX - 2, y - 22 + bob, 6, 2, '#fff');
+    drawPixelRect(bowX - 3, y - 24 + bob, 8, 2, '#fff8e0');
+    blitPixels(bowX - 2, y - 28 + bob, ['Y','F'], PAL, 2, false);
   }
   ctx.fillStyle = '#8af';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('砲台', x, y - 48 + bob);
+  ctx.fillText('砲台', x, y - 56 + bob);
 }
 
 function drawEnemy(x, y, e) {
   ctx.imageSmoothingEnabled = false;
-  const fi = frameIndex(5, 2);
-  const stunBob = e.stunned > 0 ? Math.sin(state.animT * 20) * 2 : 0;
-  const frames = e.isGaze ? FR_GAZE : e.isTaka ? FR_TAKA : FR_ENEMY;
-  blitPixels(x - 12, y - 32 + stunBob, frames[fi], PAL_BODY, 3, e.side > 0);
-  if (e.isGaze) {
-    // 眼光ビーム風
-    ctx.globalAlpha = 0.25 + Math.sin(state.animT * 8) * 0.15;
-    ctx.fillStyle = '#f44';
-    ctx.fillRect(x - 40, y - 28, 80, 2);
+  const fi = frameIndex(e.isKoko ? 10 : 6, 4);
+  const stunBob = e.stunned > 0 ? Math.sin(state.animT * 22) * 2 : 0;
+  let frames = FR_ENEMY;
+  if (e.isGaze) frames = FR_GAZE;
+  else if (e.isTaka) frames = FR_TAKA;
+  else if (e.isTono) frames = FR_TONO;
+  else if (e.isNgimo) frames = FR_NGIMO;
+  else if (e.isKoko) frames = FR_KOKO;
+  else if (e.isMur) frames = FR_MUR;
+  blitOutlined(x - 16, y - 36 + stunBob, frames[fi % frames.length], PAL, 2, e.side > 0);
+  // 遠野笑顔は顔スプライト
+  if (e.isTono && SPR.tono) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(SPR.tono, x - 14, y - 52 + stunBob, 28, 28);
+  }
+  if (e.isGaze || e.isMur) {
+    ctx.globalAlpha = 0.28 + Math.sin(state.animT * 8) * 0.12;
+    ctx.fillStyle = e.isMur ? '#33ffee' : '#f44';
+    ctx.fillRect(x - 48, y - 30, 96, 2);
     ctx.globalAlpha = 1;
+  }
+  if (e.isKoko) {
+    ctx.fillStyle = '#44ddff';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('↑', x - 10, y - 50 + Math.sin(state.animT * 12) * 3);
+    ctx.fillStyle = '#ff44aa';
+    ctx.fillText('↓', x + 10, y - 44 + Math.cos(state.animT * 12) * 3);
   }
   if (e.stunned > 0) {
     ctx.fillStyle = '#ff6b9d';
     ctx.font = '7px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('（）', x, y - 48);
+    ctx.fillText('（）', x, y - 54);
   }
-  ctx.fillStyle = e.isTaka ? '#ff8' : '#f88';
+  ctx.fillStyle = e.isTaka ? '#ff8' : e.isMur ? '#33ffee' : e.isTono ? '#ffe066' : '#f88';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText(e.name, x, y - 42 + stunBob);
-  drawBar(x - 12, y + 4, 24, 3, e.hp / e.maxHp, '#f44', '#333');
+  ctx.fillText(e.name, x, y - 48 + stunBob);
+  drawBar(x - 14, y + 4, 28, 3, e.hp / e.maxHp, '#f44', '#333');
 }
 </script>
-</body>
-</html>
