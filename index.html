@@ -316,6 +316,8 @@
     box-shadow: 0 0 0 2px #5a3a10, 0 8px 24px rgba(0,0,0,.55), inset 0 0 20px rgba(255,215,0,.06);
     border-radius: 12px; padding: 12px 10px 14px; max-height: min(78vh, 560px);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-padding-top: 48px;
   }
   #choice-panel .tabs { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
   #choice-panel .tabs button { min-height:40px; padding:8px 10px; font-size:clamp(10px,2.6vw,12px); border-radius:8px; }
@@ -477,13 +479,22 @@
     box-shadow: inset 0 2px 0 #1a1008;
   }
   #btn-civil, #btn-mili {
-    min-width: clamp(48px, 12vw, 78px);
+    min-width: clamp(52px, 13vw, 84px);
     font-size: clamp(14px, 4vw, 20px);
   }
+  #btn-mili.active, #btn-mili:active {
+    box-shadow: 0 0 12px rgba(255,100,40,.45), inset 0 2px 0 #1a1008;
+  }
+  #choice-panel .mili-subtabs {
+    touch-action: manipulation;
+  }
   @media (max-width: 400px) {
-    .pad-btn { min-width: clamp(44px, 13vw, 72px); padding: 4px 2px; }
-    .pad-btn small { letter-spacing: 0; }
-    #touch-pad { gap: 4px; padding-left: 4px; padding-right: 4px; }
+    .pad-btn { min-width: clamp(46px, 14vw, 74px); padding: 5px 2px; min-height: 58px; }
+    .pad-btn small { letter-spacing: 0; font-size: 9px; }
+    #touch-pad { gap: 5px; padding-left: 4px; padding-right: 4px; }
+    #choice-panel .mili-subtabs .mili-sub { min-width: 0; flex: 1 1 22%; max-width: none; }
+    #choice-panel .panel-card { max-height: min(82vh, 580px); }
+    #choice-panel button { min-height: 46px; }
   }
   #btn-pay {
     min-width: clamp(72px, 20vw, 120px);
@@ -1124,12 +1135,18 @@ const ACH_DEFS = [
   { id: 'civil3', name: '内政Lv3', check: () => (state.civilTier|0)>=3 },
   { id: 'mili3', name: '軍事Lv3', check: () => (state.miliTier|0)>=3 },
   { id: 'awakenA', name: 'サムライブルー片鱗', check: () => !!state.awakenA },
-  { id: 'awakenB', name: '覚醒B片鱗', check: () => !!state.awakenB },
+  { id: 'awakenB_iced', name: 'アイスティー砲片鱗', check: () => state.awakenB === 'iced' },
+  { id: 'awakenB_gas', name: 'くっさガス片鱗', check: () => state.awakenB === 'gas' },
   { id: 'snare2', name: '胸ぐらスネア2', check: () => (state.snares||[]).length>=2 },
+  { id: 'mine3', name: '810地雷3', check: () => (state.mines||[]).length>=3 },
+  { id: 'gun_t2', name: '114514砲配備', check: () => units.some(u => (u.role||'gun')!=='vanguard' && (u.tier|0)>=2) },
+  { id: 'trio_both', name: '両側部室トリオ', check: () => units.some(u=>u.role==='vanguard'&&u.side==='left') && units.some(u=>u.role==='vanguard'&&u.side==='right') },
   { id: 'bank24', name: '810残高24', check: () => state.bank>=24 },
   { id: 'sweat30', name: '汗ドロップ30', check: () => (state.sweatDrops|0)>=30 },
   { id: 'midsummer', name: '真夏の王', check: () => !!state.midsummer && state.day>=5 },
   { id: 'mission5', name: 'ミッション5', check: () => (state._missionsDone|0)>=5 },
+  { id: 'day10', name: 'Day10到達', check: () => (state.day|0)>=10 },
+  { id: 'bestiary8', name: '図鑑8種', check: () => Object.keys(state.bestiary||{}).length>=8 },
 ];
 
 function bumpBond(key, n) {
@@ -1534,6 +1551,7 @@ function openBranchPanel(tab) {
           state.awakenA = true;
           toast('サムライブルー　片鱗覚醒', 2.4);
           story('連射の片鱗　青く光る', 2.2);
+          checkAchievements();
           return true;
         }, (state.miliTier|0) >= 1 || units.some(u => (u.role||'gun')!=='vanguard'));
       } else {
@@ -1544,12 +1562,14 @@ function openBranchPanel(tab) {
           state.awakenB = 'iced';
           toast('アイスティー砲　片鱗', 2.4);
           story('冷えてるゾ　弾が鈍足に', 2.2);
+          checkAchievements();
           return true;
         }, (state.miliTier|0) >= 1 || state.awakenA);
         addBtn(`${awakenBName('gas')}（壁際ガス）`, 7, () => {
           state.awakenB = 'gas';
           toast('くっさガス　片鱗', 2.4);
           story('壁際にくっさ…敵が鈍る', 2.2);
+          checkAchievements();
           return true;
         }, (state.miliTier|0) >= 1 || state.awakenA);
       } else {
@@ -3335,6 +3355,18 @@ function buildSaveBlob() {
     awakenB: state.awakenB === 'gas' || state.awakenB === 'iced' ? state.awakenB : null,
     civilTier: state.civilTier | 0,
     bankTier: state.bankTier | 0,
+    // 互換拡張（旧セーブは欠落→applyで既定値）
+    bond: {
+      kohai: (state.bond && state.bond.kohai) | 0,
+      crew: (state.bond && state.bond.crew) | 0,
+      town: (state.bond && state.bond.town) | 0,
+    },
+    achievements: Object.assign({}, state.achievements || {}),
+    filmShots: state.filmShots | 0,
+    sweatDrops: state.sweatDrops | 0,
+    bestiary: Object.assign({}, state.bestiary || {}),
+    midsummer: !!state.midsummer,
+    _missionsDone: state._missionsDone | 0,
     savedAt: Date.now(),
   };
 }
@@ -3404,6 +3436,23 @@ function applySave(d) {
   state.miliSub = (d.miliSub === 'east' || d.miliSub === 'trap' || d.miliSub === 'raid') ? d.miliSub : 'west';
   state.civilTier = clamp(d.civilTier | 0, 0, 3);
   state.bankTier = clamp(d.bankTier | 0, 0, 3);
+  // 旧セーブ欠落フィールドは安全既定
+  state.bond = {
+    kohai: clamp((d.bond && d.bond.kohai) | 0, 0, 100),
+    crew: clamp((d.bond && d.bond.crew) | 0, 0, 100),
+    town: clamp((d.bond && d.bond.town) | 0, 0, 100),
+  };
+  state.achievements = Object.assign({}, d.achievements || {});
+  // 旧id awakenB → 分割実績は再チェックに任せる
+  if (state.achievements.awakenB && state.awakenB === 'iced') state.achievements.awakenB_iced = true;
+  if (state.achievements.awakenB && state.awakenB === 'gas') state.achievements.awakenB_gas = true;
+  state.filmShots = Math.max(0, d.filmShots | 0);
+  state.sweatDrops = Math.max(0, d.sweatDrops | 0);
+  state.bestiary = Object.assign({}, d.bestiary || {});
+  state.midsummer = !!d.midsummer;
+  state._missionsDone = Math.max(0, d._missionsDone | 0);
+  if (!Array.isArray(d.snares)) state.snares = state.snares || [];
+  if (!Array.isArray(d.mines)) state.mines = state.mines || [];
   state.dayChoiceDone = !!d.dayChoiceDone;
   if (state.assault) ensureOutpostsForAssault();
   player.x = clamp(+d.playerX || 0, world.leftBound + 40, world.rightBound - 40);
@@ -5266,10 +5315,23 @@ function drawMiliGadgets() {
     }
   }
   if (state.awakenA) {
-    ctx.fillStyle = '#6af';
+    const cx = wx(0);
+    const pulse = 0.2 + Math.sin(state.animT * 5) * 0.1;
+    const bg = ctx.createRadialGradient(cx, GROUND_Y - 50, 4, cx, GROUND_Y - 50, 70);
+    bg.addColorStop(0, `rgba(90,160,255,${pulse})`);
+    bg.addColorStop(1, 'rgba(40,80,200,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(cx - 70, GROUND_Y - 100, 140, 90);
+    ctx.fillStyle = '#8cf';
     ctx.font = '6px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('BLUE', wx(0), GROUND_Y - 88);
+    ctx.fillText('サムライブルー', cx, GROUND_Y - 92);
+  }
+  if (state.awakenB === 'iced') {
+    ctx.fillStyle = '#8cf';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('アイスティー砲', wx(0), GROUND_Y - 80);
   }
   for (const s of (state.snares || [])) {
     const sx = wx(s.x);
@@ -6182,10 +6244,33 @@ function drawArcher(x, y, u) {
     drawPixelRect(bowX - 3, y - 24 + bob, 8, 2, '#fff8e0');
     blitPixels(bowX - 2, y - 28 + bob, ['Y','F'], PAL, 2, false);
   }
-  ctx.fillStyle = '#8af';
+  // 覚醒塔の見た目差（片鱗）
+  if (state.awakenA) {
+    const pulse = 0.25 + Math.sin(state.animT * 8 + x) * 0.12;
+    const ag = ctx.createRadialGradient(x, y - 28 + bob, 2, x, y - 28 + bob, 28);
+    ag.addColorStop(0, `rgba(80,160,255,${pulse})`);
+    ag.addColorStop(1, 'rgba(40,80,200,0)');
+    ctx.fillStyle = ag;
+    ctx.fillRect(x - 30, y - 60 + bob, 60, 50);
+    drawPixelRect(x - 8, y - 34 + bob, 16, 2, '#6af');
+    drawPixelRect(x - 6, y - 18 + bob, 12, 2, '#8cf');
+  }
+  if (state.awakenB === 'iced') {
+    drawPixelRect(x + (u.side === 'left' ? -14 : 8), y - 30 + bob, 6, 10, '#8cf');
+    drawPixelRect(x + (u.side === 'left' ? -12 : 10), y - 32 + bob, 2, 2, '#dff');
+  } else if (state.awakenB === 'gas') {
+    ctx.globalAlpha = 0.35;
+    drawPixelRect(x - 4, y - 8 + bob, 3, 3, '#8c6');
+    drawPixelRect(x + 2, y - 12 + bob, 2, 2, '#6a4');
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = state.awakenA ? '#6af' : (state.awakenB === 'iced' ? '#8cf' : '#8af');
   ctx.font = '5px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText(miliGunNameShort(u.tier|0), x, y - 62 + bob);
+  let tag = miliGunNameShort(u.tier|0);
+  if (state.awakenA) tag = '青' + tag;
+  else if (state.awakenB === 'iced') tag = '氷' + tag;
+  ctx.fillText(tag, x, y - 62 + bob);
 }
 
 function drawEnemy(x, y, e) {
