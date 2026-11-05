@@ -1326,6 +1326,13 @@ const state = {
   missionCd: 0,
   schedule: [],        // 本日のロケ予定 [{lmId,kind,done}]
   bond: { kohai: 0, crew: 0, town: 0 }, // 関係値 0..100
+  bondFlags: {},       // 閾値イベント／会話分岐済み id -> true
+  bondGiftDay: {},     // key -> last day gifted
+  bondTalkDay: {},     // key -> last day talked (分岐クール)
+  bondJoint: null,     // 共同ロケ中 {id, key, lmId, progress, need}
+  bondFocus: null,     // 関係パネル選択 NPC key
+  _bondGifts: 0,
+  _bondJoints: 0,
   heatEvent: null,     // 真夏イベント id
   heatEventT: 0,
   midsummer: false,
@@ -1495,6 +1502,12 @@ const ACH_DEFS = [
   { id: 'bond_kohai', name: '後輩と絆', check: () => (state.bond.kohai|0)>=40 },
   { id: 'bond_crew', name: '撮影班と絆', check: () => (state.bond.crew|0)>=40 },
   { id: 'bond_town', name: '街と絆', check: () => (state.bond.town|0)>=40 },
+  { id: 'bond_kohai80', name: '後輩と深絆', check: () => (state.bond.kohai|0)>=80 },
+  { id: 'bond_crew80', name: '撮影班と深絆', check: () => (state.bond.crew|0)>=80 },
+  { id: 'bond_town80', name: '街と深絆', check: () => (state.bond.town|0)>=80 },
+  { id: 'bond_evt3', name: '関係イベント3', check: () => Object.keys(state.bondFlags||{}).filter(k => String(k).indexOf('evt_')===0).length>=3 },
+  { id: 'bond_gift5', name: 'ギフト5回', check: () => (state._bondGifts|0)>=5 },
+  { id: 'bond_joint3', name: '共同ロケ3', check: () => (state._bondJoints|0)>=3 },
   { id: 'assault_on', name: '攻勢開始', check: () => !!state.assault },
   { id: 'op1', name: '拠点1破壊', check: () => (state.outposts||[]).some(o => o.cleared) },
   { id: 'op3', name: '拠点3破壊', check: () => (state.outposts||[]).filter(o => o.cleared).length>=3 },
@@ -1548,8 +1561,14 @@ const CODEX_QUOTES = (() => {
   [
     ['qb_kohai0', 0, 'bond', '後輩「やりますねぇ」　湿度が下がる　おかのした'],
     ['qb_kohai1', 0, 'bond', '後輩「いいよ！こいよ！」　部室の火が安定'],
+    ['qb_kohai2', 0, 'bond', '後輩「すっごい綺麗…」　部室の窓　汗が光る'],
+    ['qb_kohai3', 0, 'bond', '後輩「いいかな？（念押し）」　アイスティー　冷えてるゾ'],
     ['qb_crew0', 0, 'bond', '撮影班「あり…ますあります」　カット割り　114514'],
+    ['qb_crew1', 0, 'bond', '班長「1日…350円！」　ロケ弁の請求書　ま、多少はね？'],
+    ['qb_crew2', 0, 'bond', '撮影班「流行らせコラ！」　今日のカットを世界へ'],
     ['qb_town0', 0, 'bond', '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ'],
+    ['qb_town1', 0, 'bond', '街の自販機　ありますあります　810円の影'],
+    ['qb_town2', 0, 'bond', '黒塗りの高級車が急ブレーキ　街がざわつく'],
   ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
   // カード側共有語録（田所浩二は別枠のため未収録）
   [
@@ -1557,12 +1576,19 @@ const CODEX_QUOTES = (() => {
     ['qs_hayarase', 0, 'share', '流行らせコラ！'],
     ['qs_kuun', 1, 'share', 'クゥーン…'],
     ['qs_biryushi', 3, 'share', '微粒子レベルで存在している'],
+    ['qs_kirei', 0, 'share', 'すっごい綺麗…'],
+    ['qs_350', 0, 'share', '1日…350円！'],
+    ['qs_iikana', 0, 'share', 'いいかな？（念押し）'],
     // 崩壊イベント系フレーバー
     ['qc_hayarase', 3, 'collapse', '流行らせコラ！（世界の催促）'],
     ['qc_arimasu', 2, 'collapse', 'ありますあります（自販機の答え）'],
     ['qc_naa', 3, 'collapse', 'ンアッー！が114514回木霊する'],
     ['qc_obs', 3, 'collapse', '微粒子レベルで存在している（観測）'],
     ['qc_hoshi', 2, 'collapse', 'お前のものが欲しいとか？（世界）'],
+    // 関係閾値・世界イベント系
+    ['qe_genkai', 3, 'bondevt', '語録の限界集合'],
+    ['qe_blackcar', 2, 'bondevt', '黒塗りの高級車が急ブレーキ'],
+    ['qe_vend810', 0, 'bondevt', '810円の自販機が出現'],
   ].forEach(([id, ch, beat, raw]) => out.push({ id, ch, beat, raw }));
   return out;
 })();
@@ -1599,7 +1625,9 @@ const TOWER_SKINS = [
   { id: 'particle', name: '微粒子砲', desc: '週次・崩壊観測ロケ', accent: '#a8d0ff',
     check: () => !!(state.towerSkins && state.towerSkins.particle) || Object.values(state.weeklyDone||{}).some(v => v === 'w_collapse') },
   { id: 'vending', name: '自販機砲', desc: '章任務・ありますあります', accent: '#6ecf8a',
-    check: () => !!(state.towerSkins && state.towerSkins.vending) || !!(state.chapterQuestDone && state.chapterQuestDone.ch0_kitazawa) },
+    check: () => !!(state.towerSkins && state.towerSkins.vending) || !!(state.chapterQuestDone && state.chapterQuestDone.ch0_kitazawa) || !!(state.bondFlags && state.bondFlags.evt_vend810) },
+  { id: 'blackcar', name: '黒塗りの砲', desc: '街関係・急ブレーキ', accent: '#3a3a48',
+    check: () => !!(state.towerSkins && state.towerSkins.blackcar) || !!(state.bondFlags && state.bondFlags.evt_blackcar) },
 ];
 
 function ensureCollectState() {
@@ -1727,7 +1755,7 @@ function renderCollectBox(parent, sub) {
       rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${on ? '✓' : '・'}</span>${a.name}</div>`);
     }
   } else if (sub === 'codex') {
-    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係', share: '共有', collapse: '崩壊' };
+    const beatJa = { intro: '導入', day: '昼', night: '夜', assault: '攻勢', clear: 'クリア', bond: '関係', share: '共有', collapse: '崩壊', bondevt: '関係Evt' };
     for (const q of CODEX_QUOTES) {
       const on = !!state.codexQuotes[q.id];
       const label = on ? shortenMsg(fillDayToken(q.raw), 42) : '？？？';
@@ -1759,14 +1787,310 @@ function renderCollectBox(parent, sub) {
   parent.appendChild(box);
 }
 
+const BOND_NPCS = [
+  {
+    key: 'kohai', name: '後輩', talkGain: 4, humidity: -6,
+    branches: [
+      { min: 0, lines: [
+        '後輩「やりますねぇ」　湿度が下がる　おかのした',
+        '後輩「いいよ！こいよ！」　部室の火が安定',
+        '後輩「ま、多少はね？」　汗が嘘をつく',
+      ], codexIds: ['qb_kohai0', 'qb_kohai1'] },
+      { min: 25, lines: [
+        '後輩「すっごい綺麗…」　部室の窓　汗が光る',
+        '後輩「あ〜いいっすね〜」　アイスティーの影',
+      ], codexIds: ['qb_kohai2', 'qs_kirei'] },
+      { min: 50, lines: [
+        '後輩「いいかな？（念押し）」　アイスティー　冷えてるゾ',
+        '後輩「いいかな？」　念押し　湿度が答える',
+      ], codexIds: ['qb_kohai3', 'qs_iikana'] },
+      { min: 75, lines: [
+        '後輩「王道を征く、汗系ですか」　深絆　部室が熱い',
+        '後輩「クゥーン…」　でもやりますねぇ',
+      ], codexIds: ['qs_kuun'], flag: 'talk_kohai_deep' },
+    ],
+    gifts: [
+      { id: 'tea', label: 'アイスティー差し入れ', cost: 2, gain: 8, need: 10,
+        line: '後輩「いいかな？（念押し）」　冷えてるゾ　おかのした',
+        codexIds: ['qs_iikana', 'qb_kohai3'] },
+      { id: 'towel', label: '汗の手ぬぐい', cost: 1, gain: 5, need: 0,
+        line: '後輩「すっごい綺麗…」　手ぬぐいが光る',
+        codexIds: ['qs_kirei', 'qb_kohai2'] },
+    ],
+    joints: [
+      { id: 'jk_kitazawa', label: '部室〜北沢共同ロケ', lmId: 'kitazawa', needBond: 20, need: 2, reward: 1, bondGain: 6,
+        line: '共同ロケ　後輩「すっごい綺麗…」　北沢公園',
+        codexIds: ['qs_kirei', 'qb_kohai2'], photo: 'kitazawa' },
+      { id: 'jk_laundry', label: 'ランドリー共同ロケ', lmId: 'laundry', needBond: 45, need: 2, reward: 2, bondGain: 8,
+        line: '共同ロケ　後輩「いいかな？（念押し）」　コインランドリー',
+        codexIds: ['qs_iikana', 'qb_kohai3'], photo: 'laundry' },
+    ],
+  },
+  {
+    key: 'crew', name: '撮影班', talkGain: 5, humidity: 0,
+    branches: [
+      { min: 0, lines: [
+        '撮影班「あり…ますあります」　カット割り　114514',
+        'ミーティング完了　ロケバス　いいよ！こいよ！',
+        '班長「やりますねぇ」　本日の日程を確認',
+      ], codexIds: ['qb_crew0', 'qs_arimasu'] },
+      { min: 25, lines: [
+        '班長「1日…350円！」　ロケ弁の請求書　ま、多少はね？',
+        '撮影班「流行らせコラ！」　今日のカットを世界へ',
+      ], codexIds: ['qb_crew1', 'qs_350', 'qb_crew2', 'qs_hayarase'] },
+      { min: 55, lines: [
+        '班長「ありますあります」　連日撮影の汗',
+        '撮影班「微粒子レベルで存在している」　レンズ越し',
+      ], codexIds: ['qs_biryushi'] },
+      { min: 80, lines: [
+        '班長「語録の限界集合」へ向けて　機材が震える',
+        '撮影班「流行らせコラ！」　限界の向こう側',
+      ], codexIds: ['qe_genkai'], flag: 'talk_crew_deep' },
+    ],
+    gifts: [
+      { id: 'bento', label: 'ロケ弁（350円相当）', cost: 2, gain: 7, need: 15,
+        line: '班長「1日…350円！」　弁当代　あり…ますあります',
+        codexIds: ['qs_350', 'qb_crew1'] },
+      { id: 'tape', label: '予備テープ', cost: 1, gain: 4, need: 0,
+        line: '撮影班「流行らせコラ！」　テープが増える',
+        codexIds: ['qs_hayarase', 'qb_crew2'] },
+    ],
+    joints: [
+      { id: 'jc_azuma', label: 'あずま寿し共同ロケ', lmId: 'azuma', needBond: 25, need: 2, reward: 1, bondGain: 6,
+        line: '共同ロケ　班長「1日…350円！」　あずま寿し',
+        codexIds: ['qs_350', 'qb_crew1'], photo: 'azuma' },
+      { id: 'jc_kabuki', label: '歌舞伎町共同ロケ', lmId: 'kabuki', needBond: 50, need: 3, reward: 2, bondGain: 9,
+        line: '共同ロケ　撮影班「流行らせコラ！」　歌舞伎町の片鱗',
+        codexIds: ['qs_hayarase', 'qb_crew2'], photo: 'kabuki' },
+    ],
+  },
+  {
+    key: 'town', name: '街', talkGain: 6, humidity: 0,
+    branches: [
+      { min: 0, lines: [
+        '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
+        '評判アップ　王道を征く　街の湿度も味方',
+        '差し入れ完了　おかのした　収入の片鱗',
+      ], codexIds: ['qb_town0'] },
+      { min: 30, lines: [
+        '街の自販機　ありますあります　810円の影',
+        '路地で噂　自販機が出現したとか',
+      ], codexIds: ['qb_town1', 'qs_arimasu'] },
+      { min: 55, lines: [
+        '黒塗りの高級車が急ブレーキ　街がざわつく',
+        '交差点　高級車　汗が飛び散る',
+      ], codexIds: ['qb_town2', 'qe_blackcar'] },
+      { min: 80, lines: [
+        '街全体が　語録の限界集合　を囁く',
+        '聖地が共鳴　ありますあります　果てまで',
+      ], codexIds: ['qe_genkai'], flag: 'talk_town_deep' },
+    ],
+    gifts: [
+      { id: 'vend', label: '自販機コイン（810）', cost: 3, gain: 9, need: 20,
+        line: '街の自販機　ありますあります　810円が光る',
+        codexIds: ['qe_vend810', 'qs_arimasu', 'qb_town1'] },
+      { id: 'flyer', label: '聖地チラシ', cost: 1, gain: 4, need: 0,
+        line: '街へチラシ　あ〜いいっすね〜　聖地が喜ぶ',
+        codexIds: ['qb_town0'] },
+    ],
+    joints: [
+      { id: 'jt_setagaya', label: '世田谷共同ロケ', lmId: 'setagaya', needBond: 30, need: 2, reward: 1, bondGain: 7,
+        line: '共同ロケ　街の自販機　ありますあります　世田谷公園',
+        codexIds: ['qs_arimasu', 'qb_town1'], photo: 'setagaya' },
+      { id: 'jt_yamanote', label: '新宿交差点共同ロケ', lmId: 'yamanote', needBond: 55, need: 3, reward: 2, bondGain: 10,
+        line: '共同ロケ　黒塗りの高級車が急ブレーキ　新宿交差点',
+        codexIds: ['qe_blackcar', 'qb_town2'], photo: 'yamanote' },
+    ],
+  },
+];
+
+const BOND_THRESH_EVENTS = [
+  { id: 'evt_vend810', key: 'town', min: 35, title: '810円の自販機が出現',
+    story: '路地の角　810円の自販機が出現　ありますあります　街がざわつく',
+    codexIds: ['qe_vend810', 'qs_arimasu', 'qb_town1'], skinHint: 'vending', coins: 1 },
+  { id: 'evt_kohai_kirei', key: 'kohai', min: 40, title: '部室の窓が光る',
+    story: '後輩「すっごい綺麗…」　部室の窓　汗が光る　湿度が下がる',
+    codexIds: ['qs_kirei', 'qb_kohai2'], coins: 1 },
+  { id: 'evt_crew_350', key: 'crew', min: 40, title: 'ロケ弁の請求書',
+    story: '班長「1日…350円！」　ロケ弁の請求書　ま、多少はね？　ありますあります',
+    codexIds: ['qs_350', 'qb_crew1'], coins: 1 },
+  { id: 'evt_iikana', key: 'kohai', min: 55, title: '念押しのアイスティー',
+    story: '後輩「いいかな？（念押し）」　アイスティー　冷えてるゾ　おかのした',
+    codexIds: ['qs_iikana', 'qb_kohai3'], coins: 1 },
+  { id: 'evt_blackcar', key: 'town', min: 60, title: '黒塗りの高級車が急ブレーキ',
+    story: '黒塗りの高級車が急ブレーキ　街がざわつく　汗が飛び散る　やりますねぇ',
+    codexIds: ['qe_blackcar', 'qb_town2'], skinHint: 'blackcar', coins: 2 },
+  { id: 'evt_genkai', key: 'crew', min: 70, title: '語録の限界集合',
+    story: '語録の限界集合　レンズが割れる　微粒子レベルで存在している　流行らせコラ！',
+    codexIds: ['qe_genkai', 'qs_biryushi', 'qs_hayarase', 'qc_naa'], coins: 3, chapterMin: 2 },
+];
+
+function ensureBondState() {
+  if (!state.bond) state.bond = { kohai: 0, crew: 0, town: 0 };
+  if (!state.bondFlags) state.bondFlags = {};
+  if (!state.bondGiftDay) state.bondGiftDay = {};
+  if (!state.bondTalkDay) state.bondTalkDay = {};
+  if (state._bondGifts == null) state._bondGifts = 0;
+  if (state._bondJoints == null) state._bondJoints = 0;
+}
+
+function bondNpcOf(key) {
+  return BOND_NPCS.find(n => n.key === key) || null;
+}
+
+function pickBondBranch(npc) {
+  const v = (state.bond && state.bond[npc.key]) | 0;
+  let best = npc.branches[0];
+  for (const b of npc.branches) {
+    if (v >= (b.min | 0)) best = b;
+  }
+  return best;
+}
+
+function checkBondThresholds(quiet) {
+  ensureBondState();
+  let fired = 0;
+  for (const ev of BOND_THRESH_EVENTS) {
+    if (state.bondFlags[ev.id]) continue;
+    if ((ev.chapterMin | 0) > (state.chapter | 0)) continue;
+    const v = (state.bond && state.bond[ev.key]) | 0;
+    if (v < (ev.min | 0)) continue;
+    state.bondFlags[ev.id] = true;
+    fired++;
+    if (ev.codexIds) {
+      for (const id of ev.codexIds) unlockCodexId(id, true);
+    }
+    if (ev.skinHint) {
+      ensureCollectState();
+      state.towerSkins[ev.skinHint] = true;
+    }
+    if (ev.coins) state.coins += ev.coins | 0;
+    if (!quiet) {
+      toast('関係Evt　' + ev.title, 2.8);
+      story(storyCompose(ev.story, { bond: true, schedule: true, heat: true }), 3.0);
+      spawnMeme(player.x, GROUND_Y - 80, 'Evt');
+    }
+  }
+  if (fired) {
+    try { refreshTowerSkins(true); } catch (_) {}
+    try { checkAchievements(); } catch (_) {}
+  }
+  return fired;
+}
+
 function bumpBond(key, n) {
-  if (!state.bond) state.bond = { kohai:0, crew:0, town:0 };
-  state.bond[key] = clamp((state.bond[key]|0) + n, 0, 100);
+  ensureBondState();
+  if (!state.bond) state.bond = { kohai: 0, crew: 0, town: 0 };
+  state.bond[key] = clamp((state.bond[key] | 0) + n, 0, 100);
+  checkBondThresholds(false);
 }
 
 function bondMul(key) {
-  return 1 + Math.min(0.25, ((state.bond && state.bond[key])|0) / 400);
+  return 1 + Math.min(0.25, ((state.bond && state.bond[key]) | 0) / 400);
 }
+
+function doBondTalk(key) {
+  ensureBondState();
+  const npc = bondNpcOf(key);
+  if (!npc) return;
+  if ((state.bondTalkDay[key] | 0) === (state.day | 0)) {
+    toast('今日はもう話した　ま、多少はね？', 2.0);
+    return;
+  }
+  state.bondTalkDay[key] = state.day | 0;
+  const br = pickBondBranch(npc);
+  bumpBond(key, npc.talkGain | 0);
+  if (npc.humidity) state.humidity = clamp(state.humidity + (npc.humidity | 0), 0, 100);
+  if (key === 'crew') state.filmShots = (state.filmShots | 0) + 1;
+  if (br.codexIds) for (const id of br.codexIds) unlockCodexId(id, true);
+  if (br.flag) state.bondFlags[br.flag] = true;
+  const line = pick(br.lines || ['…']);
+  toast(npc.name + '　関係' + ((state.bond[key] | 0)), 2.0);
+  story(storyCompose(line, { bond: true, schedule: true, heat: true }), 2.6);
+  updateHumidityHud();
+  refreshTowerSkins(true);
+  try { checkAchievements(); } catch (_) {}
+}
+
+function doBondGift(key, giftId) {
+  ensureBondState();
+  const npc = bondNpcOf(key);
+  if (!npc) return;
+  const g = (npc.gifts || []).find(x => x.id === giftId);
+  if (!g) return;
+  const gk = key + '_' + giftId;
+  if ((state.bondGiftDay[gk] | 0) === (state.day | 0)) {
+    toast('今日はもう贈った　おかのした', 2.0);
+    return;
+  }
+  const need = g.need | 0;
+  if (((state.bond[key] | 0) < need)) {
+    toast('関係が足りない（要' + need + '）', 2.0);
+    return;
+  }
+  const cost = g.cost | 0;
+  if ((state.coins | 0) < cost) {
+    toast('コインが足りない', 1.8);
+    return;
+  }
+  state.coins -= cost;
+  state.bondGiftDay[gk] = state.day | 0;
+  state._bondGifts = (state._bondGifts | 0) + 1;
+  bumpBond(key, g.gain | 0);
+  if (g.codexIds) for (const id of g.codexIds) unlockCodexId(id, true);
+  toast('ギフト　' + g.label, 2.2);
+  story(storyCompose(g.line, { bond: true, schedule: true, heat: true }), 2.6);
+  refreshTowerSkins(true);
+  try { checkAchievements(); } catch (_) {}
+}
+
+function doBondJoint(key, jointId) {
+  ensureBondState();
+  const npc = bondNpcOf(key);
+  if (!npc) return;
+  const j = (npc.joints || []).find(x => x.id === jointId);
+  if (!j) return;
+  if (state.bondFlags['joint_' + j.id]) {
+    toast('この共同ロケは済　おかのした', 2.0);
+    return;
+  }
+  if (((state.bond[key] | 0) < (j.needBond | 0))) {
+    toast('関係が足りない（要' + (j.needBond | 0) + '）', 2.0);
+    return;
+  }
+  const L = landmarkById(j.lmId);
+  if (!L || !state.landmarks[j.lmId]) {
+    toast('聖地未解放　' + ((L && L.short) || j.lmId), 2.2);
+    return;
+  }
+  // 進行型：初回開始→need回の進捗で完了
+  if (!state.bondJoint || state.bondJoint.id !== j.id) {
+    state.bondJoint = { id: j.id, key: key, lmId: j.lmId, progress: 0, need: j.need | 2 };
+    toast('共同ロケ開始　' + j.label, 2.2);
+    story(storyCompose('【共同】' + j.label + '　開始　いいよ！こいよ！', { bond: true, schedule: true, heat: true }), 2.4);
+    return;
+  }
+  state.bondJoint.progress = (state.bondJoint.progress | 0) + 1;
+  if ((state.bondJoint.progress | 0) < (state.bondJoint.need | 2)) {
+    toast('共同ロケ進捗　' + state.bondJoint.progress + '/' + state.bondJoint.need, 2.0);
+    story(storyCompose('【共同】撮影中…　' + j.label + '　' + state.bondJoint.progress + '/' + state.bondJoint.need, { bond: true, schedule: true, heat: true }), 2.2);
+    return;
+  }
+  // 完了
+  state.bondFlags['joint_' + j.id] = true;
+  state.bondJoint = null;
+  state._bondJoints = (state._bondJoints | 0) + 1;
+  if (j.reward) state.coins += j.reward | 0;
+  bumpBond(key, j.bondGain | 0);
+  if (j.codexIds) for (const id of j.codexIds) unlockCodexId(id, true);
+  if (j.photo) unlockLocPhoto(j.photo, false);
+  state.filmShots = (state.filmShots | 0) + 1;
+  toast('共同ロケ完了　' + j.label, 2.6);
+  story(storyCompose(j.line + '　やりますねぇ', { bond: true, schedule: true, heat: true }), 2.8);
+  refreshTowerSkins(true);
+  try { checkAchievements(); } catch (_) {}
+}
+
 
 function unlockAch(id) {
   if (!state.achievements) state.achievements = {};
@@ -1804,12 +2128,12 @@ const MISSION_KINDS = [
   { id: 'patrol', label: '聖地巡回', need: 1, reward: () => 2,
     bond: { town: 3 }, flavor: () => pick(['クゥーン…', 'ま、多少はね？', 'おかのした']) },
   { id: 'sweat', label: '汗集めロケ', need: 3, reward: () => 1,
-    bond: { kohai: 2 }, flavor: () => pick(['微粒子レベルで存在している', '汗系ですか', 'クゥーン…']) },
+    bond: { kohai: 2 }, flavor: () => pick(['微粒子レベルで存在している', '汗系ですか', 'クゥーン…', 'すっごい綺麗…']) },
   { id: 'bus', label: 'ロケバス往復', need: 1, reward: () => 3,
     bond: { crew: 3 }, flavor: () => pick(['ありますあります', 'おかのした', 'いいよ！こいよ！']) },
   { id: 'collab', label: '共有語録ロケ', need: 3, reward: () => 3 + (state.chapter | 0),
-    bond: { crew: 3, town: 2 }, codexIds: ['qs_arimasu', 'qs_hayarase'], chapterMin: 0,
-    flavor: () => '流行らせコラ！　ありますあります' },
+    bond: { crew: 3, town: 2 }, codexIds: ['qs_arimasu', 'qs_hayarase', 'qs_kirei', 'qs_350', 'qs_iikana'], chapterMin: 0,
+    flavor: () => pick(['流行らせコラ！　ありますあります', 'すっごい綺麗…', '1日…350円！', 'いいかな？（念押し）']) },
   { id: 'collapse', label: '崩壊観測ロケ', need: 4, reward: () => 4 + (state.chapter | 0),
     bond: { town: 4, crew: 2 }, codexIds: ['qc_obs', 'qc_hoshi'], chapterMin: 2,
     flavor: () => '微粒子レベルで存在している（観測）　お前のものが欲しいとか？（世界）' },
@@ -2540,43 +2864,74 @@ function openBranchPanel(tab) {
     btns.appendChild(subNav);
 
     if (!sub) {
-      addBtn(`後輩と話す（関係${state.bond.kohai|0}）湿度↓`, 0, () => {
-        bumpBond('kohai', 4); state.humidity = clamp(state.humidity - 6, 0, 100);
-        toast('後輩「やりますねぇ」', 2.2);
-        story(storyCompose(pick([
-          '後輩「やりますねぇ」　湿度が下がる　おかのした',
-          '後輩「いいよ！こいよ！」　部室の火が安定',
-          '後輩「ま、多少はね？」　汗が嘘をつく',
-        ]), { bond: true, schedule: true, heat: true }), 2.6);
-        updateHumidityHud();
-        refreshTowerSkins(true);
-      });
-      addBtn(`撮影班ミーティング（班${state.bond.crew|0}）`, 1, () => {
-        bumpBond('crew', 5); state.filmShots = (state.filmShots|0)+1; toast('ミーティング完了', 2.0);
-        story(storyCompose(pick([
-          '撮影班「あり…ますあります」　カット割り　114514',
-          'ミーティング完了　ロケバス　いいよ！こいよ！',
-          '班長「やりますねぇ」　本日の日程を確認',
-        ]), { bond: true, schedule: true, heat: true }), 2.6);
-        return true;
-      });
-      addBtn(`街へ差し入れ（街${state.bond.town|0}）`, 2, () => {
-        bumpBond('town', 6); toast('街の評判アップ', 2.0);
-        story(storyCompose(pick([
-          '街へ差し入れ　あ〜いいっすね〜　聖地が喜ぶ',
-          '評判アップ　王道を征く　街の湿度も味方',
-          '差し入れ完了　おかのした　収入の片鱗',
-        ]), { bond: true, schedule: true, heat: true }), 2.6);
-        return true;
-      });
-      const bk = Object.keys(state.bestiary||{}).length;
-      addBtn(`撃破図鑑 ${bk}種　汗${state.sweatDrops|0}　撮影${state.filmShots|0}`, 0, () => {
-        const names = Object.keys(state.bestiary||{}).slice(0, 10).join('／') || 'まだなし';
-        toast(names, 3.2);
-      });
-      addBtn(`収集サマリ　語録${cc.codex}／写真${cc.photo}／塔${cc.skin}／隠し${cc.secret}`, 0, () => {
-        state.collectSub = 'ach'; openBranchPanel('bond');
-      });
+      ensureBondState();
+      const focus = state.bondFocus || null;
+      // NPC 選択
+      for (const npc of BOND_NPCS) {
+        const v = (state.bond[npc.key] | 0);
+        const mark = focus === npc.key ? '▶' : '・';
+        addBtn(`${mark}${npc.name}　関係${v}/100`, 0, () => {
+          state.bondFocus = (state.bondFocus === npc.key) ? null : npc.key;
+          openBranchPanel('bond');
+        });
+      }
+      if (!focus) {
+        // 閾値イベント履歴
+        const evDone = BOND_THRESH_EVENTS.filter(e => state.bondFlags && state.bondFlags[e.id]);
+        addBtn(`関係Evt ${evDone.length}/${BOND_THRESH_EVENTS.length}　タップで一覧`, 0, () => {
+          const lines = BOND_THRESH_EVENTS.map(e => {
+            const on = !!(state.bondFlags && state.bondFlags[e.id]);
+            return (on ? '★' : '・') + e.title + '（' + e.key + '≥' + e.min + '）';
+          });
+          toast(lines.slice(0, 4).join('／'), 3.4);
+          if (lines.length > 4) setTimeout(() => toast(lines.slice(4).join('／'), 3.2), 900);
+        });
+        const bk = Object.keys(state.bestiary || {}).length;
+        addBtn(`撃破図鑑 ${bk}種　汗${state.sweatDrops|0}　撮影${state.filmShots|0}　ギフト${state._bondGifts|0}`, 0, () => {
+          const names = Object.keys(state.bestiary || {}).slice(0, 10).join('／') || 'まだなし';
+          toast(names, 3.2);
+        });
+        addBtn(`収集サマリ　語録${cc.codex}／写真${cc.photo}／塔${cc.skin}／隠し${cc.secret}`, 0, () => {
+          state.collectSub = 'ach'; openBranchPanel('bond');
+        });
+      } else {
+        const npc = bondNpcOf(focus);
+        const v = (state.bond[focus] | 0);
+        const talked = (state.bondTalkDay[focus] | 0) === (state.day | 0);
+        const br = pickBondBranch(npc);
+        addBtn(`${talked ? '【済】' : ''}会話（分岐≥${br.min|0}）　+${npc.talkGain}`, 0, () => {
+          doBondTalk(focus);
+          openBranchPanel('bond');
+        }, !talked);
+        for (const g of (npc.gifts || [])) {
+          const gk = focus + '_' + g.id;
+          const gifted = (state.bondGiftDay[gk] | 0) === (state.day | 0);
+          const okNeed = v >= (g.need | 0);
+          addBtn(`${gifted ? '【済】' : ''}贈る：${g.label}（${g.cost}🪙 +${g.gain}${okNeed ? '' : ' 要関係'+g.need}）`, 0, () => {
+            doBondGift(focus, g.id);
+            openBranchPanel('bond');
+          }, !gifted && okNeed && (state.coins|0) >= (g.cost|0));
+        }
+        for (const j of (npc.joints || [])) {
+          const done = !!(state.bondFlags && state.bondFlags['joint_' + j.id]);
+          const active = state.bondJoint && state.bondJoint.id === j.id;
+          const L = landmarkById(j.lmId);
+          const unlocked = !!(L && state.landmarks[j.lmId]);
+          const okB = v >= (j.needBond | 0);
+          let label = done ? '【完了】' : (active ? `【進行${state.bondJoint.progress|0}/${state.bondJoint.need|0}】` : '');
+          label += `共同：${j.label}`;
+          if (!unlocked) label += '（聖地未解放）';
+          else if (!okB) label += `（要関係${j.needBond}）`;
+          addBtn(label, 0, () => {
+            doBondJoint(focus, j.id);
+            openBranchPanel('bond');
+          }, !done && unlocked && okB);
+        }
+        addBtn('← 関係一覧へ', 0, () => {
+          state.bondFocus = null;
+          openBranchPanel('bond');
+        });
+      }
     } else {
       renderCollectBox(btns, sub);
       if (sub === 'skin') {
@@ -2617,7 +2972,7 @@ function openBranchPanel(tab) {
     civil: '内政：施設Lv・作業員・810銀行・ロケバス',
     mili: '軍事：西東タブで砲台・トリオ　罠・覚醒でスネア／地雷／片鱗',
     mission: '日次／週次／章任務　報酬は関係・語録・塔スキン連動',
-    bond: '関係／実績／語録図鑑／ロケ写真／塔スキン／章隠し',
+    bond: '関係：会話分岐／ギフト／共同ロケ／閾値Evt　｜　実績／語録／写真／塔／隠し',
   })[state.panelOpen] || '';
   hint.textContent = (tabHint ? tabHint + '　｜　' : '') + 'タップで反応　1内政／2軍事／3日程／4関係';
   btns.insertBefore(hint, btns.firstChild);
@@ -4451,6 +4806,12 @@ function buildSaveBlob() {
       crew: (state.bond && state.bond.crew) | 0,
       town: (state.bond && state.bond.town) | 0,
     },
+    bondFlags: Object.assign({}, state.bondFlags || {}),
+    bondGiftDay: Object.assign({}, state.bondGiftDay || {}),
+    bondTalkDay: Object.assign({}, state.bondTalkDay || {}),
+    bondJoint: state.bondJoint ? Object.assign({}, state.bondJoint) : null,
+    _bondGifts: state._bondGifts | 0,
+    _bondJoints: state._bondJoints | 0,
     achievements: Object.assign({}, state.achievements || {}),
     filmShots: state.filmShots | 0,
     sweatDrops: state.sweatDrops | 0,
@@ -4545,6 +4906,13 @@ function applySave(d) {
     crew: clamp((d.bond && d.bond.crew) | 0, 0, 100),
     town: clamp((d.bond && d.bond.town) | 0, 0, 100),
   };
+  state.bondFlags = Object.assign({}, d.bondFlags || {});
+  state.bondGiftDay = Object.assign({}, d.bondGiftDay || {});
+  state.bondTalkDay = Object.assign({}, d.bondTalkDay || {});
+  state.bondJoint = d.bondJoint ? Object.assign({}, d.bondJoint) : null;
+  state._bondGifts = Math.max(0, d._bondGifts | 0);
+  state._bondJoints = Math.max(0, d._bondJoints | 0);
+  state.bondFocus = null;
   state.achievements = Object.assign({}, d.achievements || {});
   // 旧id awakenB → 分割実績は再チェックに任せる
   if (state.achievements.awakenB && state.awakenB === 'iced') state.achievements.awakenB_iced = true;
@@ -4718,6 +5086,13 @@ function resetGame() {
   state.missionSub = 'day';
   state._weekFilm = 0;
   state.bond = { kohai: 0, crew: 0, town: 0 };
+  state.bondFlags = {};
+  state.bondGiftDay = {};
+  state.bondTalkDay = {};
+  state.bondJoint = null;
+  state._bondGifts = 0;
+  state._bondJoints = 0;
+  state.bondFocus = null;
   state.heatEvent = null;
   state.heatEventT = 0;
   state.midsummer = false;
