@@ -9,6 +9,8 @@
 <meta name="theme-color" content="#0a0a12">
 <meta name="format-detection" content="telephone=no">
 <title>野獣キングダム — 王道を征く</title>
+<link rel="icon" type="image/png" href="assets/senpai_icon.png">
+<link rel="apple-touch-icon" href="assets/senpai_icon.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   :root {
@@ -1363,7 +1365,10 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Digit2' || e.code === 'Numpad2') { if (!state.isNight && state.running) openBranchPanel('mili'); }
   if (e.code === 'Digit3' || e.code === 'Numpad3') { if (!state.isNight && state.running) { rollDaySchedule(); openBranchPanel('mission'); } }
   if (e.code === 'Digit4' || e.code === 'Numpad4') { if (!state.isNight && state.running) openBranchPanel('bond'); }
-  if (e.code === 'Escape' && state.panelOpen) closeBranchPanel();
+  if (e.code === 'Escape') {
+    if (state.panelOpen) closeBranchPanel();
+    else dismissDayChoice(true);
+  }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -4239,11 +4244,13 @@ function chapterTheme() {
 }
 function biasHex(hex, bias, amt) {
   amt = amt == null ? 1 : amt;
+  if (typeof hex !== 'string' || hex[0] !== '#' || hex.length < 7) hex = '#808080';
+  bias = bias || { r: 0, g: 0, b: 0 };
   const p = (c) => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
   const a = p(hex);
-  const r = Math.max(0, Math.min(255, (a[0] + bias.r * amt) | 0));
-  const g = Math.max(0, Math.min(255, (a[1] + bias.g * amt) | 0));
-  const b = Math.max(0, Math.min(255, (a[2] + bias.b * amt) | 0));
+  const r = Math.max(0, Math.min(255, (a[0] + (bias.r || 0) * amt) | 0));
+  const g = Math.max(0, Math.min(255, (a[1] + (bias.g || 0) * amt) | 0));
+  const b = Math.max(0, Math.min(255, (a[2] + (bias.b || 0) * amt) | 0));
   return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 function syncPanelChapterTheme() {
@@ -4527,15 +4534,35 @@ function onSacredKill() {
   }
 }
 
+function dismissDayChoice(skipped) {
+  const panel = document.getElementById('choice-panel');
+  if (panel) panel.classList.remove('show');
+  // 昼選択はパネルOpen扱いしないが、残骸掃除
+  if (!state.panelOpen) {
+    if (!state.over && !state.won) state.running = true;
+    try { syncPanelChrome(false); } catch (_) {}
+  }
+  state.dayChoiceDone = true;
+  if (skipped) {
+    toast('あとで（スキップ）　ロケ続行', 2.0);
+    try { saveGame(true); } catch (_) {}
+  }
+}
+
 function openDayChoice() {
   if (state.dayChoiceDone || state.isNight || !state.running) return;
+  // Day1は開始直後フリーズ回避のためスキップ
+  if ((state.day | 0) <= 1) {
+    state.dayChoiceDone = true;
+    return;
+  }
   state.dayChoiceDone = true;
-  state.running = false;
+  // 選択中も移動可（running維持）。明示スキップで閉じる
   const panel = document.getElementById('choice-panel');
   const title = document.getElementById('choice-title');
   const btns = document.getElementById('choice-btns');
   ensureHeatState();
-  title.textContent = `Day${state.day}　昼の選択　湿度 ${Math.round(state.humidity)}%　熱中症${state.heatRisk|0}` + (state.heatEvent ? '　'+heatFlavorSuffix().trim() : '');
+  title.textContent = `Day${state.day}　昼の選択（移動OK／あとで可）　湿度 ${Math.round(state.humidity)}%　熱中症${state.heatRisk|0}` + (state.heatEvent ? '　'+heatFlavorSuffix().trim() : '');
   const options = [
     {
       label: '屋上で焼肉　あ〜いいっすね〜（＋コイン／湿度↑）',
@@ -4622,6 +4649,15 @@ function openDayChoice() {
     },
   ];
   btns.innerHTML = '';
+  // スキップ導線を先頭に
+  {
+    const skip = document.createElement('button');
+    skip.type = 'button';
+    skip.textContent = 'あとで（スキップ・移動続行）';
+    skip.style.borderColor = '#888';
+    skip.onclick = () => dismissDayChoice(true);
+    btns.appendChild(skip);
+  }
   for (const opt of options) {
     if ((opt.needCoins | 0) > 0 && (state.coins | 0) < (opt.needCoins | 0)) continue;
     const b = document.createElement('button');
@@ -4629,20 +4665,24 @@ function openDayChoice() {
     b.textContent = opt.label;
     b.onclick = () => {
       const goPanel = opt.label.indexOf('パネル') >= 0 || opt.label.indexOf('ロケ日程') >= 0;
-      opt.run();
+      try { opt.run(); } catch (err) { try { console.error('dayChoice', err); } catch (_) {} }
       if (!goPanel) {
         panel.classList.remove('show');
         state.running = true;
         try { syncPanelChrome(false); } catch (_) {}
         updateHumidityHud();
-        checkAchievements();
+        try { checkAchievements(); } catch (_) {}
         try { saveGame(true); } catch (_) {}
+      } else {
+        // 分岐パネルへ：そちらが running=false にする
+        panel.classList.remove('show');
       }
     };
     btns.appendChild(b);
   }
   panel.classList.add('show');
-  try { syncPanelChrome(true); } catch (_) {}
+  // 昼選択は世界を止めない（移動可）。branchパネル時のみ chrome 同期
+  try { syncPanelChrome(false); } catch (_) {}
 }
 
 function applyBankInterest() {
@@ -4765,6 +4805,7 @@ function fileBattleReport() {
 const PX = { scale: 2 };
 
 function blitPixels(ox, oy, grid, palette, scale, flipX) {
+  if (!grid || !grid.length || !grid[0]) return;
   const s = scale == null ? PX.scale : scale;
   const h = grid.length, w = grid[0].length;
   for (let y = 0; y < h; y++) {
@@ -4782,6 +4823,7 @@ function blitPixels(ox, oy, grid, palette, scale, flipX) {
 }
 
 function blitOutlined(ox, oy, grid, palette, scale, flipX, outlineCol) {
+  if (!grid || !grid.length || !grid[0]) return;
   const s = scale == null ? PX.scale : scale;
   const h = grid.length, w = grid[0].length;
   const oc = outlineCol || '#140a10';
@@ -4835,7 +4877,10 @@ const PAL = {
 const PAL_BODY = PAL;
 
 function frameIndex(speed, count) {
-  return Math.floor(state.animT * speed) % count;
+  const n = Math.max(1, count | 0);
+  const t = Number(state.animT);
+  const base = Math.floor((Number.isFinite(t) ? t : 0) * (speed || 1));
+  return ((base % n) + n) % n;
 }
 
 const FR_WALK = [
@@ -5803,7 +5848,8 @@ function startDay() {
   syncCycleLengths();
   try { if (typeof audPlay === 'function') audPlay('day'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   spawnDawnFx();
-  state.dayChoiceDone = false;
+  // Day1は選択パネルで「動かない」に見えるのを避ける
+  state.dayChoiceDone = (state.day | 0) <= 1;
   state.killCombo = 0;
   state.comboTimer = 0;
   state.gazeT = 0;
@@ -6291,6 +6337,19 @@ function applySave(d) {
   state.panelOpen = null;
   try { syncPanelChrome(false); } catch (_) {}
   try { ensureBondState(); ensureHeatState(); ensureCivilMiliExt(); syncCycleLengths(); } catch (_) {}
+  state.titleCine = false;
+  state.titleDawn = 0;
+  state.running = true;
+  state.over = false;
+  state.won = false;
+  // 夜セーブ軟着陸後も昼確定。選択時刻を過ぎてたらスキップ扱い
+  if (!state.isNight) {
+    const choiceAt = Math.max(28, Math.min(40, (state.dayLength || 52) * 0.48));
+    if ((state.day | 0) <= 1 || state.dayTimer >= choiceAt) state.dayChoiceDone = true;
+  }
+  state.cameraX = player.x - W / 2 + ((player.facing || 1) * 36);
+  state._drawErrLogged = false;
+  state._updErrLogged = false;
   updateHumidityHud();
   const ov = document.getElementById('overlay');
   ov.classList.add('hidden');
@@ -6432,6 +6491,19 @@ function resetGame() {
   dropCoin(-250, 1);
   dropCoin(260, 1);
   startDay();
+  // 開始直後の見た目・操作を確定（夜空残存／カメラずれ防止）
+  state.titleCine = false;
+  state.titleDawn = 0;
+  state.isNight = false;
+  state.running = true;
+  state.over = false;
+  state.won = false;
+  player.x = 0;
+  player.vx = 0;
+  player.facing = 1;
+  state.cameraX = player.x - W / 2;
+  state._drawErrLogged = false;
+  state._updErrLogged = false;
   spawnMeme(player.x, GROUND_Y - 60, 'やりますねぇ!');
   updateHumidityHud();
   saveGame(true);
@@ -6458,13 +6530,20 @@ function loop(now) {
   if (state.clearPillarT > 0) state.clearPillarT -= raw;
   const scale = state.hitStop > 0 ? 0.15 : (state.slowMoT > 0 ? 0.42 : 1);
   const dt = raw * scale;
-  if (state.running && !state.over) update(dt);
-  else {
-    tickPresentation(dt, raw);
-    if (state.titleCine) {
-      // シネマカメラ：ゆっくり左右に漂う
-      state.cameraX = Math.sin(state.animT * 0.25) * 70 + Math.sin(state.animT * 0.07) * 30;
-      state.nightSway = Math.sin(state.animT * 1.2) * 1.2;
+  try {
+    if (state.running && !state.over) update(dt);
+    else {
+      tickPresentation(dt, raw);
+      if (state.titleCine) {
+        // シネマカメラ：ゆっくり左右に漂う
+        state.cameraX = Math.sin(state.animT * 0.25) * 70 + Math.sin(state.animT * 0.07) * 30;
+        state.nightSway = Math.sin(state.animT * 1.2) * 1.2;
+      }
+    }
+  } catch (err) {
+    if (!state._updErrLogged) {
+      state._updErrLogged = true;
+      try { console.error('update error', err); } catch (_) {}
     }
   }
   // 音：BGMモード同期（約1.2秒ごと・既存ループ非阻害）
@@ -6472,7 +6551,12 @@ function loop(now) {
     if (!AUD._syncAt) AUD._syncAt = 0;
     if (now - AUD._syncAt > 1200) { AUD._syncAt = now; try { audSyncBgm(false); } catch (_) {} }
   }
-  draw();
+  try { draw(); } catch (err) {
+    if (!state._drawErrLogged) {
+      state._drawErrLogged = true;
+      try { console.error('draw error', err); } catch (_) {}
+    }
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -6581,12 +6665,12 @@ function update(dt) {
     state.comboTimer -= dt;
     if (state.comboTimer <= 0) state.killCombo = 0;
   }
-  // 昼ミニ選択（昼の中盤・1回・フレーム飛びでも取りこぼさない）
-  if (!state.isNight && !state.dayChoiceDone) {
-    const choiceAt = Math.max(14, Math.min(24, (state.dayLength || 52) * 0.34));
+  // 昼ミニ選択（Day2以降・遅め・選択中も移動可）
+  if (!state.isNight && !state.dayChoiceDone && (state.day | 0) >= 2) {
+    const choiceAt = Math.max(28, Math.min(40, (state.dayLength || 52) * 0.48));
     if (state.dayTimer >= choiceAt) {
       openDayChoice();
-      return; // 選択中は世界を止める
+      // returnしない：パネル表示中も移動・カメラ更新を継続
     }
   }
   // 湿度：移動で上昇、静止＋部室近傍で低下、夜は上昇速め
@@ -7146,7 +7230,7 @@ function drawBossCineOverlay() {
 // 時刻・光（Two Crowns風の昼夜ブレンド）
 // =========================================================
 function dayPhase() {
-  // タイトルシネマ：夜→夜明けへ
+  // タイトルシネマ：夜→夜明けへ（タイトル中のみ）
   if (state.titleCine && !state.running) {
     return lerp(0.92, 0.22, clamp(state.titleDawn, 0, 1));
   }
@@ -7157,10 +7241,16 @@ function dayPhase() {
     return 0.72 + clamp(p, 0, 1) * 0.26;
   }
   const p = state.dayTimer / Math.max(1, state.dayLength);
-  if (p < 0.12) return lerp(0.05, 0.22, p / 0.12);       // 夜明け→朝
-  if (p < 0.55) return lerp(0.22, 0.38, (p - 0.12) / 0.43); // 朝→昼
-  if (p < 0.82) return lerp(0.38, 0.58, (p - 0.55) / 0.27); // 昼→夕
-  return lerp(0.58, 0.72, (p - 0.82) / 0.18);               // 夕→夜前
+  // プレイ中の昼：開始直後も昼寄り（0.22〜0.4）で月・星が出ない
+  if (state.running) {
+    if (p < 0.55) return lerp(0.22, 0.40, p / 0.55);
+    if (p < 0.82) return lerp(0.40, 0.58, (p - 0.55) / 0.27);
+    return lerp(0.58, 0.68, (p - 0.82) / 0.18);
+  }
+  if (p < 0.12) return lerp(0.12, 0.22, p / 0.12);
+  if (p < 0.55) return lerp(0.22, 0.38, (p - 0.12) / 0.43);
+  if (p < 0.82) return lerp(0.38, 0.58, (p - 0.55) / 0.27);
+  return lerp(0.58, 0.70, (p - 0.82) / 0.18);
 }
 
 function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
@@ -7193,10 +7283,12 @@ function skyColors(phase) {
 }
 
 function mixHex(c1, c2, t) {
+  const norm = (c) => (typeof c === 'string' && c[0] === '#' && c.length >= 7) ? c : '#808080';
+  c1 = norm(c1); c2 = norm(c2);
   const p = (c) => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
   const a = p(c1), b = p(c2);
   const r = (a[0] + (b[0]-a[0])*t)|0, g = (a[1]+(b[1]-a[1])*t)|0, bl = (a[2]+(b[2]-a[2])*t)|0;
-  return '#' + [r,g,bl].map(v => v.toString(16).padStart(2,'0')).join('');
+  return '#' + [r,g,bl].map(v => ((v % 256) + 256) % 256).map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
 
@@ -8074,19 +8166,22 @@ function drawGroundTiles(phase) {
   const th = chapterTheme();
   drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? th.groundNight : dusk ? th.groundDusk : th.ground);
   const off = ((state.cameraX | 0) % 8);
+  const grass = (th.grass && th.grass.length) ? th.grass : ['#5a9a40', '#4a8a38'];
+  const groundCol = th.ground || '#5c4030';
   for (let x = -off; x < W + 8; x += 8) {
     const worldX = x + (state.cameraX|0);
     const row = (worldX / 8 | 0);
-    const g0 = th.grass[row % th.grass.length];
+    const gi = ((row % grass.length) + grass.length) % grass.length;
+    const g0 = grass[gi];
     const top = night ? biasHex(g0, { r: -30, g: -20, b: -20 }, 1) : g0;
-    const mid = night ? '#3a3020' : mixHex(g0, th.ground, 0.35);
+    const mid = night ? '#3a3020' : mixHex(g0, groundCol, 0.35);
     drawPixelRect(x, GROUND_Y, 8, 3, top);
     drawPixelRect(x, GROUND_Y + 3, 8, 5, mid);
     const wind = Math.sin(state.animT * 2.4 + worldX * 0.08) * 2 + (state.wind || 0) * 0.9
       + Math.sin(state.animT * 4.1 + worldX * 0.03) * 1;
     if (row % (GFX.grassDense ? 2 : 3) === 0) {
       const gh = 5 + (row % 3);
-      const col = night ? '#3a5a30' : th.grass[(row + 1) % th.grass.length];
+      const col = night ? '#3a5a30' : grass[((gi + 1) % grass.length)];
       drawPixelRect(x + 2 + wind, GROUND_Y - gh, 2, gh, col);
       drawPixelRect(x + 5 + wind * 0.7, GROUND_Y - gh - 2, 1, gh + 2, night ? '#2a4a28' : th.accent);
       if (GFX.grassDense && row % 4 === 0) drawPixelRect(x + 2 + wind, GROUND_Y - gh - 2, 2, 2, '#c8e080');
@@ -9052,7 +9147,8 @@ function drawCampfire(x, y) {
   ], PAL, 2, false);
   drawPixelRect(x - 10, y - 10, 8, 8, '#5a3a20');
   drawPixelRect(x + 2, y - 12, 8, 10, '#4a2a10');
-  const fi = frameIndex(10, FR_FLAME.length);
+  const flame = (FR_FLAME && FR_FLAME.length) ? FR_FLAME : [['..F.','FYF.','..C.']];
+  const fi = frameIndex(10, flame.length);
   // 火のコア光
   {
     const cg = ctx.createRadialGradient(x, y - 22, 2, x, y - 22, 36);
@@ -9062,7 +9158,7 @@ function drawCampfire(x, y) {
     ctx.fillStyle = cg;
     ctx.fillRect(x - 40, y - 60, 80, 70);
   }
-  blitOutlined(x - 8 + sway * 0.3, y - 40, FR_FLAME[fi], PAL, 3 + Math.min(2, state.civilTier|0), false);
+  blitOutlined(x - 8 + sway * 0.3, y - 40, flame[fi] || flame[0], PAL, 3 + Math.min(2, state.civilTier|0), false);
   // 内政Lvでたき火規模差
   if ((state.civilTier|0) >= 2) {
     const cg2 = ctx.createRadialGradient(x, y - 28, 4, x, y - 28, 50 + (state.bankTier|0)*6);
@@ -9254,11 +9350,33 @@ function drawCoin(x, y) {
 function drawYajyu(x, y, facing) {
   ctx.imageSmoothingEnabled = false;
   const walking = Math.abs(player.vx) > 10 || state.titleCine;
-  const fi = walking && !state.titleCine ? frameIndex(11, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
+  const walkFrames = (FR_WALK && FR_WALK.length) ? FR_WALK : null;
+  const idleFrames = (FR_IDLE && FR_IDLE.length) ? FR_IDLE : walkFrames;
+  const fi = walking && !state.titleCine && walkFrames ? frameIndex(11, walkFrames.length) : frameIndex(2, (idleFrames || [[]]).length);
   const bob = (walking && !state.titleCine) ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
   const squash = (walking && !state.titleCine && fi % 2 === 0) ? 1 : 0;
   const flip = facing < 0;
-  const body = (walking && !state.titleCine) ? FR_WALK[fi] : FR_IDLE[fi % FR_IDLE.length];
+  const body = (walking && !state.titleCine && walkFrames) ? walkFrames[fi] : (idleFrames ? idleFrames[fi % idleFrames.length] : null);
+  // 必ず地面に見えるコントラスト体（スプライト失敗時のドット体）
+  {
+    const by = y - 40 + bob + squash;
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(x - 12, by + 2, 24, 38);
+    ctx.fillStyle = '#ffb040';
+    ctx.fillRect(x - 10, by, 20, 36);
+    ctx.fillStyle = '#ffe080';
+    ctx.fillRect(x - 8, by - 12, 16, 14);
+    ctx.fillStyle = '#1a1210';
+    ctx.fillRect(x - 11, by - 18, 22, 10);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(x - 9, by - 24, 18, 8);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 5, by - 8, 3, 3);
+    ctx.fillRect(x + 2, by - 8, 3, 3);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x - 4, by - 7, 2, 2);
+    ctx.fillRect(x + 3, by - 7, 2, 2);
+  }
   // 歩行砂塵
   if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
     ctx.globalAlpha = 0.35;
@@ -9266,10 +9384,14 @@ function drawYajyu(x, y, facing) {
     drawPixelRect(x + (flip ? 10 : -14), y - 3, 2, 1, '#a08060');
     ctx.globalAlpha = 1;
   }
-  blitOutlined(x - 16, y - 44 + bob + squash, body, PAL, 2, flip);
+  if (body) {
+    try { blitOutlined(x - 16, y - 44 + bob + squash, body, PAL, 2, flip); } catch (_) {}
+  }
   if (SPR.senpai) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
+    try {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
+    } catch (_) {}
   }
   // リーゼントシルエット（野獸先輩）
   const hx = flip ? -1 : 1;
