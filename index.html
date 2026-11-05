@@ -15,13 +15,35 @@
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
     --hud-fs: clamp(11px, 2.8vw, 14px);
+    /* Kingdom Crowns 統一パレット */
+    --yk-ink: #0a0a12;
+    --yk-parchment: #f5e6c8;
+    --yk-gold: #ffd700;
+    --yk-gold-dim: #c9a227;
+    --yk-gold-deep: #8b6914;
+    --yk-wood: #3d2b1f;
+    --yk-wood-mid: #5a2a1a;
+    --yk-wood-hi: #7a3a2a;
+    --yk-rose: #ff6b9d;
+    --yk-rose-dim: #d44a78;
+    --yk-sky: #4aa8ff;
+    --yk-grass: #5a9458;
+    --yk-soil: #5c4030;
+    --yk-night: #121828;
+    --yk-panel: #1a100c;
+    --yk-panel-hi: #2a1a12;
+    --yk-frame: #c9a227;
+    --yk-ch0: #6aaa60;
+    --yk-ch1: #5a9ab8;
+    --yk-ch2: #c07090;
+    --yk-ch3: #8a6ab0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%; height: 100%;
     height: 100dvh;
-    background: #0a0a12;
-    color: #f5e6c8;
+    background: var(--yk-ink);
+    color: var(--yk-parchment);
     font-family: "Press Start 2P", "Hiragino Kaku Gothic ProN", "Segoe UI", Meiryo, monospace;
     overflow: hidden;
     overscroll-behavior: none;
@@ -57,17 +79,23 @@
   canvas {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    background: #1a1a2e;
+    background: var(--yk-night);
     width: 100%;
     height: auto;
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    border: 3px solid #3d2b1f;
-    box-shadow: 0 0 0 2px #8b6914;
+    border: 4px solid var(--yk-wood);
+    box-shadow:
+      0 0 0 2px var(--yk-gold-deep),
+      0 0 0 5px var(--yk-gold-dim),
+      0 0 0 7px var(--yk-wood),
+      0 8px 28px rgba(0,0,0,.55),
+      inset 0 0 40px rgba(255,215,0,.04);
     cursor: crosshair;
     touch-action: none;
     display: block;
+    border-radius: 2px;
   }
   /* 上端メッセージ帯：HUD／湿度／ストーリー／トーストを縦積みして重なり回避
      （#wrap の safe-t 余白を使うため、ここでは safe-t を二重に足さない） */
@@ -99,14 +127,15 @@
   #hud .gold { color: #ffd700; text-shadow: 1px 1px 0 #3a2810, 0 0 6px rgba(255,215,0,.25); }
   #hud .night { color: #a8b8ff; }
   #hud .box {
-    background: rgba(16,10,6,.9);
-    border: 2px solid #c9a227;
-    box-shadow: inset 0 0 0 1px #3a2810, 0 0 0 1px #5a4010;
+    background: linear-gradient(180deg, rgba(42,26,18,.96) 0%, rgba(16,10,6,.94) 100%);
+    border: 2px solid var(--yk-frame);
+    box-shadow: inset 0 0 0 1px #3a2810, inset 0 1px 0 rgba(255,215,0,.2), 0 0 0 1px #5a4010, 0 4px 12px rgba(0,0,0,.35);
     padding: 6px 8px;
     max-width: 42%;
     flex: 1 1 auto;
     position: relative;
     image-rendering: pixelated;
+    border-radius: 3px;
   }
   /* ドット枠コーナー */
   #hud .box::before, #hud .box::after {
@@ -188,8 +217,8 @@
     line-height: 1.35;
     color: #ffe8c8;
     background: rgba(20,10,16,.9);
-    border: 2px solid #c9a227;
-    box-shadow: inset 0 0 0 1px #5a2038, 0 0 8px rgba(255,107,157,.2);
+    border: 2px solid var(--yk-frame);
+    box-shadow: inset 0 0 0 1px #5a2038, 0 0 10px rgba(255,107,157,.25), 0 0 0 1px #5a3a10;
     padding: 5px 10px;
     max-height: 2.9em;
     display: none;
@@ -311,14 +340,52 @@
   #choice-panel.show { display: flex; }
   #choice-panel .panel-card {
     width: min(440px, 94vw);
-    background: linear-gradient(180deg, #2a1a12 0%, #1a100c 100%);
-    border: 3px solid #c9a227;
-    box-shadow: 0 0 0 2px #5a3a10, 0 8px 24px rgba(0,0,0,.55), inset 0 0 20px rgba(255,215,0,.06);
-    border-radius: 12px; padding: 12px 10px 14px; max-height: min(78vh, 560px);
+    background:
+      linear-gradient(180deg, var(--yk-panel-hi) 0%, var(--yk-panel) 55%, #120c08 100%);
+    border: 3px solid var(--yk-frame);
+    box-shadow:
+      0 0 0 2px #5a3a10,
+      0 0 0 5px rgba(139,105,20,.45),
+      0 10px 28px rgba(0,0,0,.6),
+      inset 0 0 28px rgba(255,215,0,.07),
+      inset 0 1px 0 rgba(255,230,160,.2);
+    border-radius: 10px; padding: 14px 12px 16px; max-height: min(78vh, 560px);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     scroll-padding-top: 48px;
+    position: relative;
   }
+  #choice-panel .panel-card::before,
+  #choice-panel .panel-card::after {
+    content: "";
+    position: absolute;
+    width: 10px; height: 10px;
+    border: 2px solid var(--yk-gold);
+    pointer-events: none;
+  }
+  #choice-panel .panel-card::before {
+    top: 6px; left: 6px;
+    border-right: none; border-bottom: none;
+  }
+  #choice-panel .panel-card::after {
+    top: 6px; right: 6px;
+    border-left: none; border-bottom: none;
+  }
+  #choice-panel .panel-card .orn-bl,
+  #choice-panel .panel-card .orn-br {
+    position: absolute; width: 10px; height: 10px;
+    border: 2px solid var(--yk-gold); pointer-events: none;
+  }
+  #choice-panel .panel-card .orn-bl {
+    bottom: 6px; left: 6px; border-right: none; border-top: none;
+  }
+  #choice-panel .panel-card .orn-br {
+    bottom: 6px; right: 6px; border-left: none; border-top: none;
+  }
+  #choice-panel.ch-theme-0 .panel-card { box-shadow: 0 0 0 2px #5a3a10, 0 0 0 5px rgba(106,170,96,.35), 0 10px 28px rgba(0,0,0,.6), inset 0 0 28px rgba(106,170,96,.08); }
+  #choice-panel.ch-theme-1 .panel-card { box-shadow: 0 0 0 2px #5a3a10, 0 0 0 5px rgba(90,154,184,.4), 0 10px 28px rgba(0,0,0,.6), inset 0 0 28px rgba(90,154,184,.1); }
+  #choice-panel.ch-theme-2 .panel-card { box-shadow: 0 0 0 2px #5a3a10, 0 0 0 5px rgba(192,112,144,.4), 0 10px 28px rgba(0,0,0,.6), inset 0 0 28px rgba(192,112,144,.1); }
+  #choice-panel.ch-theme-3 .panel-card { box-shadow: 0 0 0 2px #5a3a10, 0 0 0 5px rgba(138,106,176,.4), 0 10px 28px rgba(0,0,0,.6), inset 0 0 28px rgba(138,106,176,.12); }
   #choice-panel .tabs { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
   #choice-panel .tabs button { min-height:40px; padding:8px 10px; font-size:clamp(10px,2.6vw,12px); border-radius:8px; }
   #choice-panel .tabs button.civil { border-color:#6af; background:#1a3a4a; }
@@ -435,8 +502,9 @@
     align-items: stretch;
     justify-content: space-between;
     gap: 6px;
-    background: linear-gradient(180deg, #12101a 0%, #1a1210 100%);
-    border-top: 3px solid #8b6914;
+    background: linear-gradient(180deg, #12101a 0%, var(--yk-panel) 100%);
+    border-top: 3px solid var(--yk-gold-deep);
+    box-shadow: inset 0 1px 0 rgba(255,215,0,.2), 0 -4px 16px rgba(0,0,0,.35);
     z-index: 8;
     touch-action: none;
     position: relative;
@@ -451,10 +519,10 @@
     font-family: inherit;
     min-width: clamp(52px, 14vw, 96px);
     min-height: 64px;
-    border: 3px solid #8b6914;
-    border-radius: 14px;
-    background: #2a2018;
-    color: #ffd700;
+    border: 3px solid var(--yk-gold-deep);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #3a2a1c 0%, #2a2018 100%);
+    color: var(--yk-gold);
     font-size: clamp(22px, 7vw, 32px);
     display: flex;
     flex-direction: column;
@@ -1605,6 +1673,7 @@ function openBranchPanel(tab) {
   if (state.panelOpen === 'mili' && !state.miliSub) state.miliSub = 'west';
   state.running = false;
   const panel = document.getElementById('choice-panel');
+  syncPanelChapterTheme();
   const title = document.getElementById('choice-title');
   const btns = document.getElementById('choice-btns');
   if (prevTab !== state.panelOpen) {
@@ -2101,6 +2170,81 @@ document.getElementById('gfx-chip')?.addEventListener('click', (e) => {
   cycleQuality();
 });
 
+/** Kingdom Crowns級：章テーマ風景＋統一トーン */
+const CHAPTER_THEME = {
+  0: { // 下北 — 緑の路地・看板・湿度
+    name: 'shimokita',
+    skyBias: { r: -6, g: 10, b: -4 },
+    hills: ['#2a5530', '#3a6a40', '#4a8050', '#5a9458'],
+    hillsNight: ['#0e1812', '#152018', '#1c2a20', '#243428'],
+    hillsDusk: ['#4a5a38', '#5a7040', '#6a8848', '#7a9a50'],
+    ground: '#5c4030', groundNight: '#1e1812', groundDusk: '#4a3828',
+    grass: ['#5a9a40', '#4a8a38', '#7aba50', '#6aaa48'],
+    accent: '#6aaa60', neon: '#ff6b9d',
+    decor: 'alley', fog: 'rgba(120,160,100,0.08)',
+  },
+  1: { // 井の頭 — 水面・セピア・木陰
+    name: 'inokashira',
+    skyBias: { r: -4, g: 4, b: 18 },
+    hills: ['#2a4a58', '#3a6070', '#4a7888', '#5a90a0'],
+    hillsNight: ['#0c141c', '#121c28', '#1a2834', '#223040'],
+    hillsDusk: ['#4a5868', '#5a6878', '#6a8090', '#7a98a8'],
+    ground: '#4a4038', groundNight: '#18181c', groundDusk: '#3a3430',
+    grass: ['#4a8a60', '#3a7a50', '#6aaa78', '#5a9a68'],
+    accent: '#5a9ab8', neon: '#8cf',
+    decor: 'pond', fog: 'rgba(100,150,180,0.1)',
+  },
+  2: { // 新宿 — ネオン・ビル影・夜の片鱗
+    name: 'shinjuku',
+    skyBias: { r: 16, g: -8, b: 10 },
+    hills: ['#3a2a40', '#4a3850', '#5a4860', '#6a5870'],
+    hillsNight: ['#100818', '#180c22', '#201030', '#2a1838'],
+    hillsDusk: ['#5a3850', '#6a4860', '#7a5870', '#8a6880'],
+    ground: '#3a3038', groundNight: '#141018', groundDusk: '#2a2228',
+    grass: ['#4a6050', '#3a5040', '#5a7860', '#4a6850'],
+    accent: '#c07090', neon: '#ff44aa',
+    decor: 'neon', fog: 'rgba(180,80,120,0.09)',
+  },
+  3: { // 外縁 — 紫霧・測定不能・果て
+    name: 'outer',
+    skyBias: { r: 8, g: -6, b: 22 },
+    hills: ['#2a2848', '#3a3860', '#4a4878', '#5a5890'],
+    hillsNight: ['#0c0a18', '#141028', '#1c1838', '#242048'],
+    hillsDusk: ['#4a3868', '#5a4878', '#6a5888', '#7a6898'],
+    ground: '#342838', groundNight: '#120e18', groundDusk: '#2a2030',
+    grass: ['#4a4868', '#3a3858', '#5a5a80', '#4a4a70'],
+    accent: '#8a6ab0', neon: '#a8f',
+    decor: 'void', fog: 'rgba(120,90,180,0.12)',
+  },
+};
+function chapterTheme() {
+  const i = Math.min(3, Math.max(0, state.chapter | 0));
+  return CHAPTER_THEME[i] || CHAPTER_THEME[0];
+}
+function biasHex(hex, bias, amt) {
+  amt = amt == null ? 1 : amt;
+  const p = (c) => [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+  const a = p(hex);
+  const r = Math.max(0, Math.min(255, (a[0] + bias.r * amt) | 0));
+  const g = Math.max(0, Math.min(255, (a[1] + bias.g * amt) | 0));
+  const b = Math.max(0, Math.min(255, (a[2] + bias.b * amt) | 0));
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+function syncPanelChapterTheme() {
+  const panel = document.getElementById('choice-panel');
+  if (!panel) return;
+  for (let i = 0; i < 4; i++) panel.classList.remove('ch-theme-' + i);
+  panel.classList.add('ch-theme-' + Math.min(3, state.chapter | 0));
+  // 角オーナメント
+  const card = panel.querySelector('.panel-card');
+  if (card && !card.querySelector('.orn-bl')) {
+    const bl = document.createElement('div'); bl.className = 'orn-bl';
+    const br = document.createElement('div'); br.className = 'orn-br';
+    card.appendChild(bl); card.appendChild(br);
+  }
+}
+
+
 
 function pushFx(p) {
   const cap = GFX.fxMax;
@@ -2545,11 +2689,12 @@ function blitOutlined(ox, oy, grid, palette, scale, flipX, outlineCol) {
   blitPixels(ox, oy, grid, palette, s, flipX);
 }
 
+/* 統一パレット（CSS --yk-* と同期：金／薔薇／木／草／夜） */
 const PAL = {
   N: '#140a10',
   S: '#f0c8a8', D: '#d4a888', d: '#b88868',
   K: '#1c1c22', B: '#2a2a32', b: '#3a3a44',
-  G: '#ffd700', g: '#e6b800', U: '#fff3a0',
+  G: '#ffd700', g: '#c9a227', U: '#fff3a0',
   R: '#ff6b9d', r: '#d44a78', X: '#ff9ec0',
   A: '#3d6a9a', a: '#2a4e78', L: '#c8a060', l: '#a08040',
   F: '#ff5500', Y: '#ffcc33', y: '#ffe9a0',
@@ -2564,6 +2709,8 @@ const PAL = {
   u: '#0a0a12', s: '#1a2030',
   '@': '#33ffee',
   '1': '#f8f8f8', '2': '#c0c0c8',
+  /* 章アクセント（動的上書き用キー） */
+  '#': '#6aaa60',
 };
 // PAL_BODY alias for older refs
 const PAL_BODY = PAL;
@@ -3433,6 +3580,11 @@ function startDay() {
   state.killCombo = 0;
   state.comboTimer = 0;
   state.gazeT = 0;
+  // 章テーマをUIへ反映
+  try {
+    document.documentElement.style.setProperty('--yk-frame', chapterTheme().accent);
+    syncPanelChapterTheme();
+  } catch (_) {}
   // ロケ日程・真夏を先にロールし、昼語録へ織り込む
   rollDaySchedule();
   rollHeatEvent();
@@ -4590,7 +4742,13 @@ function skyColors(phase) {
     if (phase >= stops[i].p) { a = stops[i]; b = stops[Math.min(i + 1, stops.length - 1)]; }
   }
   const t = (phase - a.p) / Math.max(0.001, b.p - a.p);
-  return { top: mixHex(a.t, b.t, t), mid: mixHex(a.m, b.m, t), bot: mixHex(a.b, b.b, t), phase };
+  let top = mixHex(a.t, b.t, t), mid = mixHex(a.m, b.m, t), bot = mixHex(a.b, b.b, t);
+  const th = chapterTheme();
+  const biasAmt = 0.55 + Math.min(0.35, (state.chapter | 0) * 0.1);
+  top = biasHex(top, th.skyBias, biasAmt);
+  mid = biasHex(mid, th.skyBias, biasAmt * 0.75);
+  bot = biasHex(bot, th.skyBias, biasAmt * 0.55);
+  return { top, mid, bot, phase, accent: th.accent, neon: th.neon };
 }
 
 function mixHex(c1, c2, t) {
@@ -4783,6 +4941,68 @@ function drawPixelRect(x, y, w, h, color) {
   ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(w), Math.floor(h));
 }
 
+/** 昼夜・天候レイヤ（Kingdom Crowns風の空気感） */
+function drawWeatherLayers(phase) {
+  const th = chapterTheme();
+  const nightish = phase >= 0.68;
+  const low = GFX.quality === 'low';
+  // 1) 章フォグ／空気遠近
+  ctx.save();
+  ctx.globalAlpha = nightish ? 0.1 : 0.06;
+  const fogG = ctx.createLinearGradient(0, GROUND_Y - 120, 0, GROUND_Y);
+  fogG.addColorStop(0, 'rgba(0,0,0,0)');
+  fogG.addColorStop(1, th.fog);
+  ctx.fillStyle = fogG;
+  ctx.fillRect(0, GROUND_Y - 120, W, 120);
+  // 2) 真夏ヒートヘイズ（既存 drawHeatWave と併用）
+  if (!low && (state.heatEvent === 'heatwave' || state.humidity >= 80)) {
+    ctx.globalAlpha = 0.06 + Math.sin(state.animT * 5) * 0.02;
+    ctx.fillStyle = '#ff8844';
+    for (let i = 0; i < 5; i++) {
+      const y = GROUND_Y - 20 - i * 10 + Math.sin(state.animT * 3 + i) * 3;
+      ctx.fillRect(0, y, W, 2);
+    }
+  }
+  // 3) 花粉／埃／ネオン粒子
+  if (!low) {
+    const n = th.decor === 'neon' ? 18 : (th.decor === 'void' ? 14 : 10);
+    for (let i = 0; i < n; i++) {
+      const px = ((i * 73 + state.animT * (12 + i % 5) + state.wind * 8) % (W + 20)) - 10;
+      const py = GROUND_Y - 30 - ((i * 37 + state.animT * 20) % 90);
+      ctx.globalAlpha = 0.15 + (i % 3) * 0.05;
+      ctx.fillStyle = th.decor === 'neon' ? th.neon : (th.decor === 'void' ? '#a8f' : '#ffe8a0');
+      ctx.fillRect(px, py, th.decor === 'neon' ? 2 : 1, th.decor === 'neon' ? 2 : 1);
+    }
+  }
+  // 4) 夕暮れ／夜明けのカラーグレーディング帯
+  if (phase > 0.5 && phase < 0.72) {
+    ctx.globalAlpha = (phase - 0.5) / 0.22 * 0.12;
+    ctx.fillStyle = '#ff7040';
+    ctx.fillRect(0, 0, W, GROUND_Y);
+  } else if (phase < 0.18) {
+    ctx.globalAlpha = (0.18 - phase) / 0.18 * 0.1;
+    ctx.fillStyle = '#ffb080';
+    ctx.fillRect(0, 0, W, GROUND_Y);
+  }
+  // 5) 夜のビネット
+  if (nightish && !low) {
+    const vg = ctx.createRadialGradient(W * 0.5, GROUND_Y - 40, 40, W * 0.5, GROUND_Y - 40, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(4,2,10,0.35)');
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // 6) 眼光の太陽イベント：赤い縁取り
+  if (state.heatEvent === 'gaze_sun') {
+    ctx.globalAlpha = 0.08 + Math.sin(state.animT * 4) * 0.03;
+    ctx.fillStyle = '#ff2244';
+    ctx.fillRect(0, 0, W, 8);
+    ctx.fillRect(0, GROUND_Y - 4, W, 4);
+  }
+  ctx.restore();
+}
+
 function draw() {
   ctx.imageSmoothingEnabled = false;
   const phase = dayPhase();
@@ -4867,9 +5087,12 @@ function draw() {
     ctx.globalAlpha = 0.12 + Math.min(0.18, (state.humidity|0) / 500);
     ctx.fillStyle = '#406080';
     ctx.fillRect(0, GROUND_Y - 90, W, 90);
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = state.assault ? '#ff4060' : '#ff6b9d';
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = state.assault ? '#ff4060' : chapterTheme().neon;
     ctx.fillRect(0, GROUND_Y - 70, W, 3);
+    ctx.globalAlpha = 0.1;
+    ctx.fillStyle = chapterTheme().accent;
+    ctx.fillRect(0, GROUND_Y - 74, W, 2);
     ctx.globalAlpha = 1;
   }
 
@@ -4880,6 +5103,8 @@ function draw() {
 
   // 地面
   drawGroundTiles(phase);
+  // 天候・空気レイヤ（地面の直後＝キャラの下）
+  drawWeatherLayers(phase);
 
   // 領地床（聖地解放でマップ横断方向へ伸びる）
   let lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
@@ -4889,10 +5114,15 @@ function draw() {
     else rx = Math.max(rx, L.x + 30);
   }
   const territoryAlpha = nightish ? 0.16 : 0.12;
-  ctx.fillStyle = `rgba(255, 215, 0, ${territoryAlpha})`;
+  const thAcc = chapterTheme().accent;
+  ctx.globalAlpha = territoryAlpha + 0.35;
+  ctx.fillStyle = thAcc;
   ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
-  ctx.fillStyle = 'rgba(255,215,0,0.4)';
+  ctx.globalAlpha = 0.55;
   for (let x = wx(lx); x < wx(rx); x += 4) ctx.fillRect(x, GROUND_Y, 2, 2);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(255,215,0,0.35)';
+  for (let x = wx(lx); x < wx(rx); x += 8) ctx.fillRect(x, GROUND_Y + 1, 2, 1);
   // 領地の淡い光床
   if (!nightish || state.isNight) {
     const tg = ctx.createLinearGradient(wx(lx), GROUND_Y - 8, wx(rx), GROUND_Y - 8);
@@ -5111,6 +5341,14 @@ function draw() {
   drawHumidityHaze();
   drawHeatWave();
   drawRain();
+  // 章アクセントの夜ネオン帯
+  if (phase >= 0.68) {
+    const th = chapterTheme();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = th.neon;
+    ctx.fillRect(0, GROUND_Y - 66, W, 2);
+    ctx.globalAlpha = 1;
+  }
   drawBossCineOverlay();
 
   // 夜間ヴィネット＋たき火ライト体積
@@ -5213,75 +5451,134 @@ function drawBar(x, y, w, h, ratio, fg, bg) {
 function drawParallaxHills(phase) {
   const night = (phase != null ? phase : (state.isNight ? 0.85 : 0.35)) >= 0.68;
   const dusk = phase != null && phase > 0.5 && phase < 0.72;
+  const th = chapterTheme();
+  const cols = night ? th.hillsNight : (dusk ? th.hillsDusk : th.hills);
   const bands = [
-    { col: night ? '#0e1418' : dusk ? '#4a5a40' : '#3a6a4a', par: 0.12, h: 78 },
-    { col: night ? '#152018' : dusk ? '#5a7048' : '#4a8055', par: 0.24, h: 54 },
-    { col: night ? '#1c2a22' : dusk ? '#6a8850' : '#5a9458', par: 0.38, h: 36 },
-    { col: night ? '#243428' : dusk ? '#7a9a58' : '#6aaa60', par: 0.52, h: 22 },
+    { col: cols[0], par: 0.12, h: 78 },
+    { col: cols[1], par: 0.24, h: 54 },
+    { col: cols[2], par: 0.38, h: 36 },
+    { col: cols[3], par: 0.52, h: 22 },
   ];
   for (const b of bands) {
     ctx.fillStyle = b.col;
     for (let i = -4; i < 10; i++) {
       const base = i * 220 - (state.cameraX * b.par) % 220;
-      // pixel stepped hill
       for (let px = 0; px < 240; px += 4) {
-        const rise = Math.sin((px + i * 40) * 0.03) * b.h + b.h * 0.4;
+        let rise = Math.sin((px + i * 40) * 0.03) * b.h + b.h * 0.4;
+        // 章ごと稜線：新宿は矩形ビル、外縁は尖塔、井の頭は緩やか
+        if (th.decor === 'neon' && b.par > 0.3) {
+          rise = b.h * (0.55 + ((px / 20 | 0) % 3) * 0.22 + ((i + px / 40) % 2) * 0.15);
+        } else if (th.decor === 'void') {
+          rise += Math.sin((px + i * 70) * 0.07) * 12;
+        } else if (th.decor === 'pond') {
+          rise *= 0.85;
+        }
         const top = GROUND_Y - rise;
         ctx.fillRect((base + px) | 0, top | 0, 4, (GROUND_Y - top) | 0);
       }
     }
   }
-  // 遠景木（ドット）
-  ctx.fillStyle = night ? '#1a2818' : '#2a5530';
-  for (let i = -2; i < 12; i++) {
-    const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160));
-    const x = tx - 40;
-    drawPixelRect(x + 6, GROUND_Y - 40, 4, 20, night ? '#2a1a10' : '#4a3020');
-    blitPixels(x, GROUND_Y - 58, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
+  // 遠景デコール（章テーマ）
+  if (th.decor === 'neon') {
+    for (let i = -2; i < 10; i++) {
+      const tx = ((i * 140 - state.cameraX * 0.32) % (W + 140)) - 30;
+      const bh = 28 + (i % 4) * 10;
+      drawPixelRect(tx, GROUND_Y - bh, 18 + (i % 3) * 4, bh, night ? '#1a1020' : '#2a2030');
+      if (night || phase > 0.6) {
+        const tw = 0.4 + Math.sin(state.animT * 3 + i) * 0.3;
+        ctx.globalAlpha = 0.35 + tw * 0.4;
+        drawPixelRect(tx + 3, GROUND_Y - bh + 6, 3, 3, th.neon);
+        drawPixelRect(tx + 10, GROUND_Y - bh + 14, 3, 3, '#ffe066');
+        drawPixelRect(tx + 6, GROUND_Y - bh + 22, 4, 2, '#8cf');
+        ctx.globalAlpha = 1;
+      }
+    }
+  } else if (th.decor === 'void') {
+    for (let i = -1; i < 8; i++) {
+      const tx = ((i * 180 - state.cameraX * 0.28) % (W + 180)) - 40;
+      const spire = 40 + (i % 3) * 14;
+      drawPixelRect(tx + 8, GROUND_Y - spire, 4, spire, night ? '#181028' : '#2a2848');
+      blitPixels(tx, GROUND_Y - spire - 10, ['.M.', 'MmM', 'MMM'], PAL, 3, false);
+    }
+  } else if (th.decor === 'pond') {
+    for (let i = -2; i < 12; i++) {
+      const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160)) - 40;
+      drawPixelRect(tx + 6, GROUND_Y - 36, 4, 18, night ? '#1a1810' : '#3a3020');
+      blitPixels(tx, GROUND_Y - 56, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
+      // 水面きらめき帯
+      if (!night && i % 3 === 0) {
+        ctx.globalAlpha = 0.2 + Math.sin(state.animT * 2 + i) * 0.1;
+        ctx.fillStyle = '#c8e8ff';
+        ctx.fillRect(tx - 10, GROUND_Y - 8, 40, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+  } else {
+    // alley / 下北：木＋看板シルエット
+    for (let i = -2; i < 12; i++) {
+      const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160));
+      const x = tx - 40;
+      drawPixelRect(x + 6, GROUND_Y - 40, 4, 20, night ? '#2a1a10' : '#4a3020');
+      blitPixels(x, GROUND_Y - 58, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
+      if (i % 4 === 0) {
+        drawPixelRect(x + 18, GROUND_Y - 48, 22, 12, night ? '#3a2018' : '#6a3a28');
+        drawPixelRect(x + 20, GROUND_Y - 46, 18, 2, th.accent);
+      }
+    }
+  }
+  // 章フォグ帯
+  if (GFX.quality !== 'low') {
+    ctx.globalAlpha = night ? 0.14 : 0.08;
+    ctx.fillStyle = th.fog;
+    ctx.fillRect(0, GROUND_Y - 100, W, 70);
+    ctx.globalAlpha = 1;
   }
 }
 
 function drawGroundTiles(phase) {
   const night = (phase != null ? phase : (state.isNight ? 0.85 : 0.35)) >= 0.68;
   const dusk = phase != null && phase > 0.52 && phase < 0.72;
-  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? '#1e1812' : dusk ? '#4a3828' : '#5c4030');
+  const th = chapterTheme();
+  drawPixelRect(0, GROUND_Y, W, H - GROUND_Y, night ? th.groundNight : dusk ? th.groundDusk : th.ground);
   const off = ((state.cameraX | 0) % 8);
-  const step = GFX.grassDense ? 6 : 10;
   for (let x = -off; x < W + 8; x += 8) {
     const worldX = x + (state.cameraX|0);
     const row = (worldX / 8 | 0);
-    const top = night ? '#2f4a28' : (row % 3 === 0 ? '#5a9a40' : '#4a8a38');
-    const mid = night ? '#3a3020' : '#6b8f3a';
+    const g0 = th.grass[row % th.grass.length];
+    const top = night ? biasHex(g0, { r: -30, g: -20, b: -20 }, 1) : g0;
+    const mid = night ? '#3a3020' : mixHex(g0, th.ground, 0.35);
     drawPixelRect(x, GROUND_Y, 8, 3, top);
     drawPixelRect(x, GROUND_Y + 3, 8, 5, mid);
-    // 草ゆれ（風）
     const wind = Math.sin(state.animT * 2.4 + worldX * 0.08) * 2 + (state.wind || 0) * 0.9
       + Math.sin(state.animT * 4.1 + worldX * 0.03) * 1;
     if (row % (GFX.grassDense ? 2 : 3) === 0) {
       const gh = 5 + (row % 3);
-      const col = night ? '#3a5a30' : (row % 5 === 0 ? '#7aba50' : '#6aaa48');
+      const col = night ? '#3a5a30' : th.grass[(row + 1) % th.grass.length];
       drawPixelRect(x + 2 + wind, GROUND_Y - gh, 2, gh, col);
-      drawPixelRect(x + 5 + wind * 0.7, GROUND_Y - gh - 2, 1, gh + 2, night ? '#2a4a28' : '#8aca60');
-      // 穂先
+      drawPixelRect(x + 5 + wind * 0.7, GROUND_Y - gh - 2, 1, gh + 2, night ? '#2a4a28' : th.accent);
       if (GFX.grassDense && row % 4 === 0) drawPixelRect(x + 2 + wind, GROUND_Y - gh - 2, 2, 2, '#c8e080');
     }
-    // 小石
     if (row % 11 === 0) drawPixelRect(x + 3, GROUND_Y + 1, 2, 2, night ? '#3a3028' : '#7a6a50');
+    // 新宿：路面ライン／外縁：亀裂
+    if (th.decor === 'neon' && row % 9 === 0) drawPixelRect(x, GROUND_Y + 1, 8, 1, night ? '#4a2840' : '#6a4860');
+    if (th.decor === 'void' && row % 13 === 0) drawPixelRect(x + 1, GROUND_Y - 1, 1, 4, '#2a1840');
   }
   drawPixelRect(0, GROUND_Y + 8, W, 2, night ? '#1a140e' : '#3a2818');
   if (GFX.water) drawPond(phase);
 }
 
 function drawPond(phase) {
-  // 部室東側の小さな水面（ワールド x≈90）
-  const pondX = wx(96);
+  // 部室東側の小さな水面（ワールド x≈90）／井の頭章は広く
+  const th = chapterTheme();
+  const pondScale = th.decor === 'pond' ? 1.55 : (th.decor === 'void' ? 0.7 : 1);
+  const pondX = wx(th.decor === 'pond' ? 110 : 96);
   const pondY = GROUND_Y - 2;
   const night = (phase || 0) >= 0.68;
   if (GFX.quality === 'low') {
     ctx.globalAlpha = 0.7;
     ctx.fillStyle = night ? '#1e3248' : '#468cb0';
     ctx.beginPath();
-    ctx.ellipse(pondX, pondY, 34, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(pondX, pondY, 34 * pondScale, 7 * pondScale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#e8f8ff';
@@ -5291,7 +5588,7 @@ function drawPond(phase) {
   }
   ctx.save();
   ctx.beginPath();
-  ctx.ellipse(pondX, pondY, 38, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(pondX, pondY, 38 * pondScale, 8 * pondScale, 0, 0, Math.PI * 2);
   ctx.clip();
   const wg = ctx.createLinearGradient(pondX, pondY - 10, pondX, pondY + 10);
   wg.addColorStop(0, night ? 'rgba(30,50,80,0.85)' : 'rgba(70,140,180,0.75)');
@@ -5325,7 +5622,7 @@ function drawPond(phase) {
   ctx.strokeStyle = night ? '#2a3a28' : '#4a6a38';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.ellipse(pondX, pondY, 38, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(pondX, pondY, 38 * pondScale, 8 * pondScale, 0, 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -6386,11 +6683,19 @@ function drawCoin(x, y) {
 function drawYajyu(x, y, facing) {
   ctx.imageSmoothingEnabled = false;
   const walking = Math.abs(player.vx) > 10 || state.titleCine;
-  const fi = walking && !state.titleCine ? frameIndex(9, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
+  const fi = walking && !state.titleCine ? frameIndex(11, FR_WALK.length) : frameIndex(2, FR_IDLE.length);
   const bob = (walking && !state.titleCine) ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
+  const squash = (walking && !state.titleCine && fi % 2 === 0) ? 1 : 0;
   const flip = facing < 0;
   const body = (walking && !state.titleCine) ? FR_WALK[fi] : FR_IDLE[fi % FR_IDLE.length];
-  blitOutlined(x - 16, y - 44 + bob, body, PAL, 2, flip);
+  // 歩行砂塵
+  if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
+    ctx.globalAlpha = 0.35;
+    drawPixelRect(x + (flip ? 6 : -10), y - 2, 3, 2, '#c8a878');
+    drawPixelRect(x + (flip ? 10 : -14), y - 3, 2, 1, '#a08060');
+    ctx.globalAlpha = 1;
+  }
+  blitOutlined(x - 16, y - 44 + bob + squash, body, PAL, 2, flip);
   if (SPR.senpai) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.senpai, x - 18, y - 62 + bob, 36, 36);
@@ -6431,6 +6736,16 @@ function drawYajyu(x, y, facing) {
     ctx.beginPath();
     ctx.arc(x, cy + 6, 14 + Math.sin(state.animT * 2) * 2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // マント／影の揺れ（Crowns風シルエット）
+  {
+    const capeSway = Math.sin(state.animT * 3.2) * 2 + (state.wind || 0) * 0.8;
+    const cx0 = x + (flip ? 10 : -14) + capeSway;
+    ctx.globalAlpha = 0.55;
+    drawPixelRect(cx0, y - 40 + bob, 6, 22, '#3a1020');
+    drawPixelRect(cx0 + (flip ? -2 : 2), y - 28 + bob, 5, 14, '#5a1830');
+    drawPixelRect(cx0 + 1, y - 38 + bob, 2, 6, chapterTheme().accent);
     ctx.globalAlpha = 1;
   }
   // 汗のきらめき
@@ -6502,19 +6817,32 @@ function drawArcher(x, y, u) {
   ctx.imageSmoothingEnabled = false;
   if (u.role === 'vanguard') {
     const bob = Math.sin(state.animT * 4 + (u.x || 0) * 0.05) * 1.2;
-    drawPixelRect(x - 10, y - 30 + bob, 20, 30, '#5a2a18');
-    drawPixelRect(x - 12, y - 34 + bob, 24, 6, '#c9a227');
-    drawPixelRect(x + 6, y - 28 + bob, 4, 18, '#888');
+    const march = Math.sin(state.animT * 6 + (u.x || 0)) * 1.5;
+    // 部室トリオ：3体シルエット
+    for (let k = -1; k <= 1; k++) {
+      const ox = k * 7 + march * (k === 0 ? 0 : 0.3);
+      const oy = bob + Math.abs(k) * 1;
+      drawPixelRect(x - 4 + ox, y - 26 + oy, 8, 22, k === 0 ? '#5a2a18' : '#3a1a10');
+      drawPixelRect(x - 5 + ox, y - 30 + oy, 10, 4, '#c9a227');
+    }
+    drawPixelRect(x + 8, y - 28 + bob, 4, 18, '#888');
+    // 旗揺れ
+    const fw = Math.sin(state.animT * 5 + x) * 3;
+    drawPixelRect(x + 10 + fw, y - 44 + bob, 10, 8, '#ff6b9d');
+    drawPixelRect(x + 10 + fw, y - 42 + bob, 8, 2, '#ffd700');
     ctx.fillStyle = '#ff6b9d';
     ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('トリオ', x, y - 40 + bob);
-    if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 48 + bob, 24, 24);
+    ctx.fillText('トリオ', x, y - 48 + bob);
+    if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 52 + bob, 24, 24);
     return;
   }
   const shooting = (u._shotFlash || 0) > 0;
-  const fi = shooting ? 3 : frameIndex(4, FR_ARCH.length);
+  const fi = shooting ? 3 : frameIndex(5, FR_ARCH.length);
   const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
+  // 台座（塔感）
+  drawPixelRect(x - 12, y - 4, 24, 4, '#3a2818');
+  drawPixelRect(x - 10, y - 6, 20, 2, '#c9a227');
   blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
   if (SPR.kohai) {
     ctx.imageSmoothingEnabled = false;
@@ -6552,6 +6880,13 @@ function drawArcher(x, y, u) {
   if (shooting) {
     drawPixelRect(bowX - 3, y - 24 + bob, 8, 2, '#fff8e0');
     blitPixels(bowX - 2, y - 28 + bob, ['Y','F'], PAL, 2, false);
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = state.awakenA ? '#6af' : '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(bowX, y - 22 + bob, 12 + Math.sin(state.animT * 20) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
   // 覚醒塔の見た目差（片鱗）
   if (state.awakenA) {
