@@ -1973,6 +1973,10 @@ const ACH_DEFS = [
   { id: 'ex_alley', name: '全抜け道', check: () => EXPLORE_SITES.filter(S => S.kind === 'alley').every(S => !!(state.explore||{})[S.id]) },
   { id: 'ex_edge', name: '外縁端到達', check: () => (state.reachL|0) <= -3000 || (state.reachR|0) >= 3000 },
   { id: 'ex_cache5', name: '落とし物5', check: () => (state._cachesOpened|0) >= 5 },
+  { id: 'dg_first', name: '初潜入踏破', check: () => Object.keys((state.ex2||{}).dgClear||{}).length >= 1 },
+  { id: 'dg_all', name: '全ダンジョン踏破', check: () => Object.keys((state.ex2||{}).dgClear||{}).length >= 3 },
+  { id: 'enc_5', name: '昼の遭遇5', check: () => ((state.ex2||{}).encN|0) >= 5 },
+  { id: 'rv_5', name: '再訪5回', check: () => ((state.ex2||{}).revN|0) >= 5 },
   { id: 'ex_all', name: '探索コンプ', check: () => EXPLORE_SITES.every(S => !!(state.explore||{})[S.id]) },
 ];
 
@@ -2220,6 +2224,12 @@ function renderCollectBox(parent, sub) {
       if (!S.photo) continue;
       const on = !!state.locPhotos[S.photo];
       rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">探索</span>${on ? '📷 ' + S.name : '未踏　' + (S.side < 0 ? '西' : '東')}</div>`);
+      const on2 = !!state.locPhotos['ph_exr_' + S.id];
+      rows.push(`<div class="row ${on2 ? 'on' : 'off'}"><span class="tag">再訪</span>${on2 ? '📷 ' + S.short + '（別カット）' : '未撮影　再訪で解放'}</div>`);
+    }
+    for (const D of DUNGEONS) {
+      const on = !!state.locPhotos[D.photo];
+      rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">潜入</span>${on ? '📷 ' + D.name + '最奥' : '未踏破　' + D.name}</div>`);
     }
   } else if (sub === 'skin') {
     for (const s of TOWER_SKINS) {
@@ -2239,6 +2249,13 @@ function renderCollectBox(parent, sub) {
         : (seen ? `${S.name}　${why || (S.cost ? S.cost + '🪙で探索' : '無料')}` : `未踏の${dir}　約${Math.round(Math.abs(S.x) / 10)}m${state.exploreClue[S.id] ? '　手がかり有' : ''}${why ? '　' + why : ''}`);
       rows.push(`<div class="row ${on ? 'on' : 'off'}"><span class="tag">${on ? '✓' : dir}</span>${info}</div>`);
     }
+    const e2 = ensureEx2();
+    for (const D of DUNGEONS) {
+      const S = EXPLORE_SITES.find(x => x.id === D.site);
+      const ok = !!e2.dgClear[D.site];
+      rows.push(`<div class="row ${ok ? 'on' : 'off'}"><span class="tag">潜入</span>${D.name}　${ok ? '踏破済（秘宝：' + D.rooms[2].obj.label + '）' : (state.explore[D.site] ? '入口発見済　昼に【潜入】' : (S ? S.short + 'を探索すると入口' : ''))}</div>`);
+    }
+    rows.push(`<div class="row off"><span class="tag">記録</span>再訪${e2.revN}回　遭遇${e2.encN}回　潜入${e2.dgRuns}回${e2.plan && e2.plan.day === (state.day|0) ? '　今日の予定：' + ((EXPLORE_SITES.find(x => x.id === e2.plan.id) || {}).short || '') + (e2.plan.done ? '✓' : '') : ''}</div>`);
     rows.push(`<div class="row off"><span class="tag">足跡</span>西${Math.round(-(state.reachL|0) / 10)}m／東${Math.round((state.reachR|0) / 10)}m　落とし物${state._cachesOpened|0}</div>`);
   } else if (sub === 'secret') {
     for (const s of CHAPTER_SECRETS) {
@@ -2273,6 +2290,9 @@ const EXPLORE_SITES = [
   { id: 'ex_stone', name: '114514石碑', short: '114514石碑', kind: 'stone', side: -1, x: -2840, ch: 3, needLm: 5, cost: 11,
     coins: 14, bond: { kohai: 3, crew: 3, town: 3 }, photo: 'ph_ex_stone', blurb: '刻まれた数字　いいよ！こいよ！',
     story: '114514石碑　微粒子レベルで存在している伝説　世界の西の果て' },
+  { id: 'ex_sento', name: '銭湯跡の煙突', short: '銭湯跡', kind: 'sento', side: -1, x: -1760, ch: 1, needLm: 2, cost: 4,
+    coins: 5, bond: { town: 2, kohai: 1 }, photo: 'ph_ex_sento', blurb: '煙突だけ残った銭湯　番台に「ゆっくりしていってね」',
+    story: '銭湯跡の煙突　湯気の残り香　町の人の思い出の場所　いいゾ〜これ' },
   // 東
   { id: 'ex_bus', name: 'ロケバス廃車', short: 'ロケバス廃車', kind: 'wreck', side: 1, x: 1300, ch: 0, needLm: 0, cost: 2,
     coins: 4, bond: { crew: 2 }, blurb: '座席にロケ弁の空き箱　1日…350円！',
@@ -2289,11 +2309,14 @@ const EXPLORE_SITES = [
   { id: 'ex_tower', name: '外縁測定塔跡', short: '測定塔跡', kind: 'ruin', side: 1, x: 2560, ch: 3, needLm: 5, cost: 10,
     coins: 12, bond: { crew: 3, town: 2 }, photo: 'ph_ex_tower', blurb: '測定器の親玉　針が振り切れたまま',
     story: '外縁測定塔跡　壊れた測定器の故郷　数値は114514　これもうわかんねぇな' },
+  { id: 'ex_pool', name: '水のないプール', short: '水なしプール', kind: 'pool', side: 1, x: 2820, ch: 2, needLm: 4, cost: 8,
+    coins: 9, bond: { kohai: 3 }, photo: 'ph_ex_pool', blurb: '干上がったプール　飛び込み台に「王道を征く」',
+    story: '水のないプール　夏の終わり　後輩とプールサイドで寝転んだ　やりますねぇ' },
   { id: 'ex_edge', name: '世界の果て　こ↑こ↓', short: 'こ↑こ↓', kind: 'edge', side: 1, x: 3080, ch: 0, needLm: 0, cost: 0,
     coins: 5, bond: { town: 1 }, blurb: '看板「こ↑こ↓」　その先は何もない',
     story: '世界の東端　こ↑こ↓　ここまで歩いた　ぬわあああん疲れたもおおおん' },
 ];
-const EXPLORE_KIND_JA = { alley: '抜け道', rooftop: '屋上', cave: '洞', forest: '森', stone: '石碑', wreck: '廃車', vend: '跡地', ruin: '遺跡', edge: '果て' };
+const EXPLORE_KIND_JA = { alley: '抜け道', rooftop: '屋上', cave: '洞', forest: '森', stone: '石碑', wreck: '廃車', vend: '跡地', ruin: '遺跡', edge: '果て', sento: '銭湯', pool: 'プール' };
 const CACHE_KINDS = [
   { id: 'coin',  w: 4, cost: 0, label: '落とし物の財布', icon: '👛' },
   { id: 'lore',  w: 2, cost: 0, label: 'ロケ台本の切れ端', icon: '📜' },
@@ -2627,6 +2650,21 @@ function drawExploreSite(sx, S, found, avail, nightish) {
       ctx.beginPath(); ctx.arc(sx, g - 70, 7, Math.PI, 0); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(sx, g - 70); ctx.lineTo(sx + 6 * Math.cos(-0.3 + Math.sin(state.animT * 6) * 0.2), g - 76); ctx.stroke();
       break;
+    case 'sento':
+      drawPixelRect(sx - 30, g - 40, 60, 40, nightish ? '#3a3038' : '#9a8a7a');
+      drawPixelRect(sx - 34, g - 46, 68, 6, nightish ? '#2a2028' : '#6a4a3a');
+      drawPixelRect(sx - 8, g - 26, 16, 26, dark);
+      drawPixelRect(sx - 12, g - 34, 24, 6, found ? '#c33' : '#544');
+      drawPixelRect(sx + 16, g - 110, 10, 70, nightish ? '#2a2a30' : '#8a7a70');
+      if (found) { ctx.globalAlpha *= 0.4; drawPixelRect(sx + 14 + Math.sin(state.animT * 2) * 3, g - 124, 14, 10, '#ddd'); ctx.globalAlpha /= 0.4; }
+      break;
+    case 'pool':
+      drawPixelRect(sx - 36, g - 10, 72, 10, nightish ? '#2a3a48' : '#8ab8c8');
+      drawPixelRect(sx - 32, g - 8, 64, 6, nightish ? '#1a2a38' : '#c8d8d8');
+      drawPixelRect(sx - 36, g - 14, 72, 4, '#ccc');
+      drawPixelRect(sx + 20, g - 34, 4, 20, '#bbb'); drawPixelRect(sx + 20, g - 36, 18, 4, found ? '#4af' : '#777');
+      for (let i = 0; i < 3; i++) drawPixelRect(sx - 30 + i * 6, g - 30 + i * 6, 2, 16 - i * 6, '#aaa');
+      break;
     case 'edge':
       drawPixelRect(sx - 2, g - 46, 4, 46, '#6a4a28');
       drawPixelRect(sx - 22, g - 50, 44, 14, nightish ? '#4a3a28' : '#e8d8b0');
@@ -2749,6 +2787,520 @@ function drawExploreLayer(nightish) {
       break;
     }
   }
+}
+
+// ========== 探索 第2弾：昼の遭遇／再訪／予定／潜入（ダンジョン風） ==========
+function ensureEx2() {
+  if (!state.ex2 || typeof state.ex2 !== 'object') state.ex2 = {};
+  const e = state.ex2;
+  for (const k of ['revisit', 'revPhoto', 'dgClear', 'dgDay', 'beats', 'flavorDay']) if (!e[k] || typeof e[k] !== 'object') e[k] = {};
+  e.revN = e.revN | 0; e.encN = e.encN | 0; e.dgRuns = e.dgRuns | 0;
+  return e;
+}
+// --- 昼の遭遇 ---
+const DAY_ENCOUNTERS = [
+  { id: 'lost_kohai', name: '迷子の後輩', need: 0, cost: 0, col: '#7ab8ff', bubble: '先輩…', text: '先輩…道に迷っちゃって…　一緒に帰るゾ', fx: { bond: { kohai: 2 }, coins: 2 } },
+  { id: 'tourist', name: '迷い込んだ観光客', need: 0, cost: 0, col: '#ffb36b', bubble: '？', text: '観光客「ここ↑どこ↓？」　道案内した　町の評判が上がる', fx: { bond: { town: 2 }, coins: 1 } },
+  { id: 'film_scout', name: '撮影班の斥候', need: 1, cost: 2, col: '#c8c8c8', bubble: '🎥', text: '斥候「いい画が撮れる場所…ありますあります」　手がかりを貰った', fx: { bond: { crew: 2 }, clue: true } },
+  { id: 'dog', name: 'クゥーンと鳴く犬', need: 2, cost: 1, col: '#c9a26b', bubble: 'クゥーン', text: 'エサをあげた　お礼に何か掘り当てたゾ', fx: { bond: { kohai: 1 }, cache: 'chest' } },
+  { id: 'black_car', name: '黒塗りの高級車', need: 3, cost: 3, col: '#222', bubble: '…', text: '', fx: { gamble: true } },
+  { id: 'meter_seller', name: '測定器売りの老人', need: 5, cost: 4, col: '#9a8', bubble: '114514', text: '老人「この測定器　壊れてるゾ」　でも足が軽くなった（迅速45s）', fx: { bond: { town: 2 }, buff: 45 } },
+];
+for (const E of DAY_ENCOUNTERS) CODEX_QUOTES.push({ id: 'qe_' + E.id, ch: 0, beat: 'explore', raw: '遭遇　' + E.name });
+function encAvailList() {
+  const n = exploreFoundCount();
+  return DAY_ENCOUNTERS.filter(E => n >= E.need);
+}
+function spawnEncounter(x) {
+  const list = encAvailList();
+  if (!list.length) return null;
+  const E = pick(list);
+  const ex = clamp(x, world.leftBound + 100, world.rightBound - 100);
+  state.encounter = { kind: E.id, x: ex, day: state.day | 0, t: 0 };
+  return state.encounter;
+}
+function resolveEncounter() {
+  const e2 = ensureEx2();
+  const en = state.encounter;
+  if (!en) return false;
+  const E = DAY_ENCOUNTERS.find(d => d.id === en.kind);
+  state.encounter = null;
+  if (!E) return false;
+  const fx = E.fx || {};
+  if (fx.bond) for (const k of Object.keys(fx.bond)) { try { bumpBond(k, fx.bond[k] | 0); } catch (_) {} }
+  if (fx.coins) dropCoin(en.x, fx.coins | 0);
+  if (fx.clue) {
+    const S = nearestUnknownSite(en.x, true) || nearestUnknownSite(en.x, false);
+    if (S) { state.exploreClue[S.id] = true; toast(`手がかり　${S.side < 0 ? '西' : '東'}の${EXPLORE_KIND_JA[S.kind] || '秘境'}`, 2.4); }
+    else dropCoin(en.x, 3);
+  }
+  if (fx.cache) spawnCache(en.x + (player.facing || 1) * 60, fx.cache);
+  if (fx.buff) state.scoutBuffT = Math.max(state.scoutBuffT || 0, fx.buff);
+  if (fx.gamble) {
+    if (Math.random() < 0.6) { dropCoin(en.x, 7); story('黒塗りの高級車「示談だゾ」　コインが7枚　…やりますねぇ', 3); }
+    else { story('黒塗りの高級車は走り去った　あっ（察し）　でも事故らなかったからヨシ！', 3); try { bumpBond('crew', 1); } catch (_) {} }
+  } else story(E.text, 3);
+  e2.encN++;
+  unlockCodexId('qe_' + E.id, true);
+  spawnMeme(en.x, GROUND_Y - 70, pick(['いいゾ〜これ', 'やりますねぇ', 'ありますあります']));
+  spawnSparks(en.x, GROUND_Y - 30, 8, ['#ffd700', '#fff'], 80);
+  checkAchievements();
+  return true;
+}
+function drawEncounter() {
+  const en = state.encounter;
+  if (!en || state.isNight) return;
+  const E = DAY_ENCOUNTERS.find(d => d.id === en.kind);
+  if (!E) return;
+  const sx = wx(en.x);
+  if (sx < -40 || sx > W + 40) return;
+  const g = GROUND_Y;
+  const bob = Math.sin(state.animT * 3 + en.x) * 1.5;
+  drawSoftShadow(sx, g, 12, 0.3);
+  if (E.id === 'black_car') {
+    drawPixelRect(sx - 34, g - 22, 68, 16, '#111');
+    drawPixelRect(sx - 20, g - 34, 40, 12, '#1a1a1a');
+    drawPixelRect(sx - 16, g - 32, 14, 8, '#334');
+    drawPixelRect(sx + 2, g - 32, 14, 8, '#334');
+    drawPixelRect(sx - 26, g - 8, 10, 8, '#333'); drawPixelRect(sx + 16, g - 8, 10, 8, '#333');
+  } else if (E.id === 'dog') {
+    drawPixelRect(sx - 12, g - 14 + bob, 22, 9, E.col);
+    drawPixelRect(sx + 8, g - 20 + bob, 9, 9, E.col);
+    drawPixelRect(sx + 14, g - 17 + bob, 2, 2, '#000');
+    drawPixelRect(sx - 10, g - 6, 3, 6, E.col); drawPixelRect(sx + 4, g - 6, 3, 6, E.col);
+  } else {
+    drawPixelRect(sx - 6, g - 30 + bob, 12, 18, E.col);
+    drawPixelRect(sx - 5, g - 40 + bob, 10, 10, '#f0c8a0');
+    drawPixelRect(sx - 5, g - 42 + bob, 10, 3, '#332');
+    drawPixelRect(sx - 5, g - 12, 4, 12, '#333'); drawPixelRect(sx + 1, g - 12, 4, 12, '#333');
+    if (E.id === 'film_scout') drawPixelRect(sx + 6, g - 30 + bob, 8, 6, '#555');
+    if (E.id === 'meter_seller') drawPixelRect(sx + 7, g - 24 + bob, 6, 8, '#ccaa44');
+  }
+  ctx.save();
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.75 + Math.sin(state.animT * 5) * 0.25;
+  ctx.fillStyle = '#ffe066';
+  ctx.fillText('！', sx, g - 56 + bob);
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = '#fff';
+  ctx.fillText(E.bubble, sx, g - 66 + bob);
+  ctx.restore();
+}
+// --- 再訪・予定 ---
+const REVISIT_LINES = {
+  alley: ['室外機の風が気持ちいい　後輩「先輩　ここ涼しいっすね」', '落書きが増えてる「やりますねぇ」'],
+  rooftop: ['屋上で一息　まずうちさぁ…', '夕日が　すっごい綺麗…　後輩と並んで見た'],
+  cave: ['ひんやりした空気　くさいを褒める', '奥から反響　クゥーン…'],
+  forest: ['木漏れ日114514本　町の子が虫取りしてる', '池の鯉に麦茶をこぼした　ごめんね'],
+  stone: ['石碑を磨いた　いいよ！こいよ！', '数字が光った気がした　王道を征く'],
+  wreck: ['ロケバスで昼寝　撮影班「お疲れ様です！」', '座席の下からロケ弁の割り箸'],
+  vend: ['810ボタンを押す　出てこない　知ってた', '自販機の横で後輩とアイスティー'],
+  ruin: ['測定器の針が今日も振り切れてる', '撮影班が瓦礫で画角を探してる'],
+  edge: ['こ↑こ↓　ぬわあああん疲れたもおおおん'],
+  sento: ['煙突の下　番台に誰もいない　ゆっくりしていってね', '湯気の残り香　汗が引いた'],
+  pool: ['水のないプール　飛び込み台で叫ぶ　王道を征く', '後輩がプールサイドで寝てる　夏の思い出'],
+};
+const PLAN_WHO = [['kohai', '後輩'], ['crew', '撮影班'], ['town', '町の人']];
+function revisitSpots(spots) {
+  const e2 = ensureEx2();
+  if (state.isNight) return;
+  const d = state.day | 0;
+  for (const S of EXPLORE_SITES) {
+    if (!state.explore[S.id]) continue;
+    const D = DUNGEONS.find(g => g.site === S.id);
+    if (D) {
+      if ((e2.dgDay[S.id] | 0) === d + 1) continue; // 今日は潜入済
+      spots.push({ id: 'dg_' + S.id, x: S.x, r: 40, cost: 0, can: true, branch: 'civil',
+        label: `【潜入】${D.name}${e2.dgClear[S.id] ? '（再）' : '　全3部屋'}`, buy() { return enterDungeon(D); } });
+      continue;
+    }
+    if ((e2.revisit[S.id] | 0) === d + 1) continue;
+    const isPlan = e2.plan && e2.plan.day === d && e2.plan.id === S.id && !e2.plan.done;
+    spots.push({ id: 'rv_' + S.id, x: S.x, r: 40, cost: 1, can: true, branch: 'civil',
+      label: `【再訪】${S.short}${isPlan ? '（予定★）' : ''}`, buy() { return revisitSite(S); } });
+  }
+}
+function revisitSite(S) {
+  const e2 = ensureEx2();
+  e2.revisit[S.id] = (state.day | 0) + 1;
+  e2.revN++;
+  const keys = Object.keys(S.bond || { town: 1 });
+  const k = keys[e2.revN % keys.length];
+  try { bumpBond(k, 1); } catch (_) {}
+  { const rc = Math.floor(Math.random() * 3); if (rc > 0) dropCoin(S.x, rc); }
+  const lines = REVISIT_LINES[S.kind] || ['いいゾ〜これ'];
+  story(`${S.short}　${pick(lines)}`, 3);
+  checkPlanVisit(S);
+  if (S.photo && !e2.revPhoto[S.id]) {
+    e2.revPhoto[S.id] = true;
+    const pid = 'ph_exr_' + S.id;
+    unlockLocPhoto(pid, true);
+    toast('ロケ写真（再訪）　' + S.short + 'の別カット', 2.4);
+    spawnMeme(S.x, GROUND_Y - 80, '📷');
+  }
+  spawnMeme(S.x, GROUND_Y - 64, pick(['ありますあります', 'いいゾ〜これ', 'やりますねぇ']));
+  checkAchievements();
+  return true;
+}
+function checkPlanVisit(S) {
+  const e2 = ensureEx2();
+  const p = e2.plan;
+  if (!p || p.day !== (state.day | 0) || p.id !== S.id || p.done) return;
+  p.done = true;
+  try { bumpBond(p.who, 2); } catch (_) {}
+  dropCoin(S.x, 2);
+  const whoJa = (PLAN_WHO.find(w => w[0] === p.who) || PLAN_WHO[0])[1];
+  setTimeout(() => { try { toast(`予定達成　${whoJa}と${S.short}　絆+2　🪙+2`, 2.6); } catch (_) {} }, 900);
+}
+function ex2OnDayStart() {
+  const e2 = ensureEx2();
+  const found = EXPLORE_SITES.filter(S => state.explore[S.id] && S.kind !== 'edge');
+  state.encounter = null;
+  e2.encToday = 0; e2._walk = 0;
+  if (found.length >= 2) {
+    const S = pick(found);
+    const who = pick(PLAN_WHO);
+    e2.plan = { day: state.day | 0, id: S.id, who: who[0], done: false };
+    setTimeout(() => { try { if (!state.isNight) toast(`今日の予定：${who[1]}と${S.short}（${S.side < 0 ? '西' : '東'}）`, 2.6); } catch (_) {} }, 2600);
+  } else e2.plan = null;
+}
+const EX_BEATS = [
+  { n: 1, t: '初めての遺跡　領地の外にも世界がある　見ろよ見ろよ' },
+  { n: 3, t: '撮影班「外縁、いい画が撮れますねぇ」　探索の噂が町に広まる' },
+  { n: 6, t: '後輩「先輩、地図作りましょうよ」　足跡が地図になっていく' },
+  { n: 9, t: '町の人「あの洞窟、奥があるらしいゾ」　潜入の噂' },
+  { n: 14, t: '全踏破　世界の西も東も知り尽くした　王道を征く　114514' },
+];
+const NEAR_FLAVOR = [
+  ['kohai', '後輩「先輩、ここまた来たいっすね」'],
+  ['crew', '撮影班「この角度…ありますあります」'],
+  ['town', '町の子「ここ、先輩が見つけたの？」'],
+  ['kohai', '後輩「今日の予定、ここでいいっすか？」'],
+  ['crew', '撮影班「次の撮影はここで」'],
+  ['town', '町の噂「遺跡に寄ると汗が引くらしい」'],
+];
+function updateEx2(dt) {
+  const e2 = ensureEx2();
+  if (!state.running || state.isNight) { if (state.isNight) state.encounter = null; return; }
+  // 探索の節目ストーリー
+  const n = exploreFoundCount();
+  for (const B of EX_BEATS) {
+    if (n >= Math.min(B.n, EXPLORE_SITES.length) && !e2.beats[B.n] && storyTimer <= 0) { e2.beats[B.n] = true; story(B.t, 3.6); break; }
+  }
+  // 遭遇の生成（領地外を歩く）
+  const px = player.x;
+  const { lx, rx } = territoryBounds();
+  const outside = px < lx - 80 || px > rx + 80;
+  if (state.encounter) {
+    state.encounter.t += dt;
+    if (Math.abs(state.encounter.x - px) > 1500 || state.encounter.day !== (state.day | 0)) state.encounter = null;
+  } else if (outside && Math.abs(player.vx) > 10 && (e2.encToday | 0) < 2 && (state.day | 0) >= 2) {
+    e2._walk = (e2._walk || 0) + Math.abs(player.vx) * dt;
+    if (e2._walk > 900) {
+      e2._walk = 0;
+      if (Math.random() < 0.5 && spawnEncounter(px + (player.facing || 1) * rand(260, 360))) {
+        e2.encToday = (e2.encToday | 0) + 1;
+        const E = DAY_ENCOUNTERS.find(d => d.id === state.encounter.kind);
+        toast(`遭遇　${E ? E.name : '？'}　${(player.facing || 1) < 0 ? '◀西' : '東▶'}`, 2.2);
+      }
+    }
+  }
+  // 発見済み地点の近くで絆・町の小話（1地点1日1回）
+  state._ex2FlavorT = Math.max(0, (state._ex2FlavorT || 0) - dt);
+  if (state._ex2FlavorT <= 0) {
+    for (const S of EXPLORE_SITES) {
+      if (!state.explore[S.id] || Math.abs(S.x - px) > 150) continue;
+      if ((e2.flavorDay[S.id] | 0) === (state.day | 0) + 1) continue;
+      e2.flavorDay[S.id] = (state.day | 0) + 1;
+      state._ex2FlavorT = 25;
+      const f = NEAR_FLAVOR[(Math.abs(S.x) + (state.day | 0)) % NEAR_FLAVOR.length];
+      toast(`${S.short}　${f[1]}`, 2.4);
+      try { bumpBond(f[0], 1); } catch (_) {}
+      break;
+    }
+  }
+}
+function ex2Spots(spots) {
+  if (state.isNight) return;
+  revisitSpots(spots);
+  const en = state.encounter;
+  if (en) {
+    const E = DAY_ENCOUNTERS.find(d => d.id === en.kind);
+    if (E) spots.push({ id: 'enc_' + E.id, x: en.x, r: 40, cost: E.cost | 0, can: true, branch: 'civil',
+      label: `【遭遇】${E.name}${E.cost ? '' : '（話す）'}`, buy() { return resolveEncounter(); } });
+  }
+}
+function ex2HudHint() {
+  const e2 = ensureEx2();
+  if (!state.running || state.isNight) return '';
+  const p = e2.plan;
+  if (p && p.day === (state.day | 0) && !p.done) {
+    const S = EXPLORE_SITES.find(s => s.id === p.id);
+    if (S) {
+      const d = Math.abs(S.x - player.x);
+      return `<span style="color:#ffb3d9">予定</span> ${S.short} ${d < 50 ? 'すぐそこ' : (S.x < player.x ? '西' : '東') + Math.round(d / 10) + 'm'}`;
+    }
+  }
+  return '';
+}
+
+// --- 潜入（ダンジョン風・3部屋） ---
+const DG_RW = 760;
+const DUNGEONS = [
+  { site: 'ex_kuun', name: 'クゥーン洞', wall: '#2a2633', floor: '#3a3440', accent: '#8cf', photo: 'ph_dg_kuun',
+    rooms: [
+      { name: '入口の間', obj: { t: 'loot', label: '犬の骨の山', coins: 3 } },
+      { name: '反響の間', obj: { t: 'event', label: 'クゥーン…と鳴く子犬', bond: { kohai: 2 }, msg: '子犬をなでた　クゥーン…　後輩が泣いてる' }, hazard: true },
+      { name: '最奥', obj: { t: 'relic', label: '先輩の首輪', coins: 10, msg: 'お前のことが好きだったんだよ（首輪が）　最奥の宝　いいゾ〜これ' }, hazard: true },
+    ] },
+  { site: 'ex_kusai', name: 'くさい缶の地下', wall: '#2e3326', floor: '#3c4230', accent: '#9f6', photo: 'ph_dg_kusai',
+    rooms: [
+      { name: '缶の回廊', obj: { t: 'loot', label: '未開封のくさい缶', coins: 2 } },
+      { name: '湯気の間', obj: { t: 'event', label: '冷えた湧き水', humid: -25, msg: '湧き水で顔を洗った　汗が引く　ありますあります' }, hazard: true },
+      { name: '缶の玉座', obj: { t: 'relic', label: '黄金のくさい缶', coins: 9, bond: { crew: 2 }, msg: '黄金のくさい缶　くさいを褒めた結果がこれだよ' }, hazard: true },
+    ] },
+  { site: 'ex_tower', name: '測定塔の地下', wall: '#33282a', floor: '#45363a', accent: '#ffd27a', photo: 'ph_dg_tower',
+    rooms: [
+      { name: '配線室', obj: { t: 'event', label: '古い地図', clue: true, msg: '古い地図　未踏の場所に丸印　見ろよ見ろよ' }, hazard: true },
+      { name: '計器室', obj: { t: 'loot', label: '壊れた測定器の山', coins: 5 } },
+      { name: '塔の心臓', obj: { t: 'relic', label: '114514の針', coins: 14, bond: { crew: 2, town: 2 }, msg: '針は114514を指したまま　これもうわかんねぇな　伝説のパーツ' }, hazard: true },
+    ] },
+];
+for (const D of DUNGEONS) CODEX_QUOTES.push({ id: 'qd_' + D.site, ch: 1, beat: 'explore', raw: '潜入　' + D.name + '　' + D.rooms[2].obj.label });
+function enterDungeon(D) {
+  const e2 = ensureEx2();
+  if (state.isNight || state.dungeon) return false;
+  const remain = (state.dayLength || 52) - (state.dayTimer || 0);
+  if (remain < 12) { toast('日が暮れそう　潜入は明日だゾ', 2); return true; }
+  e2.dgDay[D.site] = (state.day | 0) + 1;
+  e2.dgRuns++;
+  state.encounter = null;
+  state.dungeon = { site: D.site, room: 0, px: 90, camX: 90, taken: {}, hitCd: 0, t: 0, retX: player.x };
+  story(`${D.name}へ潜入　足元に注意　くさい煙に触れると湿度↑`, 3);
+  try { if (typeof audPlay === 'function') audPlay('day'); } catch (_) {}
+  return true;
+}
+function exitDungeon(msg) {
+  const dg = state.dungeon;
+  if (!dg) return;
+  state.dungeon = null;
+  const S = EXPLORE_SITES.find(s => s.id === dg.site);
+  if (S) player.x = S.x;
+  state.cameraX = player.x - W / 2;
+  if (msg) toast(msg, 2.4);
+  try { saveGame(true); } catch (_) {}
+}
+function dungeonDef() { return state.dungeon ? DUNGEONS.find(D => D.site === state.dungeon.site) : null; }
+function dungeonNearest() {
+  const dg = state.dungeon, D = dungeonDef();
+  if (!dg || !D) return null;
+  const R = D.rooms[dg.room];
+  const last = dg.room === D.rooms.length - 1;
+  const cands = [
+    { k: 'left', x: 50, label: dg.room === 0 ? '【出口】地上へ戻る' : '【扉】前の部屋へ' },
+    { k: 'right', x: DG_RW - 50, label: last ? '【出口】地上へ（踏破）' : '【扉】奥へ進む' },
+  ];
+  if (!dg.taken[dg.room]) cands.push({ k: 'obj', x: DG_RW / 2, label: (R.obj.t === 'relic' ? '【秘宝】' : R.obj.t === 'loot' ? '【漁る】' : '【調べる】') + R.obj.label });
+  let best = null, bd = 1e9;
+  for (const c of cands) { const d = Math.abs(c.x - dg.px); if (d < 46 && d < bd) { bd = d; best = c; } }
+  return best;
+}
+function dungeonInteract() {
+  const dg = state.dungeon, D = dungeonDef();
+  if (!dg || !D) return;
+  const n = dungeonNearest();
+  if (!n) { toast('ここには何もない　…ファッ!?', 1.2); return; }
+  const e2 = ensureEx2();
+  const last = dg.room === D.rooms.length - 1;
+  if (n.k === 'left') {
+    if (dg.room === 0) exitDungeon('地上に戻った　また来るゾ');
+    else { dg.room--; dg.px = DG_RW - 90; dg.camX = dg.px; }
+    return;
+  }
+  if (n.k === 'right') {
+    if (last) {
+      if (!dg.taken[dg.room]) { toast('秘宝がまだ残ってるゾ', 1.6); return; }
+      exitDungeon(`${D.name}　踏破！　王道を征く`);
+    } else { dg.room++; dg.px = 90; dg.camX = dg.px; toast(D.rooms[dg.room].name, 1.4); }
+    return;
+  }
+  const R = D.rooms[dg.room], O = R.obj;
+  dg.taken[dg.room] = true;
+  const S = EXPLORE_SITES.find(s => s.id === D.site);
+  const first = !e2.dgClear[D.site];
+  if (O.t === 'relic') {
+    const c = first ? (O.coins | 0) : Math.max(2, Math.round((O.coins | 0) / 3));
+    state.coins += c;
+    if (first) {
+      e2.dgClear[D.site] = true;
+      if (O.bond) for (const k of Object.keys(O.bond)) { try { bumpBond(k, O.bond[k] | 0); } catch (_) {} }
+      unlockLocPhoto(D.photo, true);
+      unlockCodexId('qd_' + D.site, true);
+      story(O.msg + `　🪙+${c}　📷`, 3.6);
+    } else story(`${O.label}の残り香　🪙+${c}`, 2.6);
+  } else if (O.t === 'loot') {
+    const c = (O.coins | 0) + (first ? 0 : -1);
+    state.coins += Math.max(1, c);
+    toast(`${O.label}　🪙+${Math.max(1, c)}`, 2);
+  } else {
+    if (O.bond) for (const k of Object.keys(O.bond)) { try { bumpBond(k, O.bond[k] | 0); } catch (_) {} }
+    if (O.humid) state.humidity = clamp((state.humidity || 0) + O.humid, 0, 100);
+    if (O.clue) {
+      const T = nearestUnknownSite(S ? S.x : 0, false);
+      if (T) state.exploreClue[T.id] = true; else state.coins += 3;
+    }
+    story(O.msg, 3);
+  }
+  dg.fx = { t: 0.8, txt: pick(['やりますねぇ', 'いいゾ〜これ', 'ありますあります']) };
+  try { if (typeof audPlay === 'function') audPlay('pay'); } catch (_) {}
+  if (S) checkPlanVisit(S);
+  checkAchievements();
+}
+function updateDungeonMove(dt) {
+  const dg = state.dungeon;
+  let input = 0;
+  try {
+    if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
+    if (keys['ArrowRight'] || keys['KeyD'] || touchMove.right) input += 1;
+  } catch (_) {}
+  player.vx = input * (player.speed || 160) * 0.85;
+  if (input) player.facing = input;
+  dg.px = clamp(dg.px + player.vx * dt, 30, DG_RW - 30);
+  dg.camX += (dg.px - dg.camX) * Math.min(1, dt * 5);
+}
+function updateDungeon(dt) {
+  const dg = state.dungeon, D = dungeonDef();
+  if (!dg || !D) { state.dungeon = null; return; }
+  dg.t += dt;
+  state.dayTimer += dt;
+  try { tickPresentation(dt); } catch (_) {}
+  if (dg.fx) { dg.fx.t -= dt; if (dg.fx.t <= 0) dg.fx = null; }
+  if ((state.dayLength || 52) - state.dayTimer < 3) { exitDungeon('日が暮れる！　急いで地上へ'); return; }
+  const R = D.rooms[dg.room];
+  dg.hitCd = Math.max(0, dg.hitCd - dt);
+  if (R.hazard) {
+    const hx = DG_RW / 2 + Math.sin(dg.t * 1.3 + dg.room) * 190;
+    dg.hx = hx;
+    if (dg.hitCd <= 0 && Math.abs(hx - dg.px) < 26) {
+      dg.hitCd = 1.1;
+      state.humidity = clamp((state.humidity || 0) + 6, 0, 100);
+      dg.px = clamp(dg.px + (dg.px < hx ? -70 : 70), 30, DG_RW - 30);
+      dg.fx = { t: 0.7, txt: 'くさっ！　湿度+6' };
+      try { shake(3, 0.15); } catch (_) {}
+    }
+  } else dg.hx = null;
+  try {
+    const right = document.getElementById('hud-right');
+    const remain = Math.max(0, (state.dayLength || 52) - state.dayTimer) | 0;
+    if (right) right.innerHTML = `<span style="color:${D.accent}">潜入</span> ${D.name}　${dg.room + 1}/${D.rooms.length}「${R.name}」<br>🪙${state.coins | 0}　湿度${state.humidity | 0}　日暮れまで${remain}s`;
+  } catch (_) {}
+}
+function drawDungeon() {
+  const dg = state.dungeon, D = dungeonDef();
+  if (!dg || !D) return;
+  const R = D.rooms[dg.room];
+  const g = GROUND_Y;
+  const ox = Math.round(W / 2 - dg.camX);
+  const X = (x) => Math.round(x + ox);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#0a090c';
+  ctx.fillRect(0, 0, W, H);
+  // 部屋
+  ctx.fillStyle = D.wall;
+  ctx.fillRect(X(0), g - 200, DG_RW, 200);
+  for (let i = 0; i < 14; i++) {
+    const bx = (i * 61) % DG_RW, by = g - 190 + ((i * 37) % 150);
+    drawPixelRect(X(bx), by, 26, 10, 'rgba(0,0,0,0.22)');
+  }
+  ctx.fillStyle = D.floor;
+  ctx.fillRect(X(0), g, DG_RW, H - g);
+  drawPixelRect(X(0), g, DG_RW, 3, 'rgba(255,255,255,0.08)');
+  // 岩壁（部屋外）
+  drawPixelRect(X(-400), g - 220, 400, H, '#141218');
+  drawPixelRect(X(DG_RW), g - 220, 400, H, '#141218');
+  drawPixelRect(X(0), g - 214, DG_RW, 14, '#141218');
+  // たいまつ
+  for (const tx of [160, DG_RW - 160]) {
+    drawPixelRect(X(tx) - 2, g - 120, 4, 20, '#5a3a20');
+    const fl = Math.sin(state.animT * 12 + tx) * 2;
+    drawPixelRect(X(tx) - 4, g - 132 + fl, 8, 12, '#ffb040');
+    drawPixelRect(X(tx) - 2, g - 128 + fl, 4, 6, '#fff0a0');
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#ffb040';
+    ctx.beginPath(); ctx.arc(X(tx), g - 120, 70, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  const last = dg.room === D.rooms.length - 1;
+  // 扉
+  const door = (x, lit, txt) => {
+    drawPixelRect(X(x) - 18, g - 60, 36, 60, '#1a1410');
+    drawPixelRect(X(x) - 14, g - 56, 28, 56, lit ? '#e8d8a0' : '#2c2218');
+    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.fillText(txt, X(x), g - 68);
+  };
+  door(40, dg.room === 0, dg.room === 0 ? '出口' : '◀');
+  door(DG_RW - 40, last, last ? '出口' : '▶');
+  // オブジェクト
+  const O = R.obj, cx = X(DG_RW / 2);
+  if (!dg.taken[dg.room]) {
+    const bob = Math.sin(state.animT * 3) * 2;
+    if (O.t === 'relic') {
+      drawPixelRect(cx - 22, g - 18, 44, 18, '#5a5048');
+      drawPixelRect(cx - 8, g - 34 + bob, 16, 14, '#ffd700');
+      drawPixelRect(cx - 4, g - 30 + bob, 8, 6, '#fff8c8');
+      ctx.globalAlpha = 0.2 + Math.sin(state.animT * 4) * 0.1; ctx.fillStyle = '#ffd700';
+      ctx.beginPath(); ctx.arc(cx, g - 28, 30, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    } else if (O.t === 'loot') {
+      drawPixelRect(cx - 16, g - 18, 32, 18, '#7a4a20');
+      drawPixelRect(cx - 16, g - 22, 32, 6, '#9a6a30');
+      drawPixelRect(cx - 3, g - 14, 6, 6, '#ffd700');
+    } else {
+      drawPixelRect(cx - 4, g - 40 + bob, 8, 8, D.accent);
+      drawPixelRect(cx - 10, g - 14, 20, 14, '#3a3a3a');
+    }
+    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = D.accent;
+    ctx.fillText(O.label, cx, g - 52);
+  } else {
+    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#777';
+    ctx.fillText('（空）', cx, g - 30);
+  }
+  // くさい煙
+  if (R.hazard && dg.hx != null) {
+    const hx = X(dg.hx);
+    for (let i = 0; i < 5; i++) {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#9acd32';
+      ctx.beginPath(); ctx.arc(hx + Math.sin(state.animT * 3 + i) * 8, g - 16 - i * 9, 12 - i, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // プレイヤー
+  try { drawSoftShadow(X(dg.px), g, 14, 0.3); drawYajyu(X(dg.px), g, player.facing); } catch (_) {}
+  // 部屋名・案内
+  ctx.font = '8px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.fillText(`${D.name}　${dg.room + 1}/${D.rooms.length}　${R.name}`, W / 2, g - 160);
+  const n = dungeonNearest();
+  if (n) {
+    ctx.font = '7px "Press Start 2P"'; ctx.fillStyle = '#ffe066';
+    ctx.fillText(n.label + '　［Space／💰］', W / 2, g + 40);
+  } else {
+    ctx.font = '6px "Press Start 2P"'; ctx.fillStyle = '#aaa';
+    ctx.fillText('◀▶で移動　扉・宝の前で Space', W / 2, g + 40);
+  }
+  if (dg.fx) {
+    ctx.globalAlpha = Math.min(1, dg.fx.t * 2);
+    ctx.font = '8px "Press Start 2P"'; ctx.fillStyle = '#ffd700';
+    ctx.fillText(dg.fx.txt, X(dg.px), g - 80 - (0.8 - dg.fx.t) * 30);
+    ctx.globalAlpha = 1;
+  }
+  // 周辺減光
+  const vg = ctx.createRadialGradient(W / 2, g - 60, 120, W / 2, g - 60, 520);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 }
 
 const BOND_NPCS = [
@@ -6315,6 +6867,7 @@ function shopSpots() {
     });
   }
   try { exploreSpots(spots); } catch (_) {}
+  try { ex2Spots(spots); } catch (_) {}
   return spots;
 }
 
@@ -6328,6 +6881,7 @@ function nearestSpot() {
 function tryPay() {
   if (state.panelOpen) return;
   if (!state.running || state.over) return;
+  if (state.dungeon) { try { dungeonInteract(); } catch (_) { state.dungeon = null; } return; }
   const spot = nearestSpot();
   if (!spot) {
     // コインを地面に落とす（Kingdom風）
@@ -6538,6 +7092,7 @@ function startDay() {
   if (!(state.nightLength > 10)) state.nightLength = 38;
   try { if (typeof audPlay === 'function') audPlay('day'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
   try { spawnDawnFx(); } catch (_) {}
+  try { ex2OnDayStart(); } catch (_) {}
   try {
     ensureExploreState();
     if (state.explorePerks.income && state._exIncomeDay !== (state.day | 0)) {
@@ -6838,6 +7393,7 @@ function buildSaveBlob() {
     exploreSeen: Object.assign({}, state.exploreSeen || {}),
     exploreClue: Object.assign({}, state.exploreClue || {}),
     explorePerks: Object.assign({}, state.explorePerks || {}),
+    ex2: JSON.parse(JSON.stringify(state.ex2 || {})),
     caches: Array.isArray(state.caches) ? state.caches.map(c => Object.assign({}, c)) : [],
     reachL: state.reachL | 0, reachR: state.reachR | 0,
     cacheDay: state.cacheDay | 0, cacheToday: state.cacheToday | 0, scoutCacheToday: state.scoutCacheToday | 0,
@@ -6992,6 +7548,7 @@ function applySave(d) {
   state.exploreSeen = Object.assign({}, d.exploreSeen || {});
   state.exploreClue = Object.assign({}, d.exploreClue || {});
   state.explorePerks = Object.assign({}, d.explorePerks || {});
+  state.ex2 = (d.ex2 && typeof d.ex2 === 'object') ? d.ex2 : {}; state.dungeon = null; state.encounter = null;
   state.caches = Array.isArray(d.caches) ? d.caches.filter(c => c && isFinite(+c.x)).map(c => Object.assign({}, c)) : [];
   state.reachL = Math.min(0, +d.reachL || 0); state.reachR = Math.max(0, +d.reachR || 0);
   state.cacheDay = d.cacheDay | 0; state.cacheToday = d.cacheToday | 0; state.scoutCacheToday = d.scoutCacheToday | 0;
@@ -7206,6 +7763,7 @@ function resetGame() {
   state.towerSkins = { default: true };
   state.secrets = {};
   state.explore = {}; state.exploreSeen = {}; state.exploreClue = {}; state.explorePerks = {};
+  state.ex2 = {}; state.dungeon = null; state.encounter = null;
   state.caches = []; state.reachL = 0; state.reachR = 0;
   state.cacheDay = 0; state.cacheToday = 0; state.scoutCacheToday = 0;
   state._cachesOpened = 0; state._exIncomeDay = 0; state.scoutBuffT = 0; state._cacheWalk = 0;
@@ -7364,6 +7922,7 @@ function tickPresentation(dt, rawDt) {
 
 function updateMoveEssential(dt) {
   // 移動・カメラ・向き — update 例外でも必ず動く
+  if (state.dungeon) { try { updateDungeonMove(dt); } catch (_) { state.dungeon = null; } return 0; }
   let input = 0;
   try {
     if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
@@ -7384,7 +7943,9 @@ function updateMoveEssential(dt) {
 }
 
 function update(dt) {
+  if (state.dungeon) { try { updateDungeon(dt); } catch (e) { state.dungeon = null; } return; }
   try { updateExplore(dt); } catch (_) {}
+  try { updateEx2(dt); } catch (_) {}
   // 昼夜
   state.dayTimer += dt;
   const len = state.isNight ? state.nightLength : state.dayLength;
@@ -7824,7 +8385,7 @@ function update(dt) {
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
   right.innerHTML = spot
     ? `<span class="meme">支払い可</span><br>${spot.label}<br><span class="gold">コスト ${spot.cost}</span>`
-    : (() => { const eh = (typeof exploreHudHint === 'function') ? exploreHudHint() : ''; return eh ? `${sk}<br>${eh}` : `${sk}<br>T＝アイス／麦茶　湿度・熱中症に注意`; })();
+    : (() => { const eh = [((typeof exploreHudHint === 'function') ? exploreHudHint() : ''), ((typeof ex2HudHint === 'function') ? ex2HudHint() : '')].filter(Boolean).join('<br>'); return eh ? `${sk}<br>${eh}` : `${sk}<br>T＝アイス／麦茶　湿度・熱中症に注意`; })();
 }
 
 
@@ -8484,6 +9045,7 @@ function draw() {
   drawCampfire(wx(0), GROUND_Y);
   drawLandmarkMap(phase, nightish);
   try { drawExploreLayer(nightish); } catch (_) {}
+  try { drawEncounter(); } catch (_) {}
   drawLocationBus();
   drawMidsummerFx();
   drawMissionMarker();
@@ -8818,6 +9380,7 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  if (state.dungeon) { try { drawDungeon(); } catch (_) { try { ctx.restore(); } catch (__) {} } }
   // 一時デバッグHUD（直るまで残す）
   if (state.debugHUD) {
     try {
