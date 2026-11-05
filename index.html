@@ -424,8 +424,9 @@
         <div style="text-align:center"><img src="assets/senpai_pixel.png" alt="先輩" width="72" height="72" style="image-rendering:pixelated;border:2px solid #ffd700;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
         <div style="text-align:center"><img src="assets/kohai_pixel.png" alt="後輩" width="56" height="56" style="image-rendering:pixelated;border:2px solid #ff6b9d;background:#222"/><div style="font-size:9px;color:#ff6b9d;margin-top:4px">後輩</div></div>
       </div>
-      <button id="startBtn" type="button">いいよ！こいよ！</button>
-      <p style="font-size:clamp(9px,2.5vw,11px);color:#666;margin-top:8px">著作権素材不使用・自作簡易アセット</p>
+      <button id="startBtn" type="button">いいよ！こいよ！（新規）</button>
+      <button id="continueBtn" type="button" style="display:none;margin-top:8px;background:#2a3a1a">つづきから（セーブ）</button>
+      <p style="font-size:clamp(9px,2.5vw,11px);color:#666;margin-top:8px">著作権素材不使用・自作簡易アセット　／　自動セーブ</p>
     </div>
   </div>
   <div id="choice-panel" aria-live="polite">
@@ -545,6 +546,24 @@ const LORE = {
     'あ〜いいっすね〜　114514',
   ],
   hireMeme: ['やりますねぇ', '114514', 'いいよこいよ', 'キタ!', 'ンアッー'],
+  workerHire: [
+    '作業員後輩　おかのした',
+    'やりますねぇ！　昼の収入',
+    '俺も仲間に…　汗（作業）',
+  ],
+  workerWork: ['あります', '＋1', 'おかのした', 'いいゾ〜', '810'],
+  islandOpen: [
+    '島の片鱗…　王道を征く',
+    '第2拠点？　まずうちさぁ…',
+    'はっきりわかんだね　島',
+  ],
+  ending: [
+    '終わり！閉廷！以上！皆解散！',
+    'やりますねぇ！　いいゾ〜これ　多少はね？',
+    '王冠（外れてない）　湿度114514',
+    '下北沢（自称）に　平和な汗が残った',
+    '野獣先輩は　今日も王道を征く',
+  ],
   heal: [
     'アイスティーしかなかったけどいいかな？',
     'ありますあります　Foo↑',
@@ -573,8 +592,8 @@ const LORE = {
   ],
   win: {
     title: '王道を征く　やったぜ',
-    body: 'やりますねぇ！<br>いいゾ〜これ　多少はね？<br>終わり！閉廷！以上！皆解散！<br>王冠（外れてない）　湿度114514<br><br>',
-    btn: 'いいよ！こいよ！',
+    body: 'クリア　語録カットへ…<br><br>',
+    btn: 'つづき（語録）',
   },
   lose: {
     title: 'ファッ！？　消灯',
@@ -745,12 +764,15 @@ const state = {
   bossCineT: 0,
   bossCineX: 0,
   weatherSeed: 1,
+  island: 0,          // 0=なし / -1=西島 / 1=東島
+  endCut: -1,         // エンディング語録 index（-1=非表示）
+  workerTimer: 0,
 };
 
 // ワールド座標: キャンプが x=0
 const world = {
-  leftBound: -2200,
-  rightBound: 2200,
+  leftBound: -2600,
+  rightBound: 2600,
   campX: 0,
 };
 
@@ -783,6 +805,8 @@ const structures = {
 
 /** 雇った後輩（射手） */
 const units = [];
+/** 作業員後輩（昼の収入） */
+const workers = [];
 
 
 
@@ -1476,8 +1500,9 @@ function shopSpots() {
         wall.level++;
         wall.maxHp = wall.level === 1 ? 40 : 90;
         wall.hp = wall.maxHp;
-        if (side === 'left') wall.x -= 70;
-        else wall.x += 70;
+        // 領地を広げる（拡張感）
+        if (side === 'left') wall.x -= wall.level === 1 ? 90 : 110;
+        else wall.x += wall.level === 1 ? 90 : 110;
         const sideJa = side === 'left' ? '西' : '東';
         if (wall.level === 1) {
           toast(sideJa + 'の壁！ ' + pick(LORE.wallBuild));
@@ -1522,6 +1547,58 @@ function shopSpots() {
         return true;
       }
     });
+  }
+  // 作業員後輩（昼の収入）
+  {
+    const wc = workers.length;
+    spots.push({
+      id: 'worker',
+      x: -95,
+      r: 40,
+      cost: 3 + wc * 2,
+      can: wc < 2,
+      label: `作業員後輩を雇う (${wc}/2)・昼の収入`,
+      buy() {
+        if (workers.length >= 2) return false;
+        const side = state.island === -1 ? -1 : state.island === 1 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+        const base = state.island
+          ? (state.island < 0 ? structures.leftWall.x + 50 : structures.rightWall.x - 50)
+          : rand(-70, 70);
+        workers.push({ x: base + rand(-20, 20), y: GROUND_Y, side, bob: rand(0, 3), workCd: 2 });
+        toast(pick(LORE.workerHire));
+        spawnMeme(base, GROUND_Y - 50, pick(['おかのした', 'やりますねぇ', '汗']));
+        story('作業員後輩　昼は稼ぐ　夜は守る（気分）', 2.2);
+        return true;
+      }
+    });
+  }
+  // 島／第2拠点の片鱗
+  if (!state.island) {
+    const preferRight = structures.rightWall.level >= structures.leftWall.level;
+    const side = preferRight ? 'right' : 'left';
+    const wall = side === 'right' ? structures.rightWall : structures.leftWall;
+    if (wall.level >= 1) {
+      spots.push({
+        id: 'island',
+        x: wall.x + (side === 'right' ? 55 : -55),
+        r: 42,
+        cost: 5,
+        can: true,
+        label: (side === 'right' ? '東' : '西') + 'の島・第2拠点の片鱗を開く',
+        buy() {
+          state.island = side === 'right' ? 1 : -1;
+          // 壁をさらに外側へ
+          if (state.island > 0) structures.rightWall.x += 80;
+          else structures.leftWall.x -= 80;
+          toast(pick(LORE.islandOpen));
+          story((state.island > 0 ? '東' : '西') + '島　たき火の片鱗　IKZO', 2.5);
+          spawnMeme(wall.x, GROUND_Y - 60, '島!');
+          screenFlash('rgba(255,215,0,0.18)', 0.25);
+          shake(3, 0.2);
+          return true;
+        }
+      });
+    }
   }
   // たき火回復
   spots.push({
@@ -1658,6 +1735,7 @@ function tryPay() {
     if (ok) {
       pushFx({ type: 'ring', x: spot.x, y: GROUND_Y - 20, t: 0, life: 0.4, color: 'rgba(255,215,0,0.55)', r0: 6, r1: 36 });
       if (typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
+      saveGame(true);
     }
   }, 200);
 }
@@ -1693,6 +1771,7 @@ const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '�
 function startNight() {
   state.isNight = true;
   state.dayTimer = 0;
+  saveGame(true);
   screenFlash('rgba(40,20,80,0.35)', 0.35);
   shake(2, 0.2);
   const nline = pick(LORE.night);
@@ -1787,6 +1866,12 @@ function startDay() {
   for (let i = 0; i < 3; i++) {
     dropCoin(rand(-500, 500) + (Math.random() < 0.5 ? -200 : 200), 1);
   }
+  // 島がある朝は追加コイン
+  if (state.island && state.day > 1) {
+    const ox = state.island > 0 ? structures.rightWall.x - 40 : structures.leftWall.x + 40;
+    dropCoin(ox, 1 + (workers.length > 0 ? 1 : 0));
+  }
+  saveGame(true);
 }
 
 function winCheck() {
@@ -1806,14 +1891,168 @@ function showEnd(win) {
   const ov = document.getElementById('overlay');
   ov.classList.remove('hidden');
   ov.classList.remove('cine-dawn');
-  // 終了後も背景シネマを軽く再開
   state.titleCine = true;
   state.titleDawn = win ? 0.7 : 0.15;
-  const pack = win ? LORE.win : LORE.lose;
+  if (win) {
+    clearSave();
+    state.endCut = 0;
+    renderEndingCut();
+    return;
+  }
+  // 敗北はセーブ消す
+  clearSave();
+  state.endCut = -1;
+  const pack = LORE.lose;
   ov.innerHTML = `<h1><span class="meme">${pack.title}</span></h1>
        <p>${pack.body}Day ${state.day} ／ コイン ${state.coins}</p>
        <button id="startBtn" type="button">${pack.btn}</button>`;
-  document.getElementById('startBtn').onclick = resetGame;
+  document.getElementById('startBtn').onclick = () => { clearSave(); resetGame(); };
+}
+
+function renderEndingCut() {
+  const ov = document.getElementById('overlay');
+  const lines = LORE.ending || [];
+  const i = state.endCut | 0;
+  if (i >= lines.length) {
+    ov.innerHTML = `<h1><span class="meme">王道を征く　やったぜ</span></h1>
+      <p>Day ${state.day} ／ コイン ${state.coins} ／ 銀行 ${state.bank}<br>
+      作業員 ${workers.length}　島 ${state.island ? 'あり' : 'なし'}<br><br>
+      終わり！閉廷！以上！皆解散！</p>
+      <button id="startBtn" type="button">いいよ！こいよ！（最初から）</button>`;
+    document.getElementById('startBtn').onclick = () => { clearSave(); resetGame(); };
+    refreshContinueBtn();
+    return;
+  }
+  ov.innerHTML = `<h1><span class="meme">エンディング</span></h1>
+    <p style="font-size:clamp(12px,3.2vw,16px);line-height:1.7;color:#ffd700">${lines[i]}</p>
+    <p style="color:#888;margin-top:8px">${i + 1} / ${lines.length}</p>
+    <button id="startBtn" type="button">つづき</button>`;
+  document.getElementById('startBtn').onclick = () => {
+    state.endCut = i + 1;
+    renderEndingCut();
+  };
+}
+
+// ---------- セーブ / ロード ----------
+const SAVE_KEY = 'yk-save-v1';
+
+function buildSaveBlob() {
+  return {
+    v: 1,
+    day: state.day,
+    isNight: state.isNight,
+    dayTimer: state.dayTimer,
+    coins: state.coins,
+    bank: state.bank,
+    humidity: state.humidity,
+    icedTeaStock: state.icedTeaStock,
+    island: state.island || 0,
+    dayChoiceDone: !!state.dayChoiceDone,
+    playerX: player.x,
+    leftWall: { ...structures.leftWall },
+    rightWall: { ...structures.rightWall },
+    campHp: structures.campfire.hp,
+    units: units.map(u => ({ side: u.side, x: u.x, meme: u.meme })),
+    workers: workers.map(w => ({ x: w.x, side: w.side || 0 })),
+    savedAt: Date.now(),
+  };
+}
+
+function saveGame(quiet) {
+  if (!state.running && !state.over) return;
+  if (state.over && !state.won) {
+    try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+    refreshContinueBtn();
+    return;
+  }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(buildSaveBlob()));
+    if (!quiet) toast('セーブした　おかのした', 1.6);
+  } catch (_) {}
+  refreshContinueBtn();
+}
+
+function hasSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    return d && d.v === 1 && d.day >= 1;
+  } catch (_) { return false; }
+}
+
+function refreshContinueBtn() {
+  const b = document.getElementById('continueBtn');
+  if (!b) return;
+  b.style.display = hasSave() ? 'inline-block' : 'none';
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+  refreshContinueBtn();
+}
+
+function applySave(d) {
+  state.running = true;
+  state.over = false;
+  state.won = false;
+  state.titleCine = false;
+  state.titleDawn = 0;
+  state.endCut = -1;
+  state.day = d.day | 0;
+  state.isNight = !!d.isNight;
+  state.dayTimer = +d.dayTimer || 0;
+  state.coins = Math.max(0, d.coins | 0);
+  state.bank = Math.max(0, d.bank | 0);
+  state.humidity = clamp(+d.humidity || 42, 0, 100);
+  state.icedTeaStock = clamp(d.icedTeaStock | 0, 0, 3);
+  state.island = d.island | 0;
+  state.dayChoiceDone = !!d.dayChoiceDone;
+  player.x = +d.playerX || 0;
+  player.vx = 0;
+  coinsOnGround.length = 0;
+  arrows.length = 0;
+  enemies.length = 0;
+  fx.length = 0;
+  units.length = 0;
+  workers.length = 0;
+  structures.leftWall = Object.assign({ x: -180, hp: 0, maxHp: 0, level: 0 }, d.leftWall || {});
+  structures.rightWall = Object.assign({ x: 180, hp: 0, maxHp: 0, level: 0 }, d.rightWall || {});
+  structures.campfire = { x: 0, hp: Math.max(1, d.campHp | 0), maxHp: 100 };
+  for (const u of (d.units || [])) {
+    units.push({ side: u.side, x: u.x, y: GROUND_Y, cooldown: 1, hp: 1, meme: u.meme || 'やりますねぇ' });
+  }
+  for (const w of (d.workers || [])) {
+    workers.push({ x: w.x, y: GROUND_Y, side: w.side || 0, bob: rand(0, 3), workCd: rand(1, 3) });
+  }
+  state.killCombo = 0; state.comboTimer = 0; state.gazeT = 0;
+  state.skillCd = 0; state.skillStunT = 0;
+  state.animT = 0; state.shakeT = 0; state.flashT = 0;
+  state.bossCineT = 0; state.rainT = 0; state.workerTimer = 0;
+  state.fxGen = (state.fxGen || 0) + 1;
+  // 夜セーブは波が消えるため朝へ軟着陸（二重収入なし）
+  if (state.isNight) {
+    state.isNight = false;
+    state.dayTimer = Math.min(+d.dayTimer || 0, state.dayLength * 0.35);
+  }
+  updateHumidityHud();
+  const ov = document.getElementById('overlay');
+  ov.classList.add('hidden');
+  ov.classList.remove('cine-dawn');
+  toast(`つづき Day ${state.day}　昼`, 2.8);
+  story('セーブから復帰　王道を征く', 2.4);
+}
+
+function continueGame() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!d || d.v !== 1) { toast('セーブがない', 2); return; }
+    fitCanvas();
+    applySave(d);
+  } catch (e) {
+    toast('セーブが壊れてる…新規で', 2.5);
+    clearSave();
+  }
 }
 
 // ---------- リセット ----------
@@ -1842,11 +2081,15 @@ function resetGame() {
   enemies.length = 0;
   fx.length = 0;
   units.length = 0;
+  workers.length = 0;
   structures.leftWall = { x: -180, hp: 0, maxHp: 0, level: 0 };
   structures.rightWall = { x: 180, hp: 0, maxHp: 0, level: 0 };
   structures.campfire = { x: 0, hp: 100, maxHp: 100 };
   state.humidity = 42;
   state.bank = 0;
+  state.island = 0;
+  state.endCut = -1;
+  state.workerTimer = 0;
   state.killCombo = 0;
   state.comboTimer = 0;
   state.gazeT = 0;
@@ -1867,9 +2110,13 @@ function resetGame() {
   startDay();
   spawnMeme(player.x, GROUND_Y - 60, 'やりますねぇ!');
   updateHumidityHud();
+  saveGame(true);
 }
 
-document.getElementById('startBtn').onclick = resetGame;
+document.getElementById('startBtn').onclick = () => { clearSave(); resetGame(); };
+const _cont = document.getElementById('continueBtn');
+if (_cont) _cont.onclick = continueGame;
+refreshContinueBtn();
 
 // ---------- 更新 ----------
 let last = performance.now();
@@ -2071,6 +2318,38 @@ function update(dt) {
     }
   }
 
+  // 作業員後輩（昼の収入）
+  if (!state.isNight) {
+    for (const w of workers) {
+      w.workCd = (w.workCd || 0) - dt;
+      // 島／部室のあいだをゆっくり往復
+      const home = state.island
+        ? (state.island > 0 ? structures.rightWall.x - 55 : structures.leftWall.x + 55)
+        : 0;
+      const target = home + Math.sin(state.animT * 0.6 + (w.bob || 0)) * 40;
+      w.x += (target - w.x) * Math.min(1, dt * 1.4);
+      if (w.workCd <= 0) {
+        w.workCd = 4.5 + rand(0, 2);
+        // 地面にコイン or 直接収入（軽め）
+        if (Math.random() < 0.55) {
+          dropCoin(w.x + rand(-12, 12), 1);
+        } else {
+          state.coins += 1;
+          spawnMeme(w.x, GROUND_Y - 40, pick(LORE.workerWork));
+        }
+        if (Math.random() < 0.25) pushFx({
+          type: 'spark', x: w.x, y: GROUND_Y - 20, vx: rand(-10,10), vy: -40,
+          t: 0, life: 0.4, color: '#ffd700', size: 2,
+        });
+      }
+    }
+  } else {
+    // 夜は部室付近に退避
+    for (const w of workers) {
+      w.x += (rand(-30, 30) - w.x) * dt * 0.8;
+    }
+  }
+
   // 射手
   for (const u of units) {
     if (u._shotFlash > 0) u._shotFlash -= dt;
@@ -2260,7 +2539,9 @@ function update(dt) {
   const remain = Math.max(0, (state.isNight ? state.nightLength : state.dayLength) - state.dayTimer);
   const gaze = state.gazeT > 0 ? ' <span style="color:#f88">眼光…</span>' : '';
   const combo = state.killCombo >= 2 ? ` <span class="meme">×${state.killCombo}</span>` : '';
-  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}／茶×${state.icedTeaStock}${gaze}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span>`;
+  const wTag = workers.length ? ` 作業${workers.length}` : '';
+  const iTag = state.island ? (state.island > 0 ? ' 東島' : ' 西島') : '';
+  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}／茶×${state.icedTeaStock}${gaze}${wTag}${iTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span>`;
   const spot = nearestSpot();
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
   right.innerHTML = spot
@@ -2719,9 +3000,11 @@ function draw() {
   // 地面
   drawGroundTiles(phase);
 
-  // 領地床
-  const lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
-  const rx = structures.rightWall.level > 0 ? structures.rightWall.x : 40;
+  // 領地床（島開放でわずかに伸びる）
+  let lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
+  let rx = structures.rightWall.level > 0 ? structures.rightWall.x : 40;
+  if (state.island < 0) lx -= 50;
+  if (state.island > 0) rx += 50;
   const territoryAlpha = nightish ? 0.16 : 0.12;
   ctx.fillStyle = `rgba(255, 215, 0, ${territoryAlpha})`;
   ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
@@ -2740,6 +3023,7 @@ function draw() {
   // たき火（影→本体）
   drawSoftShadow(wx(0), GROUND_Y, 22, nightish ? 0.4 : 0.22);
   drawCampfire(wx(0), GROUND_Y);
+  drawIslandHints(phase, nightish);
 
   // 壁
   drawSoftShadow(wx(structures.leftWall.x), GROUND_Y, 14, 0.25);
@@ -2782,6 +3066,11 @@ function draw() {
     drawCoin(wx(c.x), c.y);
   }
 
+  // 作業員
+  for (const w of workers) {
+    drawSoftShadow(wx(w.x), GROUND_Y, 9, 0.2);
+    drawWorker(wx(w.x), GROUND_Y, w);
+  }
   // ユニット
   for (const u of units) {
     drawSoftShadow(wx(u.x), GROUND_Y, 10, 0.22);
@@ -3151,6 +3440,75 @@ function drawPond(phase) {
   ctx.beginPath();
   ctx.ellipse(pondX, pondY, 38, 8, 0, 0, Math.PI * 2);
   ctx.stroke();
+}
+
+function drawIslandHints(phase, nightish) {
+  // 未開放でも遠い島の片鱗シルエット
+  for (const dir of [-1, 1]) {
+    const opened = state.island === dir;
+    const baseX = dir > 0
+      ? (structures.rightWall.level > 0 ? structures.rightWall.x + (opened ? 70 : 160) : 320)
+      : (structures.leftWall.level > 0 ? structures.leftWall.x - (opened ? 70 : 160) : -320);
+    const sx = wx(baseX);
+    if (sx < -80 || sx > W + 80) continue;
+    // 小島の地面
+    ctx.globalAlpha = opened ? 0.9 : 0.45;
+    ctx.fillStyle = nightish ? '#2a3a28' : '#5a7a40';
+    ctx.beginPath();
+    ctx.ellipse(sx, GROUND_Y + 2, opened ? 36 : 28, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 木
+    drawPixelRect(sx - 2, GROUND_Y - 28, 4, 28, '#3a2818');
+    drawPixelRect(sx - 10, GROUND_Y - 40, 20, 14, nightish ? '#1a3a20' : '#2a6a30');
+    if (opened) {
+      // 第2拠点の小さな火
+      const fi = frameIndex(10, FR_FLAME.length);
+      const glow = ctx.createRadialGradient(sx + 14, GROUND_Y - 18, 2, sx + 14, GROUND_Y - 18, 28);
+      glow.addColorStop(0, 'rgba(255,200,80,0.5)');
+      glow.addColorStop(1, 'rgba(255,100,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(sx - 10, GROUND_Y - 50, 50, 55);
+      blitOutlined(sx + 8, GROUND_Y - 34, FR_FLAME[fi], PAL, 2, false);
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '6px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('第2拠点', sx, GROUND_Y - 48);
+      ctx.fillStyle = '#ff6b9d';
+      ctx.fillText('IKZO', sx, GROUND_Y - 38);
+    } else if (phase < 0.7) {
+      ctx.globalAlpha = 0.35 + Math.sin(state.animT * 2) * 0.08;
+      ctx.fillStyle = '#c9a227';
+      ctx.font = '6px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('島…？', sx, GROUND_Y - 46);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawWorker(x, y, w) {
+  ctx.imageSmoothingEnabled = false;
+  const bob = Math.sin(state.animT * 4 + (w.bob || 0)) * 1.2;
+  const wind = (state.wind || 0) * 0.3;
+  // 体
+  blitOutlined(x - 10 + wind, y - 30 + bob, [
+    '..oo..',
+    '.oooo.',
+    'oossoo',
+    '.ssss.',
+    '.s..s.',
+    'nn..nn',
+  ], Object.assign({}, PAL, { o: '#f0c8a0', s: '#4a6aaa', n: '#2a2a30' }), 2, false);
+  if (SPR.kohai) {
+    ctx.drawImage(SPR.kohai, x - 12, y - 44 + bob, 24, 24);
+  }
+  // 袋／ツール
+  drawPixelRect(x + 8 + wind, y - 18 + bob, 6, 8, '#8b5a2b');
+  drawPixelRect(x + 9 + wind, y - 20 + bob, 4, 2, '#c9a227');
+  ctx.fillStyle = '#9cf';
+  ctx.font = '5px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('作業', x, y - 48 + bob);
 }
 
 function drawCampfire(x, y) {
