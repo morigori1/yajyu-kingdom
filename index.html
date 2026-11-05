@@ -88,6 +88,8 @@
     width: 100%;
     touch-action: none;
     overflow: hidden;
+    z-index: 1;
+    isolation: isolate;
   }
   canvas {
     image-rendering: pixelated;
@@ -330,12 +332,14 @@
    box-shadow: inset 0 0 0 1px #8b6914, 0 0 0 2px #3a2810; }
   #overlay button:hover { background: #7a3a2a; filter: drop-shadow(0 0 6px rgba(255,215,0,.35)); }
   #overlay.hidden { display: none; }
+  /* fixed + z100: #wrap/#stage stacking から独立（タイトル overlay を貫通） */
   #gfx-chip, #mute-chip, #zoom-chip {
-    position: absolute; z-index: 50; pointer-events: auto;
+    position: fixed; z-index: 100; pointer-events: auto;
     font-family: "Press Start 2P", monospace; font-size: 8px;
     background: rgba(20,12,8,.88); color: #ffd700;
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
     cursor: pointer; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   /* タッチパッド上に縦積み（下→上: 画質 / 音 / 拡大） */
   #gfx-chip { right: max(6px, var(--safe-r)); bottom: calc(var(--pad-h) + var(--safe-b) + var(--chip-gap)); }
@@ -721,14 +725,16 @@
     pointer-events: none;
     visibility: hidden;
   }
-  #wrap.ui-panel #gfx-chip,
-  #wrap.ui-panel #mute-chip,
-  #wrap.ui-panel #zoom-chip {
+  /* チップは body 直下でもパネル開時はパッド非表示に合わせて下げる */
+  body:has(#wrap.ui-panel) #gfx-chip,
+  #wrap.ui-panel #gfx-chip {
     bottom: max(12px, calc(var(--safe-b) + 10px));
   }
+  body:has(#wrap.ui-panel) #mute-chip,
   #wrap.ui-panel #mute-chip {
     bottom: max(48px, calc(var(--safe-b) + 46px));
   }
+  body:has(#wrap.ui-panel) #zoom-chip,
   #wrap.ui-panel #zoom-chip {
     bottom: max(84px, calc(var(--safe-b) + 82px));
   }
@@ -827,9 +833,6 @@
     </div>
   </div>
   <div id="ach-toast" role="status"></div>
-  <button type="button" id="mute-chip" aria-label="音声ミュート切替" aria-pressed="false">音:ON</button>
-  <button type="button" id="zoom-chip" aria-label="表示拡大切替">拡大:125%</button>
-  <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
   <div id="touch-pad" aria-label="タッチ操作">
     <div class="pad-group">
       <button type="button" class="pad-btn" id="btn-left" aria-label="左へ移動">◀<small>左</small></button>
@@ -845,6 +848,10 @@
     </div>
   </div>
 </div>
+<!-- チップは body 直下 + position:fixed（overlay stacking から完全分離） -->
+<button type="button" id="mute-chip" aria-label="音声ミュート切替" aria-pressed="false">音:ON</button>
+<button type="button" id="zoom-chip" aria-label="表示拡大切替">拡大:125%</button>
+<button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
 <script>
 /* =========================================================
    野獣キングダム — Kingdom Two Crowns 風最小プロトタイプ
@@ -3968,15 +3975,25 @@ applyZoom(true);
   if (!chip) return;
   let lastAt = 0;
   const fire = (e) => {
-    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-    const now = performance.now();
-    // pointerdown+click 二重発火防止（180ms）
-    if (now - lastAt < 180) return;
+    try {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      }
+    } catch (_) {}
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    // pointerdown+click 二重発火防止
+    if (now - lastAt < 200) return;
     lastAt = now;
-    cycleZoom();
+    const z = cycleZoom();
+    // 即ラベル確定（DOM 再取得）
+    const c = document.getElementById('zoom-chip');
+    if (c) c.textContent = zoomLabel(z != null ? z : VIEW.zoom);
   };
-  chip.addEventListener('pointerdown', fire, { passive: false });
-  chip.addEventListener('click', fire);
+  chip.addEventListener('pointerdown', fire, { capture: true, passive: false });
+  chip.addEventListener('click', fire, { capture: true });
+  chip.addEventListener('touchstart', fire, { capture: true, passive: false });
 })();
 
 // =========================================================
