@@ -94,12 +94,32 @@
     font-size: var(--hud-fs);
     line-height: 1.45;
   }
+  #hud .gold { color: #ffd700; text-shadow: 1px 1px 0 #3a2810, 0 0 6px rgba(255,215,0,.25); }
+  #hud .night { color: #a8b8ff; }
   #hud .box {
-    background: rgba(20,12,8,.88);
-    border: 2px solid #8b6914;
+    background: rgba(16,10,6,.9);
+    border: 2px solid #c9a227;
+    box-shadow: inset 0 0 0 1px #3a2810, 0 0 0 1px #5a4010;
     padding: 6px 8px;
     max-width: 42%;
     flex: 1 1 auto;
+    position: relative;
+    image-rendering: pixelated;
+  }
+  /* ドット枠コーナー */
+  #hud .box::before, #hud .box::after {
+    content: "";
+    position: absolute;
+    width: 4px; height: 4px;
+    background: #ffd700;
+    box-shadow: 0 0 0 1px #8b6914;
+    pointer-events: none;
+  }
+  #hud .box::before { top: -2px; left: -2px; }
+  #hud .box::after  { top: -2px; right: -2px; }
+  #hud .box .dot-bl, #hud .box .dot-br {
+    position: absolute; width: 4px; height: 4px; background: #ffd700;
+    box-shadow: 0 0 0 1px #8b6914; pointer-events: none;
   }
   #hud-humid {
     position: absolute;
@@ -110,11 +130,12 @@
     z-index: 2;
     pointer-events: none;
     font-size: 8px;
-    color: #9cf;
+    color: #b8e8ff;
     text-align: center;
     text-shadow: 1px 1px 0 #000;
-    background: rgba(10,14,24,.75);
-    border: 1px solid #446;
+    background: rgba(10,14,24,.82);
+    border: 2px solid #c9a227;
+    box-shadow: inset 0 0 0 1px #2a3040;
     padding: 3px 6px 4px;
   }
   #hud-humid .bar {
@@ -147,12 +168,11 @@
     font-size: clamp(9px, 2.2vw, 11px);
     line-height: 1.35;
     color: #ffe8c8;
-    background: rgba(20,10,16,.88);
-    border: 2px solid #ff6b9d;
+    background: rgba(20,10,16,.9);
+    border: 2px solid #c9a227;
+    box-shadow: inset 0 0 0 1px #5a2038, 0 0 8px rgba(255,107,157,.2);
     padding: 5px 10px;
     max-height: 2.9em;
-    display: none;
-    /* 2行クランプ */
     display: none;
   }
   #story.show {
@@ -164,7 +184,8 @@
   #toast {
     z-index: 4;
     background: rgba(40,16,16,.92);
-    border: 2px solid #c44;
+    border: 2px solid #c9a227;
+    box-shadow: inset 0 0 0 1px #6a2020;
     padding: 6px 10px;
     font-size: clamp(10px, 2.5vw, 12px);
     line-height: 1.35;
@@ -245,8 +266,8 @@
     cursor: pointer;
     min-height: 52px;
     touch-action: manipulation;
-  }
-  #overlay button:hover { background: #7a3a2a; }
+   box-shadow: inset 0 0 0 1px #8b6914, 0 0 0 2px #3a2810; }
+  #overlay button:hover { background: #7a3a2a; filter: drop-shadow(0 0 6px rgba(255,215,0,.35)); }
   #overlay.hidden { display: none; }
   #gfx-chip {
     position: absolute; right: 6px; bottom: calc(var(--pad-h) + var(--safe-b) + 6px);
@@ -715,6 +736,15 @@ const state = {
   clearPillarT: 0,
   titleCine: true,
   titleDawn: 0,
+  // 天候・風・ボスシネマ
+  wind: 0,
+  windGust: 0,
+  cloudX: 0,
+  rainT: 0,
+  rainCool: 0,
+  bossCineT: 0,
+  bossCineX: 0,
+  weatherSeed: 1,
 };
 
 // ワールド座標: キャンプが x=0
@@ -771,6 +801,7 @@ const GFX = {
   softShadow: true,
   torches: true,
   heatHaze: true,
+  weather: true,
   starCount: 55,
   emberMul: 1,
   sparkMul: 1,
@@ -804,6 +835,7 @@ function applyQuality() {
   GFX.softShadow = !low;
   GFX.torches = true;
   GFX.heatHaze = !low;
+  GFX.weather = true; // 雲影は低でも軽量版
   GFX.starCount = low ? 14 : 58;
   GFX.emberMul = low ? 0.25 : 1;
   GFX.sparkMul = low ? 0.45 : 1;
@@ -1715,7 +1747,8 @@ function startNight() {
         anim: rand(0, 3),
         w: 18, h: 28,
       });
-      if (i === 0) spawnMeme(spawnX, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
+      if (isBoss) startBossCine(spawnX, name);
+      else if (i === 0) spawnMeme(spawnX, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
     }, i * 1800);
   }
 }
@@ -1790,6 +1823,10 @@ function resetGame() {
   ov.classList.remove('cine-dawn');
   state.titleCine = false;
   state.titleDawn = 0;
+  state.rainT = 0;
+  state.rainCool = 8;
+  state.bossCineT = 0;
+  state.windGust = 0;
   fitCanvas();
   state.running = true;
   state.over = false;
@@ -1885,6 +1922,7 @@ function tickPresentation(dt, rawDt) {
     }
   }
   state.animT += dt;
+  tickWindWeather(dt);
   spawnMistAmbient(dt);
   const emberChance = (state.isNight ? 0.35 : 0.12) * (GFX.emberMul || 1);
   if (Math.random() < emberChance * dt * 60) {
@@ -1948,8 +1986,13 @@ function update(dt) {
     }
   }
 
-  // 独自メカ＆アニメ時刻（animT は tickPresentation）
-  state.nightSway = state.isNight ? Math.sin(state.animT * 1.7) * 1.5 : 0;
+  // 独自メカ＆アニメ時刻（animT / 風は tickPresentation）
+  state.nightSway = state.wind * 1.1 + (state.isNight ? Math.sin(state.animT * 1.7) * 0.4 : 0);
+  if (state.bossCineT > 0) {
+    state.bossCineT -= dt;
+    const tx = state.bossCineX * 0.55;
+    state.cameraX += (tx - state.cameraX) * Math.min(1, dt * 3.2);
+  }
   if (state.skillCd > 0) state.skillCd -= dt;
   if (state.skillStunT > 0) state.skillStunT -= dt;
   if (state.gazeT > 0) state.gazeT -= dt;
@@ -2227,6 +2270,145 @@ function update(dt) {
 
 
 // =========================================================
+// 天候・風・ボスシネマ
+// =========================================================
+function tickWindWeather(dt) {
+  // 基調風 + 突風
+  const base = Math.sin(state.animT * 0.55) * 1.35 + Math.sin(state.animT * 0.19 + 1.7) * 0.85;
+  if (Math.random() < 0.012 * dt * 60) state.windGust = rand(1.2, 2.8) * (Math.random() < 0.5 ? -1 : 1);
+  state.windGust *= Math.exp(-dt * 1.6);
+  state.wind = base + state.windGust;
+  // 雲影スクロール
+  state.cloudX = (state.cloudX || 0) + (18 + state.wind * 6) * dt;
+  // 夕立（昼終盤／夕のみ・短い）
+  if (state.rainT > 0) state.rainT -= dt;
+  if (state.rainCool > 0) state.rainCool -= dt;
+  if (state.running && !state.isNight && state.rainT <= 0 && state.rainCool <= 0) {
+    const phase = dayPhase();
+    if (phase >= 0.52 && phase <= 0.7 && Math.random() < 0.004 * dt * 60) {
+      state.rainT = rand(3.2, 6.5);
+      state.rainCool = 28;
+      if (Math.random() < 0.55) toast('夕立…湿度が上がる', 2.2);
+      state.humidity = Math.min(100, state.humidity + 6);
+      updateHumidityHud();
+    }
+  }
+}
+
+function startBossCine(x, name) {
+  state.bossCineT = 1.85;
+  state.bossCineX = x;
+  state.slowMoT = Math.max(state.slowMoT, 0.85);
+  state.hitStop = Math.max(state.hitStop, 0.12);
+  shake(5, 0.45);
+  screenFlash('rgba(80,0,20,0.4)', 0.45);
+  story('眼光——　' + (name || 'ボス') + '　見とけよ見とけよ〜', 2.6);
+  spawnMeme(x, GROUND_Y - 70, pick(['なに!?', 'ファッ!?', '王道を征く']));
+  pushFx({ type: 'ring', x, y: GROUND_Y - 30, t: 0, life: 0.9, color: 'rgba(255,40,60,0.55)', r0: 6, r1: 90 });
+  pushFx({ type: 'ring', x, y: GROUND_Y - 30, t: 0, life: 0.7, color: 'rgba(255,215,0,0.35)', r0: 4, r1: 60 });
+}
+
+function drawCloudShadows(phase) {
+  if (!GFX.weather) return;
+  if (phase >= 0.72) return; // 夜は星優先
+  const low = GFX.quality === 'low';
+  const n = low ? 3 : 6;
+  const a = phase > 0.55 ? 0.1 : 0.14;
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    const cx = ((state.cloudX * (0.7 + i * 0.08) + i * 170) % (W + 160)) - 80;
+    const cy = GROUND_Y - 18 - (i % 3) * 4;
+    const rw = 50 + (i % 3) * 22;
+    ctx.globalAlpha = a * (0.7 + (i % 2) * 0.25);
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    if (low) {
+      ctx.ellipse(cx, cy, rw, 7, 0, 0, Math.PI * 2);
+    } else {
+      ctx.ellipse(cx, cy, rw, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + rw * 0.45, cy + 1, rw * 0.55, 6, 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+  // 空の雲シルエット（昼）
+  if (!low && phase < 0.65) {
+    ctx.globalAlpha = 0.18 + (phase > 0.5 ? 0.08 : 0);
+    for (let i = 0; i < 4; i++) {
+      const cx = ((-state.cloudX * 0.35 + i * 210) % (W + 120)) - 40;
+      const cy = 28 + (i % 3) * 16;
+      ctx.fillStyle = phase > 0.52 ? '#6a4a58' : '#e8f0ff';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, 36 + i * 4, 10, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + 22, cy + 2, 28, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawRain() {
+  if (state.rainT <= 0) return;
+  const low = GFX.quality === 'low';
+  const n = low ? 28 : 70;
+  const fade = Math.min(1, state.rainT / 0.55);
+  ctx.save();
+  ctx.globalAlpha = 0.35 * fade;
+  ctx.strokeStyle = '#a8c8e8';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < n; i++) {
+    const px = ((i * 47 + state.animT * 220 + state.wind * 30) % W);
+    const py = ((i * 91 + state.animT * 380) % (GROUND_Y + 10));
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + state.wind * 0.8, py + 8);
+    ctx.stroke();
+  }
+  // 地面の水跳ね
+  if (!low) {
+    ctx.globalAlpha = 0.2 * fade;
+    ctx.fillStyle = '#c0d8f0';
+    for (let i = 0; i < 10; i++) {
+      const px = ((i * 73 + state.animT * 90) % W);
+      ctx.fillRect(px, GROUND_Y - 1, 2, 1);
+    }
+  }
+  ctx.restore();
+}
+
+function drawBossCineOverlay() {
+  if (state.bossCineT <= 0) return;
+  const p = clamp(state.bossCineT / 1.85, 0, 1);
+  const sx = wx(state.bossCineX);
+  ctx.save();
+  // ビネット暗転（ボス周囲は残す）
+  const g = ctx.createRadialGradient(sx, GROUND_Y - 40, 20, sx, GROUND_Y - 40, Math.max(W, H) * 0.85);
+  g.addColorStop(0, 'rgba(16,0,8,0)');
+  g.addColorStop(0.35, `rgba(16,0,8,${0.25 * p})`);
+  g.addColorStop(1, `rgba(8,0,4,${0.72 * p})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // 眼光ビーム
+  ctx.globalAlpha = 0.4 + Math.sin(state.animT * 14) * 0.18;
+  ctx.strokeStyle = '#ff2244';
+  ctx.lineWidth = 2;
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(sx + dir * 6, GROUND_Y - 48);
+    ctx.lineTo(sx + dir * (90 + (1 - p) * 40), GROUND_Y - 48 + Math.sin(state.animT * 10) * 6);
+    ctx.stroke();
+  }
+  // 赤いクロスヘア風
+  ctx.globalAlpha = 0.25 * p;
+  ctx.fillStyle = '#ff2244';
+  ctx.fillRect(0, GROUND_Y - 50, W, 2);
+  ctx.globalAlpha = 0.65 * p;
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '10px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('— 眼光 —', sx, GROUND_Y - 88);
+  ctx.restore();
+}
+
 // 時刻・光（Two Crowns風の昼夜ブレンド）
 // =========================================================
 function dayPhase() {
@@ -2356,18 +2538,20 @@ function drawHeatWave() {
   ctx.restore();
 }
 
-function drawSoftShadow(x, y, w, alpha) {
+function drawSoftShadow(x, y, w, alpha, windSkew) {
+  const sk = windSkew != null ? windSkew : (state.wind || 0) * 1.8;
+  const cx = x + sk;
   if (!GFX.softShadow) {
     ctx.globalAlpha = (alpha || 0.28) * 0.7;
     ctx.fillStyle = '#000';
-    ctx.fillRect(x - w, y, w * 2, 3);
+    ctx.fillRect(cx - w, y, w * 2, 3);
     ctx.globalAlpha = 1;
     return;
   }
   ctx.globalAlpha = alpha || 0.28;
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, w, Math.max(3, w * 0.28), 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + 2, w + Math.abs(sk) * 0.15, Math.max(3, w * 0.28), sk * 0.02, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 }
@@ -2529,6 +2713,8 @@ function draw() {
 
   // 遠景
   drawParallaxHills(phase);
+  // 雲影（移動）
+  drawCloudShadows(phase);
 
   // 地面
   drawGroundTiles(phase);
@@ -2748,6 +2934,8 @@ function draw() {
   drawGroundFog(phase);
   drawHumidityHaze();
   drawHeatWave();
+  drawRain();
+  drawBossCineOverlay();
 
   // 夜間ヴィネット＋たき火ライト体積
   if (nightish) {
@@ -2891,7 +3079,7 @@ function drawGroundTiles(phase) {
     drawPixelRect(x, GROUND_Y, 8, 3, top);
     drawPixelRect(x, GROUND_Y + 3, 8, 5, mid);
     // 草ゆれ（風）
-    const wind = Math.sin(state.animT * 2.4 + worldX * 0.08) * 2
+    const wind = Math.sin(state.animT * 2.4 + worldX * 0.08) * 2 + (state.wind || 0) * 0.9
       + Math.sin(state.animT * 4.1 + worldX * 0.03) * 1;
     if (row % (GFX.grassDense ? 2 : 3) === 0) {
       const gh = 5 + (row % 3);
@@ -2994,20 +3182,23 @@ function drawCampfire(x, y) {
     const py = y - 28 - ((state.animT * 50 + i * 19) % 48);
     drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
   }
-  // 看板
+  // 看板（風で微揺れ）
+  const signSway = (state.wind || 0) * 0.35;
   ctx.fillStyle = '#3d2b1f';
-  ctx.fillRect(x + 18, y - 40, 4, 40);
+  ctx.fillRect(x + 18 + signSway * 0.2, y - 40, 4, 40);
   ctx.fillStyle = '#5a2a1a';
-  ctx.fillRect(x + 10, y - 64, 78, 30);
+  ctx.fillRect(x + 10 + signSway, y - 64, 78, 30);
   ctx.strokeStyle = '#ffd700';
   ctx.lineWidth = 2;
-  ctx.strokeRect(x + 10, y - 64, 78, 30);
+  ctx.strokeRect(x + 10 + signSway, y - 64, 78, 30);
+  // 影
+  drawSoftShadow(x + 40 + signSway, y, 20, 0.18);
   ctx.fillStyle = '#ffd700';
   ctx.font = '7px "Press Start 2P"';
   ctx.textAlign = 'left';
-  ctx.fillText('王道を征く', x + 14, y - 50);
+  ctx.fillText('王道を征く', x + 14 + signSway, y - 50);
   ctx.fillStyle = '#ff6b9d';
-  ctx.fillText('部室・IKZO', x + 14, y - 38);
+  ctx.fillText('部室・IKZO', x + 14 + signSway, y - 38);
   if (SPR.icon) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.icon, x - 36, y - 48, 28, 28);
@@ -3036,7 +3227,7 @@ function drawWall(wall, isLeft) {
   }
   const wood = wall.level === 1;
   const h = wood ? 56 : 82;
-  const sway = state.isNight ? state.nightSway * 0.28 : 0;
+  const sway = (state.wind || 0) * 0.55 + (state.isNight ? state.nightSway * 0.2 : 0);
 
   // 足元の影シルエット
   ctx.globalAlpha = 0.28;
@@ -3103,11 +3294,17 @@ function drawWall(wall, isLeft) {
     drawPixelRect(x - 16 + sway, GROUND_Y - h, 32, 2, '#c9a227');
   }
 
-  // 旗
-  const flagWave = Math.sin(state.animT * 7 + (isLeft ? 0 : 2)) * (wood ? 4 : 3);
+  // 旗（風連動 + IKZO影）
+  const flagWave = Math.sin(state.animT * 7 + (isLeft ? 0 : 2)) * (wood ? 3.2 : 2.4) + (state.wind || 0) * 1.8;
   const poleH = h + 28;
   drawPixelRect(x + (isLeft ? -2 : 0), GROUND_Y - poleH, 3, poleH - h + 18, '#222');
-  blitOutlined(x + (isLeft ? -22 : 4) + flagWave, GROUND_Y - poleH, [
+  const fx = x + (isLeft ? -22 : 4) + flagWave;
+  // 旗の影
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(fx + 2 + (state.wind || 0) * 0.6, GROUND_Y - poleH + 4, 18, 12);
+  ctx.globalAlpha = 1;
+  blitOutlined(fx, GROUND_Y - poleH, [
     'RRRRRRRR',
     'RrRRRRrR',
     'RRR1RRRR',
@@ -3117,7 +3314,11 @@ function drawWall(wall, isLeft) {
   ctx.fillStyle = '#fff';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'left';
-  ctx.fillText('IKZO', x + (isLeft ? -18 : 6) + flagWave, GROUND_Y - poleH + 12);
+  // IKZO文字も風で揺れる
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillText('IKZO', fx + 5 + (state.wind || 0) * 0.3, GROUND_Y - poleH + 13);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('IKZO', fx + 4, GROUND_Y - poleH + 12);
   // レベルラベル
   ctx.fillStyle = wood ? '#c9a227' : '#d0d0e8';
   ctx.font = '6px "Press Start 2P"';
@@ -3256,11 +3457,25 @@ function drawEnemy(x, y, e) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.tono, x - 14, y - 52 + stunBob, 28, 28);
   }
-  if (e.isGaze || e.isMur) {
+  if (e.isGaze || e.isMur || (e.isBoss && state.bossCineT > 0)) {
     ctx.globalAlpha = 0.28 + Math.sin(state.animT * 8) * 0.12;
     ctx.fillStyle = e.isMur ? '#33ffee' : '#f44';
     ctx.fillRect(x - 48, y - 30, 96, 2);
     ctx.globalAlpha = 1;
+  }
+  if (e.isBoss) {
+    // 王冠風シルエット
+    drawPixelRect(x - 8, y - 52, 16, 3, '#ffd700');
+    drawPixelRect(x - 6, y - 56, 3, 4, '#ffd700');
+    drawPixelRect(x - 1, y - 58, 3, 6, '#fff8c8');
+    drawPixelRect(x + 4, y - 56, 3, 4, '#ffd700');
+    if (state.bossCineT > 0) {
+      ctx.globalAlpha = 0.4 + Math.sin(state.animT * 12) * 0.2;
+      ctx.fillStyle = '#ff2244';
+      ctx.fillRect(x - 10, y - 42, 4, 3);
+      ctx.fillRect(x + 6, y - 42, 4, 3);
+      ctx.globalAlpha = 1;
+    }
   }
   if (e.isKoko) {
     ctx.fillStyle = '#44ddff';
