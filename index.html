@@ -331,7 +331,7 @@
   #overlay button:hover { background: #7a3a2a; filter: drop-shadow(0 0 6px rgba(255,215,0,.35)); }
   #overlay.hidden { display: none; }
   #gfx-chip, #mute-chip, #zoom-chip {
-    position: absolute; z-index: 12; pointer-events: auto;
+    position: absolute; z-index: 50; pointer-events: auto;
     font-family: "Press Start 2P", monospace; font-size: 8px;
     background: rgba(20,12,8,.88); color: #ffd700;
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
@@ -3912,24 +3912,48 @@ function zoomLabel(z) {
 }
 
 function applyZoom(silent) {
-  if (!(VIEW.zoom > 0)) VIEW.zoom = 1.25;
+  if (!(VIEW.zoom > 0) || !Number.isFinite(VIEW.zoom)) VIEW.zoom = 1.25;
+  // zooms 配列に正規化
+  const zs = VIEW.zooms || [1, 1.25, 1.5, 2];
+  VIEW.zooms = zs;
+  let nearest = zs[0];
+  let best = Infinity;
+  for (const v of zs) {
+    const d = Math.abs(v - VIEW.zoom);
+    if (d < best) { best = d; nearest = v; }
+  }
+  VIEW.zoom = nearest;
+  const label = zoomLabel(VIEW.zoom);
   const chip = document.getElementById('zoom-chip');
-  if (chip) chip.textContent = zoomLabel(VIEW.zoom);
+  if (chip) {
+    chip.textContent = label;
+    try { chip.setAttribute('aria-label', '表示拡大切替 ' + label); } catch (_) {}
+  }
   try { document.documentElement.dataset.zoom = String(VIEW.zoom); } catch (_) {}
   try { fitCanvas(); } catch (_) {}
+  // fitCanvas 後も必ずラベル再書込（強制クリックで不変だった対策）
+  if (chip) chip.textContent = label;
   if (!silent) {
     try { if (typeof audPlay === 'function') audPlay('ui'); } catch (_) {}
-    try { toast(zoomLabel(VIEW.zoom), 1.4); } catch (_) {}
+    try { toast(label, 1.4); } catch (_) {}
   }
+  return VIEW.zoom;
 }
 
 function cycleZoom() {
-  const zs = VIEW.zooms;
-  let i = zs.findIndex(z => Math.abs(z - VIEW.zoom) < 0.01);
-  i = (i < 0 ? 0 : i + 1) % zs.length;
-  VIEW.zoom = zs[i];
+  const zs = VIEW.zooms || [1, 1.25, 1.5, 2];
+  VIEW.zooms = zs;
+  let i = zs.findIndex(z => Math.abs(z - VIEW.zoom) < 0.001);
+  if (i < 0) i = zs.indexOf(1.25);
+  if (i < 0) i = 0;
+  // 125→150→200→100→125…
+  VIEW.zoom = zs[(i + 1) % zs.length];
   try { localStorage.setItem('yk-zoom', String(VIEW.zoom)); } catch (_) {}
   applyZoom(false);
+  // 二重保証
+  const chip = document.getElementById('zoom-chip');
+  if (chip) chip.textContent = zoomLabel(VIEW.zoom);
+  return VIEW.zoom;
 }
 
 try {
@@ -3939,10 +3963,21 @@ try {
   else VIEW.zoom = 1.25;
 } catch (_) { VIEW.zoom = 1.25; }
 applyZoom(true);
-document.getElementById('zoom-chip')?.addEventListener('click', (e) => {
-  e.preventDefault();
-  cycleZoom();
-});
+(function bindZoomChip() {
+  const chip = document.getElementById('zoom-chip');
+  if (!chip) return;
+  let lastAt = 0;
+  const fire = (e) => {
+    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+    const now = performance.now();
+    // pointerdown+click 二重発火防止（180ms）
+    if (now - lastAt < 180) return;
+    lastAt = now;
+    cycleZoom();
+  };
+  chip.addEventListener('pointerdown', fire, { passive: false });
+  chip.addEventListener('click', fire);
+})();
 
 // =========================================================
 // 音（Web Audio 合成 SFX／簡易BGM）— 外部音声ファイル不要
