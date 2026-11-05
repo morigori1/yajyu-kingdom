@@ -664,6 +664,7 @@ const state = {
   skillRingT: 0,
   winFxT: 0,
   hitStop: 0,
+  fxGen: 0,
 };
 
 // ワールド座標: キャンプが x=0
@@ -792,10 +793,12 @@ function spawnSkillFx(x) {
 
 function spawnWinFx() {
   state.winFxT = 4.5;
+  const gen = state.fxGen;
   shake(7, 0.5);
   screenFlash('rgba(255,215,0,0.35)', 0.35);
   for (let k = 0; k < 6; k++) {
     setTimeout(() => {
+      if (state.fxGen !== gen) return;
       const x = player.x + rand(-120, 120);
       spawnSparks(x, GROUND_Y - 80 - rand(0, 60), 8, ['#ffd700', '#ff6b9d', '#fff', '#8af'], 140);
       pushFx({ type: 'burst', x, y: GROUND_Y - 90, t: 0, life: 0.4 });
@@ -1418,19 +1421,27 @@ function tryPay() {
     return;
   }
   state.coins -= spot.cost;
+  const gen = state.fxGen;
+  shake(2, 0.1);
+  screenFlash('rgba(255,215,0,0.12)', 0.08);
+  spawnSparks(spot.x, GROUND_Y - 24, 5, ['#ffd700', '#fff8c8'], 70);
   // 支払演出：コイン飛んで消える
-  for (let i = 0; i < spot.cost; i++) {
-    fx.push({
+  const nPay = Math.min(spot.cost, 8);
+  for (let i = 0; i < nPay; i++) {
+    pushFx({
       type: 'pay',
       x: player.x, y: GROUND_Y - 20,
       tx: spot.x, ty: GROUND_Y - 30,
-      t: 0, life: 0.35 + i * 0.05,
-      life: 0.4,
+      t: 0, life: 0.4,
     });
   }
   setTimeout(() => {
+    if (state.fxGen !== gen) return;
     const ok = spot.buy();
-    if (ok && typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
+    if (ok) {
+      pushFx({ type: 'ring', x: spot.x, y: GROUND_Y - 20, t: 0, life: 0.4, color: 'rgba(255,215,0,0.55)', r0: 6, r1: 36 });
+      if (typeof spot.afterPay === 'function') spot.afterPay(spot.cost);
+    }
   }, 200);
 }
 
@@ -1448,7 +1459,7 @@ function dropCoin(x, n = 1, fromPlayer = false) {
 }
 
 function spawnMeme(x, y, text) {
-  fx.push({ type: 'meme', x, y, text: String(text).slice(0, 14), t: 0, life: 0.95 });
+  pushFx({ type: 'meme', x, y, text: String(text).slice(0, 14), t: 0, life: 0.95 });
 }
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -1465,12 +1476,15 @@ const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '�
 function startNight() {
   state.isNight = true;
   state.dayTimer = 0;
+  screenFlash('rgba(40,20,80,0.35)', 0.35);
+  shake(2, 0.2);
   const nline = pick(LORE.night);
   toast(`Night ${state.day} — ${nline}`, 3.2);
   story(nline, 3.2);
   spawnMeme(player.x, GROUND_Y - 70, pick(LORE.nightSpawn));
-  const waves = 3 + state.day;
-  const perSide = Math.ceil(waves / 2);
+  // 序盤は学習用に波を抑え、中盤から本領
+  const waves = state.day <= 2 ? 2 + state.day : Math.min(10, 3 + state.day);
+  const nightGen = state.fxGen;
   for (let i = 0; i < waves; i++) {
     const side = i % 2 === 0 ? -1 : 1;
     const wall = side < 0 ? structures.leftWall : structures.rightWall;
@@ -1478,7 +1492,7 @@ function startNight() {
       ? (wall.level > 0 ? wall.x - 220 - i * 30 : -400 - i * 40)
       : (wall.level > 0 ? wall.x + 220 + i * 30 : 400 + i * 40);
     setTimeout(() => {
-      if (!state.running || !state.isNight) return;
+      if (!state.running || !state.isNight || state.fxGen !== nightGen) return;
       const isBoss = state.day >= 8 && i === 0;
       let name = isBoss ? pick(BOSS_NAMES)
         : (state.day >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
@@ -1498,8 +1512,9 @@ function startNight() {
       if (isTaka) hp = 3 + Math.floor(state.day / 3);
       if (isMur) hp = 5 + state.day;
       if (isNgimo) hp = 4 + Math.floor(state.day / 2);
-      let spd = (isTaka ? 36 : 28) + state.day * 3 + rand(0, 10);
-      if (isKoko) spd += 12;
+      let spd = (isTaka ? 34 : 26) + state.day * 2.4 + rand(0, 8);
+      if (state.day <= 2) spd *= 0.85;
+      if (isKoko) spd += 10;
       if (isMur) spd *= 0.85;
       enemies.push({
         x: spawnX,
@@ -1523,6 +1538,7 @@ function startNight() {
 function startDay() {
   state.isNight = false;
   state.dayTimer = 0;
+  screenFlash('rgba(255,200,120,0.22)', 0.28);
   state.dayChoiceDone = false;
   state.killCombo = 0;
   state.comboTimer = 0;
@@ -1611,6 +1627,7 @@ function resetGame() {
   state.animT = 0;
   state.shakeT = 0; state.shakeMag = 0;
   state.flashT = 0; state.skillRingT = 0; state.winFxT = 0; state.hitStop = 0;
+  state.fxGen = (state.fxGen || 0) + 1;
   // 初期コイン配置
   dropCoin(-80, 2);
   dropCoin(90, 2);
@@ -2062,6 +2079,15 @@ function drawAurora() {
   ctx.restore();
 }
 
+
+function drawGroundFog(phase) {
+  const a = phase >= 0.68 ? 0.14 : 0.06;
+  const g = ctx.createLinearGradient(0, GROUND_Y - 28, 0, GROUND_Y + 8);
+  g.addColorStop(0, 'rgba(200,220,255,0)');
+  g.addColorStop(1, `rgba(180,200,220,${a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, GROUND_Y - 28, W, 36);
+}
 function drawHumidityHaze() {
   const h = state.humidity || 0;
   if (h < 40) return;
@@ -2343,6 +2369,7 @@ function draw() {
   ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 84);
 
   // 湿度ヘイズ
+  drawGroundFog(phase);
   drawHumidityHaze();
 
   // 夜間ヴィネット＋たき火ライト体積
