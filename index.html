@@ -9,7 +9,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
   :root {
-    --pad-h: clamp(108px, 22vh, 160px);
+    --pad-h: clamp(118px, 24vh, 168px);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
@@ -303,22 +303,34 @@
 
   #choice-panel {
     position: absolute; inset: 0; z-index: 25;
-    background: rgba(0,0,0,.78);
+    background: radial-gradient(ellipse at center, rgba(40,24,12,.92) 0%, rgba(0,0,0,.88) 70%);
     display: none; flex-direction: column; align-items: center; justify-content: center;
-    gap: 10px; padding: 20px; text-align: center;
-    touch-action: manipulation;
+    gap: 8px; padding: 12px 12px calc(12px + var(--safe-b)); text-align: center;
+    touch-action: manipulation; overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
   #choice-panel.show { display: flex; }
-  #choice-panel .tabs { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-bottom:6px; }
-  #choice-panel .tabs button { min-height:40px; padding:8px 10px; font-size:clamp(10px,2.6vw,12px); }
+  #choice-panel .panel-card {
+    width: min(440px, 94vw);
+    background: linear-gradient(180deg, #2a1a12 0%, #1a100c 100%);
+    border: 3px solid #c9a227;
+    box-shadow: 0 0 0 2px #5a3a10, 0 8px 24px rgba(0,0,0,.55), inset 0 0 20px rgba(255,215,0,.06);
+    border-radius: 12px; padding: 12px 10px 14px; max-height: min(78vh, 560px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #choice-panel .tabs { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
+  #choice-panel .tabs button { min-height:40px; padding:8px 10px; font-size:clamp(10px,2.6vw,12px); border-radius:8px; }
   #choice-panel .tabs button.civil { border-color:#6af; background:#1a3a4a; }
   #choice-panel .tabs button.mili { border-color:#f84; background:#4a1a10; }
   #choice-panel .tabs button.mission { border-color:#fc8; background:#3a2a10; }
   #choice-panel .tabs button.bond { border-color:#f6a; background:#3a1a2a; }
-  #choice-panel .tabs button.active { outline:2px solid #ffd700; }
-  #choice-panel .meta { font-size:clamp(9px,2.4vw,11px); color:#aaa; max-width:520px; line-height:1.5; }
-  #choice-panel button.cost-ok { border-color:#ffd700; }
-  #choice-panel button.cost-ng { opacity:.55; }
+  #choice-panel .tabs button.active { outline:2px solid #ffd700; filter: brightness(1.15); }
+  #choice-panel .meta {
+    font-size:clamp(9px,2.4vw,11px); color:#cbb; max-width:520px; line-height:1.55;
+    background:rgba(0,0,0,.35); border:1px solid #5a4030; border-radius:8px; padding:8px; margin-bottom:6px;
+  }
+  #choice-panel button.cost-ok { border-color:#ffd700; box-shadow:0 0 8px rgba(255,215,0,.2); }
+  #choice-panel button.cost-ng { opacity:.5; }
+  #choice-panel button.close-btn { background:#333; border-color:#888; margin-top:6px; }
   #ach-toast {
     position:absolute; left:50%; bottom: calc(var(--pad-h) + var(--safe-b) + 8px);
     transform:translateX(-50%); z-index:22; pointer-events:none;
@@ -330,14 +342,15 @@
   #choice-panel h2 {
     font-size: clamp(12px, 3.5vw, 16px); color: #ffd700; line-height: 1.6; max-width: 520px;
   }
-  #choice-panel .choice-btns { display: flex; flex-direction: column; gap: 8px; width: min(420px, 92vw); }
+  #choice-panel .choice-btns { display: flex; flex-direction: column; gap: 7px; width: 100%; }
   #choice-panel button {
     font-family: inherit; font-size: clamp(11px, 3vw, 13px);
-    background: #5a2a1a; color: #ffe8c8; border: 2px solid #ff6b9d;
-    padding: 12px 14px; cursor: pointer; min-height: 48px; touch-action: manipulation;
-    line-height: 1.45;
+    background: linear-gradient(180deg, #6a3220 0%, #4a2010 100%); color: #ffe8c8; border: 2px solid #ff6b9d;
+    padding: 11px 12px; cursor: pointer; min-height: 46px; touch-action: manipulation;
+    line-height: 1.45; border-radius: 8px;
   }
   #choice-panel button:hover { background: #7a3a2a; border-color: #ffd700; }
+  #choice-panel h2 { text-shadow: 0 0 12px rgba(255,215,0,.35); }
   #btn-skill { border-color: #ff6b9d !important; color: #ffb0d0; }
   #btn-skill small { color: #ff8; }
 
@@ -365,28 +378,27 @@
   #touch-pad {
     flex: 0 0 auto;
     height: calc(var(--pad-h) + var(--safe-b));
-    padding: 10px 14px calc(10px + var(--safe-b));
+    padding: 8px 8px calc(8px + var(--safe-b));
     display: flex;
     align-items: stretch;
     justify-content: space-between;
-    gap: 12px;
+    gap: 6px;
     background: linear-gradient(180deg, #12101a 0%, #1a1210 100%);
     border-top: 3px solid #8b6914;
     z-index: 8;
     touch-action: none;
-    /* 上端メッセージ帯と階層分離（パッドは常に下端専用） */
     position: relative;
     flex-shrink: 0;
   }
   .pad-group {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     align-items: stretch;
   }
   .pad-btn {
     font-family: inherit;
-    min-width: clamp(72px, 22vw, 110px);
-    min-height: 72px;
+    min-width: clamp(52px, 14vw, 96px);
+    min-height: 64px;
     border: 3px solid #8b6914;
     border-radius: 14px;
     background: #2a2018;
@@ -414,8 +426,17 @@
     transform: translateY(2px);
     box-shadow: inset 0 2px 0 #1a1008;
   }
+  #btn-civil, #btn-mili {
+    min-width: clamp(48px, 12vw, 78px);
+    font-size: clamp(14px, 4vw, 20px);
+  }
+  @media (max-width: 400px) {
+    .pad-btn { min-width: clamp(44px, 13vw, 72px); padding: 4px 2px; }
+    .pad-btn small { letter-spacing: 0; }
+    #touch-pad { gap: 4px; padding-left: 4px; padding-right: 4px; }
+  }
   #btn-pay {
-    min-width: clamp(110px, 34vw, 168px);
+    min-width: clamp(72px, 20vw, 120px);
     background: #4a1828;
     border-color: #ff6b9d;
     color: #ffd700;
@@ -430,7 +451,11 @@
 
   /* 横向き: パッドやや低く、ボタン横並び維持 */
   @media (orientation: landscape) and (max-height: 500px) {
-    :root { --pad-h: clamp(72px, 28vh, 96px); --hud-fs: clamp(10px, 2.2vh, 12px); }
+    :root { --pad-h: clamp(78px, 30vh, 100px); --hud-fs: clamp(10px, 2.2vh, 12px); }
+    #choice-panel .panel-card { max-height: min(86vh, 420px); padding: 8px; }
+    #choice-panel button { min-height: 40px; padding: 8px 10px; font-size: clamp(10px, 2.4vw, 12px); }
+    .pad-btn { min-height: 52px; font-size: clamp(14px, 3.5vh, 20px); }
+    .pad-btn small { font-size: 8px; }
     .pad-btn { min-height: 56px; min-width: clamp(64px, 16vw, 96px); border-radius: 10px; }
     #btn-pay { min-width: clamp(96px, 24vw, 140px); }
     #hud .box { padding: 6px 8px; }
@@ -470,8 +495,10 @@
     </div>
   </div>
   <div id="choice-panel" aria-live="polite">
-    <h2 id="choice-title">昼の選択</h2>
-    <div class="choice-btns" id="choice-btns"></div>
+    <div class="panel-card">
+      <h2 id="choice-title">昼の選択</h2>
+      <div class="choice-btns" id="choice-btns"></div>
+    </div>
   </div>
   <div id="ach-toast" role="status"></div>
   <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
@@ -1039,6 +1066,7 @@ function unlockAch(id) {
 }
 
 function checkAchievements() {
+  if (!state.achievements) state.achievements = {};
   for (const a of ACH_DEFS) {
     try { if (!state.achievements[a.id] && a.check()) unlockAch(a.id); } catch (_) {}
   }
@@ -1052,7 +1080,7 @@ function bestiaryKill(name) {
 const MISSION_KINDS = [
   { id: 'film', label: '撮影ミッション', need: 3, reward: () => 2 + Math.floor(state.day/3) },
   { id: 'patrol', label: '聖地巡回', need: 2, reward: () => 2 },
-  { id: 'sweat', label: '汗集めロケ', need: 4, reward: () => 1 },
+  { id: 'sweat', label: '汗集めロケ', need: 3, reward: () => 1 },
   { id: 'bus', label: 'ロケバス往復', need: 1, reward: () => 3 },
 ];
 
@@ -1097,7 +1125,7 @@ function tickMission(dt) {
   if (m.kind === 'film' || m.kind === 'sweat') {
     if (Math.abs(player.x - L.x) < 70 && !state.isNight) {
       m._acc = (m._acc || 0) + dt;
-      if (m._acc >= 1.1) {
+      if (m._acc >= 0.95) {
         m._acc = 0;
         m.progress++;
         state.filmShots = (state.filmShots|0) + 1;
@@ -1196,11 +1224,10 @@ function panelPay(cost, fn) {
 }
 
 function openBranchPanel(tab) {
-  if (state.isNight || state.over || !state.running && !state.panelOpen) {
-    if (state.isNight) { toast('夜はパネル不可　防衛に集中', 2.0); return; }
-  }
-  if (!state.running && !state.panelOpen && state.over) return;
-  state.panelOpen = tab || 'civil';
+  if (state.isNight) { toast('夜はパネル不可　防衛に集中', 2.0); return; }
+  if (state.over || state.won) return;
+  // 既に開いていればタブ切替OK。未開かつ停止中は昼の選択待ちなど — ボタンからは通常 running
+  state.panelOpen = tab || state.panelOpen || 'civil';
   state.running = false;
   const panel = document.getElementById('choice-panel');
   const title = document.getElementById('choice-title');
@@ -1222,6 +1249,7 @@ function openBranchPanel(tab) {
   btns.appendChild(tabs);
   const meta = document.createElement('div');
   meta.className = 'meta';
+  if (!state.bond) state.bond = { kohai:0, crew:0, town:0 };
   meta.innerHTML = `🪙${state.coins}　銀行${state.bank}　内政${state.civilTier|0}/軍事${state.miliTier|0}<br>関係 後輩${state.bond.kohai|0}／班${state.bond.crew|0}／街${state.bond.town|0}　撮影${state.filmShots|0}　汗${state.sweatDrops|0}`;
   btns.appendChild(meta);
   title.textContent = ({
@@ -1244,7 +1272,8 @@ function openBranchPanel(tab) {
         fn();
         checkAchievements();
       }
-      openBranchPanel(state.panelOpen); // refresh
+      if (!state.panelOpen) return; // 閉じたあとは再オープンしない
+      openBranchPanel(state.panelOpen);
     };
     btns.appendChild(b);
   };
@@ -1330,7 +1359,7 @@ function openBranchPanel(tab) {
     }
     if ((state.assault || activeOutposts().length) && !state.bus) {
       for (const op of activeOutposts()) {
-        addBtn(`侵攻バス→${op.short} HP${op.hp}`, 3 + state.chapter, () => {
+        addBtn(`侵攻バス→${op.short} HP${op.hp|0}`, 3 + (state.chapter|0) * 2, () => {
           startRaidBus(op.id); bumpBond('crew', 2); return !!state.bus;
         });
       }
@@ -1382,7 +1411,12 @@ function openBranchPanel(tab) {
     });
   }
 
-  addBtn('閉じる（ゲーム再開）', 0, () => { closeBranchPanel(); });
+  const closeB = document.createElement('button');
+  closeB.type = 'button';
+  closeB.className = 'close-btn';
+  closeB.textContent = '閉じる（ゲーム再開）';
+  closeB.onclick = () => closeBranchPanel();
+  btns.appendChild(closeB);
   panel.classList.add('show');
 }
 
@@ -1393,12 +1427,12 @@ function spawnRetaliation(op, dmg) {
   let names = ['たかり後輩', '覗き見学者'];
   let hpBase = 2 + state.chapter;
   let spd = 28 + state.day * 1.5;
-  if (retal === 'swarm') { n = 3 + state.chapter; names = ['たかり後輩','ちび後輩','俊足後輩']; hpBase = 2; spd = 36; }
+  if (retal === 'swarm') { n = 2 + Math.min(4, state.chapter|0); names = ['たかり後輩','ちび後輩','俊足後輩']; hpBase = 2; spd = 36; }
   else if (retal === 'gaze') { n = 2; names = ['野獣の眼光','覗き見学者']; hpBase = 3 + state.chapter; spd = 24; }
   else if (retal === 'smile') { n = 2; names = ['遠野笑顔','遠野笑顔']; hpBase = 4; spd = 30; }
   else if (retal === 'heavy') { n = 2; names = ['ンギモ','盾持ち後輩']; hpBase = 5 + state.chapter; spd = 20; }
   else if (retal === 'elite') { n = 2; names = ['MUR','部室の主']; hpBase = 6 + state.chapter; spd = 26; }
-  else if (retal === 'rush') { n = 4; names = ['こ↑こ↓','俊足後輩','跳び後輩']; hpBase = 2; spd = 44; }
+  else if (retal === 'rush') { n = 3 + Math.min(2, state.chapter|0); names = ['こ↑こ↓','俊足後輩','跳び後輩']; hpBase = 2; spd = 42; }
   // ダメージ大きいほど追加
   if (dmg >= 18) n += 1;
   for (let i = 0; i < n; i++) {
@@ -2507,13 +2541,13 @@ function shopSpots() {
     if (state.assault || activeOutposts().length) {
       for (const op of activeOutposts()) {
         spots.push({
-          id: 'raid_' + op.id,
+          id: 'raid_' + op.id, // cost balanced below
           x: op.side > 0 ? Math.min(op.x - 80, structures.rightWall.x + 30) : Math.max(op.x + 80, structures.leftWall.x - 30),
           r: 46,
-          cost: 3 + state.chapter,
+          cost: 3 + (state.chapter|0) * 2,
           can: true,
           branch: 'mili',
-          label: `【軍事】侵攻バス→${op.short}（HP${op.hp}）`,
+          label: `【軍事】侵攻バス→${op.short}（HP${op.hp|0}）`,
           buy() {
             startRaidBus(op.id);
             return true;
@@ -2524,7 +2558,7 @@ function shopSpots() {
           id: 'raidnear_' + op.id,
           x: op.x,
           r: 50,
-          cost: 3 + state.chapter,
+          cost: 3 + (state.chapter|0) * 2,
           can: true,
           branch: 'mili',
           label: `【軍事】拠点襲撃 ${op.name}`,
@@ -4803,30 +4837,88 @@ function drawLocationBus() {
   const b = state.bus;
   if (!b) return;
   const sx = wx(b.x);
-  if (sx < -100 || sx > W + 100) return;
-  const bob = Math.sin(state.animT * 10) * 1.2;
-  drawSoftShadow(sx, GROUND_Y, 28, 0.35);
-  const body = b.mode === 'raid' ? '#c84a2a' : '#e8c84a';
-  drawPixelRect(sx - 22, GROUND_Y - 22 + bob, 44, 16, body);
-  drawPixelRect(sx - 22, GROUND_Y - 14 + bob, 44, 4, '#1a1a1a');
-  drawPixelRect(sx - 20, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
-  drawPixelRect(sx - 6, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
-  drawPixelRect(sx + 8, GROUND_Y - 20 + bob, 10, 6, '#8ec8ff');
-  drawPixelRect(sx - 14, GROUND_Y - 6 + bob, 6, 6, '#222');
-  drawPixelRect(sx + 8, GROUND_Y - 6 + bob, 6, 6, '#222');
-  ctx.fillStyle = b.mode === 'raid' ? '#ff4422' : '#ff6b9d';
+  if (sx < -120 || sx > W + 120) return;
+  const bob = Math.sin(state.animT * 10) * 1.4;
+  const raid = b.mode === 'raid';
+  const wheelSpin = Math.floor(state.animT * 14 + b.x * 0.08) % 4;
+  drawSoftShadow(sx, GROUND_Y, 34, 0.4);
+  // ボディ（ロケ＝クリーム／侵攻＝赤錆）
+  const body = raid ? '#b83820' : '#f0d878';
+  const trim = raid ? '#5a1810' : '#c9a227';
+  const roof = raid ? '#6a2010' : '#e8c040';
+  drawPixelRect(sx - 28, GROUND_Y - 26 + bob, 56, 18, body);
+  drawPixelRect(sx - 28, GROUND_Y - 30 + bob, 56, 5, roof);
+  drawPixelRect(sx - 28, GROUND_Y - 12 + bob, 56, 3, trim);
+  // フロント・リアバンパー
+  drawPixelRect(sx - 30, GROUND_Y - 14 + bob, 4, 8, '#333');
+  drawPixelRect(sx + 26, GROUND_Y - 14 + bob, 4, 8, '#333');
+  // 窓3枚＋反射
+  for (let i = 0; i < 3; i++) {
+    const wx0 = sx - 22 + i * 16;
+    drawPixelRect(wx0, GROUND_Y - 24 + bob, 12, 8, raid ? '#402828' : '#7ec8f0');
+    drawPixelRect(wx0 + 1, GROUND_Y - 23 + bob, 3, 2, '#dff');
+  }
+  // ドア線
+  drawPixelRect(sx - 2, GROUND_Y - 24 + bob, 2, 14, '#333');
+  // ヘッドライト／テール
+  const blink = Math.sin(state.animT * 12) > 0;
+  drawPixelRect(sx + 24, GROUND_Y - 18 + bob, 4, 3, blink ? '#ffe080' : '#c9a040');
+  drawPixelRect(sx - 28, GROUND_Y - 18 + bob, 4, 3, raid ? '#f44' : '#e44');
+  // 車輪
+  for (const ox of [-16, 12]) {
+    drawPixelRect(sx + ox, GROUND_Y - 8 + bob, 10, 8, '#1a1a1a');
+    drawPixelRect(sx + ox + 2, GROUND_Y - 6 + bob, 6, 4, '#444');
+    if (wheelSpin === 0) drawPixelRect(sx + ox + 4, GROUND_Y - 7 + bob, 2, 6, '#888');
+    else if (wheelSpin === 1) drawPixelRect(sx + ox + 2, GROUND_Y - 5 + bob, 6, 2, '#888');
+    else if (wheelSpin === 2) drawPixelRect(sx + ox + 4, GROUND_Y - 7 + bob, 2, 6, '#666');
+    else drawPixelRect(sx + ox + 2, GROUND_Y - 5 + bob, 6, 2, '#666');
+  }
+  // 屋根上：ロケ＝カメラ／侵攻＝スパイク＋旗
+  if (raid) {
+    drawPixelRect(sx - 6, GROUND_Y - 36 + bob, 4, 8, '#444');
+    ctx.fillStyle = '#f44';
+    ctx.beginPath();
+    ctx.moveTo(sx - 4, GROUND_Y - 36 + bob);
+    ctx.lineTo(sx + 10, GROUND_Y - 40 + bob);
+    ctx.lineTo(sx - 4, GROUND_Y - 30 + bob);
+    ctx.fill();
+    drawPixelRect(sx + 8, GROUND_Y - 32 + bob, 3, 6, '#333');
+    drawPixelRect(sx - 18, GROUND_Y - 32 + bob, 3, 4, '#333');
+  } else {
+    // カメラクレーン＋マイク
+    ctx.strokeStyle = '#bbb'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx + 6, GROUND_Y - 30 + bob);
+    ctx.lineTo(sx + 18, GROUND_Y - 42 + bob);
+    ctx.stroke();
+    drawPixelRect(sx + 14, GROUND_Y - 46 + bob, 10, 6, '#222');
+    drawPixelRect(sx + 16, GROUND_Y - 44 + bob, 4, 3, '#8af');
+    drawPixelRect(sx - 10, GROUND_Y - 34 + bob, 8, 4, '#666'); // 荷物
+  }
+  // サイドストライプ／ロゴ
+  drawPixelRect(sx - 26, GROUND_Y - 16 + bob, 52, 2, raid ? '#ff6b9d' : '#ff6b9d');
+  ctx.fillStyle = raid ? '#ff4422' : '#5a3a10';
   ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText(b.mode === 'raid' ? '侵攻' : 'ロケ', sx, GROUND_Y - 26 + bob);
+  ctx.fillText(raid ? '侵攻バス' : 'ロケバス', sx, GROUND_Y - 34 + bob);
   let dest = '…';
-  if (b.mode === 'raid') {
+  if (raid) {
     const op = (state.outposts || []).find(o => o.id === b.opId);
     dest = op ? op.short : '拠点';
   } else {
     dest = b.toId === 'camp' ? '部室' : ((landmarkById(b.toId) || {}).short || '…');
   }
   ctx.fillStyle = '#ffd700';
-  ctx.fillText('→' + dest, sx, GROUND_Y - 34 + bob);
+  ctx.fillText('→' + dest, sx, GROUND_Y - 42 + bob);
+  // 排気煙
+  if (state.gfxDeep && Math.sin(state.animT * 9) > 0) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#aaa';
+    ctx.beginPath();
+    ctx.arc(sx - 30, GROUND_Y - 20 + bob - Math.sin(state.animT * 5) * 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 }
 
 function drawOutposts(nightish) {
@@ -4886,59 +4978,194 @@ function drawOutposts(nightish) {
   }
 }
 
+function drawLandmarkScenery(sx, L, nightish) {
+  // 聖地ごとの遠景アクセント（建物の背後）
+  const id = L.id;
+  const ch = L.chapter | 0;
+  if (id === 'kitazawa' || id === 'setagaya' || (L.kind === 'park' && ch === 0)) {
+    // 下北・公園：柵＋街灯
+    drawPixelRect(sx - 40, GROUND_Y - 14, 2, 14, '#5a4a30');
+    drawPixelRect(sx + 38, GROUND_Y - 14, 2, 14, '#5a4a30');
+    drawPixelRect(sx - 40, GROUND_Y - 14, 80, 2, '#6a5a38');
+    drawPixelRect(sx - 36, GROUND_Y - 28, 2, 14, '#444');
+    drawPixelRect(sx - 40, GROUND_Y - 32, 10, 5, nightish ? '#ffe080' : '#ccc');
+  }
+  if (id === 'inokashira' || id === 'gaien_w') {
+    // 井の頭・外縁西：水面きらめき
+    const shimmer = (Math.sin(state.animT * 3 + sx * 0.02) * 0.5 + 0.5);
+    ctx.globalAlpha = 0.35 + shimmer * 0.25;
+    ctx.fillStyle = nightish ? '#1a3a50' : '#4aa0c8';
+    ctx.fillRect(sx - 48, GROUND_Y - 6, 36, 5);
+    drawPixelRect(sx - 40 + Math.floor(shimmer * 8), GROUND_Y - 5, 4, 2, '#dff');
+    ctx.globalAlpha = 1;
+  }
+  if (id === 'kichijoji' || id === 'yamanote') {
+    // 駅前／交差点：ポール＋信号
+    drawPixelRect(sx + 30, GROUND_Y - 40, 3, 40, '#555');
+    drawPixelRect(sx + 26, GROUND_Y - 48, 12, 16, '#222');
+    const lit = Math.floor(state.animT * 1.5 + sx) % 3;
+    drawPixelRect(sx + 28, GROUND_Y - 46, 8, 4, lit === 0 ? '#f44' : '#411');
+    drawPixelRect(sx + 28, GROUND_Y - 40, 8, 4, lit === 1 ? '#ff0' : '#441');
+    drawPixelRect(sx + 28, GROUND_Y - 34, 8, 4, lit === 2 ? '#4f4' : '#141');
+  }
+  if (id === 'kabuki') {
+    // ネオン帯
+    const pulse = 0.4 + Math.sin(state.animT * 6) * 0.3;
+    ctx.globalAlpha = pulse;
+    drawPixelRect(sx - 36, GROUND_Y - 50, 20, 4, '#ff6b9d');
+    drawPixelRect(sx + 16, GROUND_Y - 44, 18, 4, '#6af');
+    ctx.globalAlpha = 1;
+  }
+  if (id === 'gaien_e' || ch >= 3) {
+    // 外縁：熱気・埃
+    if (state.gfxDeep) {
+      ctx.globalAlpha = 0.12 + Math.sin(state.animT * 2 + sx) * 0.05;
+      ctx.fillStyle = '#ffcc88';
+      ctx.fillRect(sx - 50, GROUND_Y - 60, 100, 50);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (id === 'azuma' || id === 'laundry') {
+    // 商店街の電柱
+    drawPixelRect(sx - 44, GROUND_Y - 48, 2, 48, '#3a3a3a');
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx - 44, GROUND_Y - 44);
+    ctx.lineTo(sx - 10, GROUND_Y - 40);
+    ctx.stroke();
+  }
+}
+
 function drawLandmarkBuilding(sx, L, opened, nightish) {
   const kind = L.kind;
+  const id = L.id;
+  drawLandmarkScenery(sx, L, nightish);
   if (kind === 'sushi') {
-    // あずま寿し：暖簾付き屋台
-    drawPixelRect(sx - 18, GROUND_Y - 28, 36, 28, nightish ? '#3a2818' : '#6a3a20');
-    drawPixelRect(sx - 20, GROUND_Y - 32, 40, 6, '#c4282a');
+    // あずま寿し／吉祥寺：暖簾＋カウンター＋提灯
+    drawPixelRect(sx - 20, GROUND_Y - 30, 40, 30, nightish ? '#3a2818' : '#6a3a20');
+    drawPixelRect(sx - 22, GROUND_Y - 36, 44, 8, '#c4282a');
+    // 暖簾スイング
+    const noren = Math.sin(state.animT * 3 + sx * 0.01) * 2;
+    drawPixelRect(sx - 18 + noren * 0.3, GROUND_Y - 34, 10, 12, '#a01820');
+    drawPixelRect(sx - 4, GROUND_Y - 34, 10, 12, '#a01820');
+    drawPixelRect(sx + 10 - noren * 0.3, GROUND_Y - 34, 10, 12, '#a01820');
     drawPixelRect(sx - 12, GROUND_Y - 22, 8, 10, '#1a1a1a');
-    drawPixelRect(sx + 4, GROUND_Y - 18, 10, 6, '#f0e0c0');
-    ctx.fillStyle = '#ffd700';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('寿し', sx, GROUND_Y - 36);
+    drawPixelRect(sx + 4, GROUND_Y - 18, 12, 6, '#f0e0c0');
+    // 寿司ネタ点
+    drawPixelRect(sx + 6, GROUND_Y - 20, 3, 2, '#f66');
+    drawPixelRect(sx + 11, GROUND_Y - 20, 3, 2, '#fc8');
+    // 提灯
+    drawPixelRect(sx + 18, GROUND_Y - 42, 8, 10, nightish ? '#ffaa40' : '#e08030');
+    drawPixelRect(sx + 20, GROUND_Y - 48, 4, 6, '#888');
+    if (id === 'kichijoji') {
+      drawPixelRect(sx - 8, GROUND_Y - 48, 16, 6, '#222');
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('吉', sx, GROUND_Y - 43);
+    } else if (id === 'gaien_e') {
+      drawPixelRect(sx - 6, GROUND_Y - 48, 12, 4, '#8a2a1a');
+    } else {
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('寿し', sx, GROUND_Y - 42);
+    }
   } else if (kind === 'laundry') {
-    // コインランドリー：白い箱＋丸窓
-    drawPixelRect(sx - 16, GROUND_Y - 30, 32, 30, nightish ? '#3a3a48' : '#d0d4e0');
-    drawPixelRect(sx - 10, GROUND_Y - 22, 10, 10, '#4a90c8');
-    drawPixelRect(sx + 2, GROUND_Y - 22, 10, 10, '#4a90c8');
+    // コインランドリー／歌舞伎町：箱＋回転窓＋泡
+    const bodyCol = id === 'kabuki' ? (nightish ? '#2a1830' : '#4a2850') : (nightish ? '#3a3a48' : '#d0d4e0');
+    drawPixelRect(sx - 18, GROUND_Y - 32, 36, 32, bodyCol);
+    const spin = Math.floor(state.animT * 6) % 4;
+    for (const ox of [-10, 4]) {
+      drawPixelRect(sx + ox, GROUND_Y - 24, 12, 12, '#2a5080');
+      drawPixelRect(sx + ox + 2, GROUND_Y - 22, 8, 8, '#4a90c8');
+      if (spin === 0) drawPixelRect(sx + ox + 5, GROUND_Y - 21, 2, 6, '#dff');
+      else if (spin === 1) drawPixelRect(sx + ox + 3, GROUND_Y - 19, 6, 2, '#dff');
+      else if (spin === 2) drawPixelRect(sx + ox + 5, GROUND_Y - 21, 2, 6, '#8cf');
+      else drawPixelRect(sx + ox + 3, GROUND_Y - 19, 6, 2, '#8cf');
+    }
     drawPixelRect(sx - 4, GROUND_Y - 8, 8, 4, '#888');
-    ctx.fillStyle = '#8af';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('洗濯', sx, GROUND_Y - 34);
+    // 泡
+    if (opened && Math.sin(state.animT * 5 + sx) > 0.2) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#dff';
+      ctx.beginPath(); ctx.arc(sx - 14, GROUND_Y - 36, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + 12, GROUND_Y - 40, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (id === 'kabuki') {
+      drawPixelRect(sx - 16, GROUND_Y - 40, 32, 5, '#ff6b9d');
+      ctx.fillStyle = '#fcf';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('NEON洗', sx, GROUND_Y - 36);
+    } else {
+      ctx.fillStyle = '#8af';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('洗濯', sx, GROUND_Y - 38);
+    }
   } else {
-    // 公園：木＋ベンチ／遊具片鱗
-    drawPixelRect(sx - 3, GROUND_Y - 34, 6, 34, '#3a2818');
-    drawPixelRect(sx - 14, GROUND_Y - 48, 28, 18, nightish ? '#1a3a20' : '#2a7a38');
-    drawPixelRect(sx + 10, GROUND_Y - 12, 14, 3, '#6a4a28');
-    drawPixelRect(sx + 12, GROUND_Y - 18, 2, 6, '#6a4a28');
-    drawPixelRect(sx + 20, GROUND_Y - 18, 2, 6, '#6a4a28');
-    if (kind === 'park2') {
-      // 世田谷公園の片鱗：小さなすべり台
-      drawPixelRect(sx - 22, GROUND_Y - 20, 3, 20, '#c9a227');
+    // 公園系：木＋ベンチ＋聖地差
+    const leaf = nightish ? '#1a3a20' : '#2a7a38';
+    drawPixelRect(sx - 3, GROUND_Y - 36, 6, 36, '#3a2818');
+    drawPixelRect(sx - 16, GROUND_Y - 52, 32, 20, leaf);
+    drawPixelRect(sx - 10, GROUND_Y - 58, 20, 10, leaf);
+    drawPixelRect(sx + 12, GROUND_Y - 12, 16, 3, '#6a4a28');
+    drawPixelRect(sx + 14, GROUND_Y - 18, 2, 6, '#6a4a28');
+    drawPixelRect(sx + 24, GROUND_Y - 18, 2, 6, '#6a4a28');
+    if (kind === 'park2' || id === 'setagaya' || id === 'yamanote') {
+      // すべり台
+      drawPixelRect(sx - 24, GROUND_Y - 22, 3, 22, '#c9a227');
       ctx.strokeStyle = '#c9a227';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(sx - 20, GROUND_Y - 20);
+      ctx.moveTo(sx - 22, GROUND_Y - 22);
       ctx.lineTo(sx - 6, GROUND_Y - 4);
       ctx.stroke();
+      // 砂場
+      drawPixelRect(sx - 30, GROUND_Y - 4, 18, 4, '#c8b070');
+    }
+    if (id === 'inokashira') {
+      // ボート片鱗
+      drawPixelRect(sx - 36, GROUND_Y - 8, 16, 5, '#8a4030');
+      drawPixelRect(sx - 34, GROUND_Y - 10, 12, 2, '#fff');
+    }
+    if (id === 'yamanote') {
+      // 横断歩道ストライプ
+      for (let i = 0; i < 4; i++) {
+        drawPixelRect(sx - 20 + i * 10, GROUND_Y + 2, 6, 3, '#eee');
+      }
+    }
+    if (id === 'gaien_w') {
+      drawPixelRect(sx - 8, GROUND_Y - 64, 16, 6, '#8a6a20');
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('外縁', sx, GROUND_Y - 59);
+    }
+    if (id === 'kitazawa') {
+      // ブランコ
+      drawPixelRect(sx - 22, GROUND_Y - 28, 2, 20, '#666');
+      drawPixelRect(sx - 12, GROUND_Y - 28, 2, 20, '#666');
+      drawPixelRect(sx - 22, GROUND_Y - 10, 12, 3, '#8a5a30');
     }
   }
   if (opened) {
-    // 小さなロケ灯
     const glow = ctx.createRadialGradient(sx - 20, GROUND_Y - 16, 1, sx - 20, GROUND_Y - 16, 18);
     glow.addColorStop(0, 'rgba(255,220,120,0.55)');
     glow.addColorStop(1, 'rgba(255,180,0,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(sx - 36, GROUND_Y - 40, 30, 40);
-    // 施設Lvで看板光
     const fac = facilityLv(L.id);
-    if (fac >= 2) {
-      drawPixelRect(sx - 18, GROUND_Y - 52, 36, 4, '#ffd700');
+    if (fac >= 1) {
+      // 施設看板
+      drawPixelRect(sx - 14, GROUND_Y - 62, 28, 8, fac >= 2 ? '#ffd700' : '#c9a227');
+      ctx.fillStyle = '#1a1008';
+      ctx.font = '5px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('Lv' + fac, sx, GROUND_Y - 56);
     }
-    // ミッション対象なら強い撮影ライト
     if (state.mission && state.mission.lmId === L.id && state.gfxDeep) {
       const pulse = 0.35 + Math.sin(state.animT * 8) * 0.15;
       const g2 = ctx.createRadialGradient(sx, GROUND_Y - 30, 2, sx, GROUND_Y - 30, 55);
@@ -4946,13 +5173,13 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
       g2.addColorStop(1, 'rgba(255,200,80,0)');
       ctx.fillStyle = g2;
       ctx.fillRect(sx - 55, GROUND_Y - 70, 110, 70);
-      // カメラクレーン片鱗
       ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(sx + 24, GROUND_Y - 10);
       ctx.lineTo(sx + 40, GROUND_Y - 48);
       ctx.stroke();
       drawPixelRect(sx + 36, GROUND_Y - 54, 12, 8, '#222');
+      drawPixelRect(sx + 38, GROUND_Y - 52, 4, 3, '#8af');
     }
   }
 }
@@ -5267,6 +5494,56 @@ function drawYajyu(x, y, facing) {
       drawPixelRect(x + (flip ? -14 : 12), y - 40 + bob, 1, 2, '#fff');
     }
   }
+  // 表情（湿度・眼光・ミッション・真夏）
+  {
+    const eyeY = y - 42 + bob;
+    const eyeLX = x + (flip ? -6 : -2);
+    const eyeRX = x + (flip ? 2 : 6);
+    let mood = 'normal';
+    if (state.gazeT > 0) mood = 'gaze';
+    else if (state.humidity >= 75 || state.heatEvent === 'heatwave') mood = 'hot';
+    else if (state.mission) mood = 'focus';
+    else if ((state.bond && (state.bond.crew|0) >= 30) && Math.sin(state.animT * 1.5) > 0.7) mood = 'smile';
+    else if (structures.campfire.hp < structures.campfire.maxHp * 0.35) mood = 'hurt';
+    // 白目
+    drawPixelRect(eyeLX, eyeY, 3, 3, '#fff');
+    drawPixelRect(eyeRX, eyeY, 3, 3, '#fff');
+    if (mood === 'gaze') {
+      drawPixelRect(eyeLX + 1, eyeY, 2, 3, '#f22');
+      drawPixelRect(eyeRX + 1, eyeY, 2, 3, '#f22');
+      // 眼光ビーム片鱗
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = '#f44';
+      ctx.beginPath();
+      ctx.moveTo(eyeRX + 2, eyeY + 1);
+      ctx.lineTo(eyeRX + (flip ? -18 : 18), eyeY - 8);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (mood === 'hot') {
+      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
+      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 2, '#222');
+      // 口アヘ気味
+      drawPixelRect(x - 2, y - 32 + bob, 5, 2, '#c66');
+      drawPixelRect(x - 1, y - 30 + bob, 3, 2, '#844');
+    } else if (mood === 'focus') {
+      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
+      drawPixelRect(eyeRX, eyeY + 1, 2, 2, '#222');
+      drawPixelRect(x - 3, y - 32 + bob, 6, 1, '#422'); // 引き締め口
+    } else if (mood === 'smile') {
+      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 1, '#222');
+      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 1, '#222');
+      drawPixelRect(x - 3, y - 32 + bob, 6, 2, '#c66');
+      drawPixelRect(x - 2, y - 31 + bob, 4, 1, '#422');
+    } else if (mood === 'hurt') {
+      drawPixelRect(eyeLX, eyeY + 1, 3, 1, '#222');
+      drawPixelRect(eyeRX, eyeY + 1, 3, 1, '#222');
+      drawPixelRect(x - 2, y - 32 + bob, 4, 2, '#844');
+    } else {
+      drawPixelRect(eyeLX + 1, eyeY + 1, 2, 2, '#222');
+      drawPixelRect(eyeRX + 1, eyeY + 1, 2, 2, '#222');
+    }
+  }
+
   if (state.gazeT > 0) {
     ctx.strokeStyle = 'rgba(255,60,60,0.6)';
     ctx.strokeRect(x - 20, y - 72, 40, 72);
@@ -5300,6 +5577,23 @@ function drawArcher(x, y, u) {
     ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
     ctx.fillText('T' + (u.tier | 0), x, y - 56 + bob);
+  }
+  // 後輩表情
+  {
+    const ey = y - 40 + bob;
+    drawPixelRect(x - 4, ey, 2, 2, '#fff');
+    drawPixelRect(x + 2, ey, 2, 2, '#fff');
+    if (shooting) {
+      drawPixelRect(x - 3, ey, 2, 2, '#222');
+      drawPixelRect(x + 2, ey, 2, 2, '#222');
+      drawPixelRect(x - 2, ey + 6, 4, 1, '#422');
+    } else {
+      drawPixelRect(x - 3, ey + 1, 2, 1, '#222');
+      drawPixelRect(x + 2, ey + 1, 2, 1, '#222');
+      if ((state.bond && (state.bond.kohai|0) >= 20) || Math.sin(state.animT * 2 + x) > 0.8) {
+        drawPixelRect(x - 2, ey + 6, 4, 2, '#c66');
+      }
+    }
   }
   ctx.strokeStyle = '#c8a060';
   ctx.lineWidth = 2;
