@@ -6,45 +6,48 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0a12">
+<meta name="theme-color" content="#0c181c">
 <meta name="format-detection" content="telephone=no">
 <title>野獣キングダム — 王道を征く</title>
 <link rel="icon" href="favicon.ico">
 <link rel="icon" type="image/png" href="assets/senpai_icon.png">
 <link rel="apple-touch-icon" href="assets/senpai_icon.png">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
   :root {
     --pad-h: clamp(118px, 24vh, 168px);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
-    --hud-fs: clamp(11px, 2.8vw, 14px);
-    --ui-fs: clamp(11px, 3.1vw, 14px);
+    --hud-fs: clamp(12px, 3vw, 15px);
+    --ui-fs: clamp(12px, 3.2vw, 15px);
     --btn-min-h: 46px;
     --pad-btn-h: 64px;
     --panel-max-h: min(78vh, 560px);
     --chip-gap: 6px;
     --yk-ui-shadow: 0 8px 28px rgba(0,0,0,.55);
-    /* Kingdom Crowns 統一パレット */
-    --yk-ink: #0a0a12;
-    --yk-parchment: #f5e6c8;
-    --yk-gold: #ffd700;
-    --yk-gold-dim: #c9a227;
-    --yk-gold-deep: #8b6914;
-    --yk-wood: #3d2b1f;
-    --yk-wood-mid: #5a2a1a;
-    --yk-wood-hi: #7a3a2a;
+    --yk-jp: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+    /* 真夏・部室掲示板 */
+    --yk-ink: #0c181c;
+    --yk-parchment: #f3ead4;
+    --yk-gold: #f0c040;
+    --yk-gold-dim: #c9a040;
+    --yk-gold-deep: #8a6a20;
+    --yk-wood: #3a3228;
+    --yk-wood-mid: #5a4030;
+    --yk-wood-hi: #7a5840;
     --yk-rose: #ff6b9d;
     --yk-rose-dim: #d44a78;
-    --yk-sky: #4aa8ff;
-    --yk-grass: #5a9458;
-    --yk-soil: #5c4030;
-    --yk-night: #121828;
-    --yk-panel: #1a100c;
-    --yk-panel-hi: #2a1a12;
-    --yk-frame: #c9a227;
+    --yk-sky: #6ec4ff;
+    --yk-grass: #6aaa48;
+    --yk-soil: #6a5840;
+    --yk-night: #0c1c22;
+    --yk-panel: #1a1612;
+    --yk-panel-hi: #2a241c;
+    --yk-frame: #c9a040;
+    --yk-vend: #3ad0c8;
+    --yk-cork: #c4a070;
     --yk-ch0: #6aaa60;
     --yk-ch1: #5a9ab8;
     --yk-ch2: #c07090;
@@ -56,7 +59,7 @@
     height: 100dvh;
     background: var(--yk-ink);
     color: var(--yk-parchment);
-    font-family: "Press Start 2P", "Hiragino Kaku Gothic ProN", "Segoe UI", Meiryo, monospace;
+    font-family: var(--yk-jp);
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: none;
@@ -100,13 +103,12 @@
     max-width: none;
     max-height: none;
     object-fit: contain;
-    border: 4px solid var(--yk-wood);
+    border: 3px solid #2a3230;
     box-shadow:
-      0 0 0 2px var(--yk-gold-deep),
-      0 0 0 5px var(--yk-gold-dim),
-      0 0 0 7px var(--yk-wood),
-      0 8px 28px rgba(0,0,0,.55),
-      inset 0 0 40px rgba(255,215,0,.04);
+      0 0 0 2px #1a2220,
+      0 0 0 5px #3a4038,
+      0 8px 28px rgba(0,0,0,.5),
+      inset 0 0 40px rgba(80,160,140,.04);
     cursor: crosshair;
     touch-action: none;
     display: block;
@@ -142,9 +144,9 @@
   #hud .gold { color: #ffd700; text-shadow: 1px 1px 0 #3a2810, 0 0 6px rgba(255,215,0,.25); }
   #hud .night { color: #a8b8ff; }
   #hud .box {
-    background: linear-gradient(180deg, rgba(42,26,18,.96) 0%, rgba(16,10,6,.94) 100%);
-    border: 2px solid var(--yk-frame);
-    box-shadow: inset 0 0 0 1px #3a2810, inset 0 1px 0 rgba(255,215,0,.2), 0 0 0 1px #5a4010, 0 4px 12px rgba(0,0,0,.35);
+    background: linear-gradient(180deg, rgba(36,32,24,.96) 0%, rgba(14,16,16,.94) 100%);
+    border: 2px solid #8a7040;
+    box-shadow: inset 0 0 0 1px #3a3020, inset 0 1px 0 rgba(240,200,80,.15), 0 4px 12px rgba(0,0,0,.35);
     padding: 6px 8px;
     max-width: 42%;
     flex: 1 1 auto;
@@ -179,8 +181,8 @@
     color: #b8e8ff;
     text-align: center;
     text-shadow: 1px 1px 0 #000;
-    background: rgba(10,14,24,.82);
-    border: 2px solid #c9a227;
+    background: rgba(8,18,22,.86);
+    border: 2px solid #3ad0c8;
     box-shadow: inset 0 0 0 1px #2a3040;
     padding: 3px 6px 4px;
   }
@@ -230,10 +232,10 @@
     z-index: 3;
     font-size: clamp(9px, 2.2vw, 11px);
     line-height: 1.35;
-    color: #ffe8c8;
-    background: rgba(20,10,16,.9);
-    border: 2px solid var(--yk-frame);
-    box-shadow: inset 0 0 0 1px #5a2038, 0 0 10px rgba(255,107,157,.25), 0 0 0 1px #5a3a10;
+    color: #f3ead4;
+    background: rgba(22,18,12,.92);
+    border: 2px solid #8a7040;
+    box-shadow: inset 0 0 0 1px #3a2a18, 0 0 8px rgba(240,180,60,.12);
     padding: 5px 10px;
     max-height: 2.9em;
     display: none;
@@ -246,9 +248,9 @@
   }
   #toast {
     z-index: 4;
-    background: rgba(40,16,16,.92);
-    border: 2px solid #c9a227;
-    box-shadow: inset 0 0 0 1px #6a2020;
+    background: rgba(28,18,10,.92);
+    border: 2px solid #c9a040;
+    box-shadow: inset 0 0 0 1px #5a3820;
     padding: 6px 10px;
     font-size: clamp(10px, 2.5vw, 12px);
     line-height: 1.35;
@@ -269,7 +271,7 @@
 
   #overlay {
     position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(4,6,16,.55) 0%, rgba(8,10,20,.72) 45%, rgba(12,8,6,.78) 100%);
+    background: linear-gradient(180deg, rgba(80,140,180,.22) 0%, rgba(20,24,28,.62) 40%, rgba(12,10,8,.78) 100%);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 14px; z-index: 20; text-align: center;
     padding: max(24px, var(--safe-t)) 20px calc(24px + var(--safe-b));
@@ -335,8 +337,8 @@
   /* fixed + z100: #wrap/#stage stacking から独立（タイトル overlay を貫通） */
   #gfx-chip, #mute-chip, #zoom-chip {
     position: fixed; z-index: 100; pointer-events: auto;
-    font-family: "Press Start 2P", monospace; font-size: 8px;
-    background: rgba(20,12,8,.88); color: #ffd700;
+    font-family: var(--yk-jp); font-size: 11px;
+    background: rgba(16,18,18,.9); color: #f0c040;
     border: 2px solid #8b6914; padding: 6px 8px; border-radius: 8px;
     cursor: pointer; touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -356,7 +358,7 @@
 
   #choice-panel {
     position: absolute; inset: 0; z-index: 25;
-    background: radial-gradient(ellipse at center, rgba(40,24,12,.92) 0%, rgba(0,0,0,.88) 70%);
+    background: radial-gradient(ellipse at center, rgba(28,24,16,.9) 0%, rgba(8,12,14,.9) 70%);
     display: none; flex-direction: column; align-items: center; justify-content: flex-start;
     gap: 8px;
     padding: max(10px, var(--safe-t)) max(10px, var(--safe-r)) max(10px, var(--safe-b)) max(10px, var(--safe-l));
@@ -369,14 +371,13 @@
     width: min(440px, calc(100vw - 20px - var(--safe-l) - var(--safe-r)));
     margin-top: auto; margin-bottom: auto;
     background:
-      linear-gradient(180deg, var(--yk-panel-hi) 0%, var(--yk-panel) 55%, #120c08 100%);
-    border: 3px solid var(--yk-frame);
+      linear-gradient(180deg, #2a241c 0%, #1c1814 60%, #12100c 100%);
+    border: 3px solid #8a7048;
     box-shadow:
-      0 0 0 2px #5a3a10,
-      0 0 0 5px rgba(139,105,20,.45),
-      0 10px 28px rgba(0,0,0,.6),
-      inset 0 0 28px rgba(255,215,0,.07),
-      inset 0 1px 0 rgba(255,230,160,.2);
+      0 0 0 2px #3a3020,
+      0 10px 28px rgba(0,0,0,.55),
+      inset 0 0 40px rgba(196,160,112,.08),
+      inset 0 1px 0 rgba(243,234,212,.12);
     border-radius: 10px; padding: 14px 12px 16px; max-height: var(--panel-max-h);
     overflow-y: auto; -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -554,9 +555,9 @@
     align-items: stretch;
     justify-content: space-between;
     gap: 6px;
-    background: linear-gradient(180deg, #12101a 0%, var(--yk-panel) 100%);
-    border-top: 3px solid var(--yk-gold-deep);
-    box-shadow: inset 0 1px 0 rgba(255,215,0,.2), 0 -4px 16px rgba(0,0,0,.35);
+    background: linear-gradient(180deg, #141816 0%, #1a1612 100%);
+    border-top: 3px solid #3a4038;
+    box-shadow: inset 0 1px 0 rgba(58,208,200,.15), 0 -4px 16px rgba(0,0,0,.35);
     z-index: 8;
     touch-action: none;
     position: relative;
@@ -571,10 +572,10 @@
     font-family: inherit;
     min-width: clamp(52px, 14vw, 96px);
     min-height: var(--pad-btn-h);
-    border: 3px solid var(--yk-gold-deep);
+    border: 3px solid #5a5040;
     border-radius: 12px;
-    background: linear-gradient(180deg, #3a2a1c 0%, #2a2018 100%);
-    color: var(--yk-gold);
+    background: linear-gradient(180deg, #2a2820 0%, #1c1a16 100%);
+    color: #f3ead4;
     font-size: clamp(22px, 7vw, 32px);
     display: flex;
     flex-direction: column;
@@ -756,30 +757,30 @@
   }
   html[data-gfx="low"] canvas {
     box-shadow:
-      0 0 0 2px var(--yk-gold-deep),
-      0 0 0 4px var(--yk-gold-dim),
+      0 0 0 2px #1a2220,
+      0 0 0 4px #3a4038,
       var(--yk-ui-shadow);
   }
   html[data-gfx="low"] #choice-panel .panel-card {
-    box-shadow: 0 0 0 2px #5a3a10, 0 6px 16px rgba(0,0,0,.5);
+    box-shadow: 0 0 0 2px #3a3020, 0 6px 16px rgba(0,0,0,.5);
   }
   html[data-gfx="low"] #hud .box {
-    box-shadow: inset 0 0 0 1px #3a2810, 0 0 0 1px #5a4010;
+    box-shadow: inset 0 0 0 1px #3a3020, 0 0 0 1px #5a5040;
   }
   html[data-gfx="low"] #touch-pad {
-    box-shadow: inset 0 1px 0 rgba(255,215,0,.15);
+    box-shadow: inset 0 1px 0 rgba(58,208,200,.12);
   }
   html[data-gfx="low"] #story,
   html[data-gfx="low"] #toast {
-    box-shadow: inset 0 0 0 1px #5a3a10;
+    box-shadow: inset 0 0 0 1px #5a4030;
   }
   html[data-gfx="high"] canvas {
     box-shadow:
-      0 0 0 2px var(--yk-gold-deep),
-      0 0 0 5px var(--yk-gold-dim),
-      0 0 0 7px var(--yk-wood),
+      0 0 0 2px #1a2220,
+      0 0 0 5px #3a4038,
+      0 0 0 7px #2a241c,
       var(--yk-ui-shadow),
-      inset 0 0 40px rgba(255,215,0,.04);
+      inset 0 0 40px rgba(80,160,140,.04);
   }
 
   /* 超縦長・ノッチ端末向け微调 */
@@ -884,6 +885,144 @@ const PIX = 4; // ドット感
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function rand(a, b) { return a + Math.random() * (b - a); }
 function irand(a, b) { return (a + Math.floor(Math.random() * (b - a + 1))); }
+const UI_FONT = '"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif';
+function uiFont(px, weight) {
+  return (weight ? weight + ' ' : '700 ') + Math.max(11, px | 0) + 'px ' + UI_FONT;
+}
+function drawUiLabel(text, x, y, color, px) {
+  ctx.save();
+  ctx.font = uiFont(px || 13);
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(8,10,10,0.78)';
+  ctx.strokeText(String(text), x, y);
+  ctx.fillStyle = color || '#f3ead4';
+  ctx.fillText(String(text), x, y);
+  ctx.restore();
+}
+function streetHash(n) {
+  const x = Math.sin((n + 1.7) * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** 電柱・電線・室外機・自販機・雑草・剥がれポスター。低画質は間引く。章で密度を変える */
+function drawStreetLayer(phase, nightish) {
+  const low = GFX.quality === 'low';
+  const th = chapterTheme();
+  const cam = state.cameraX || 0;
+  const dense = th.decor === 'alley' || th.decor === 'neon';
+  const step = th.decor === 'pond' ? 220 : th.decor === 'void' ? 200 : 148;
+  const i0 = Math.floor((cam - 90) / step) - 1;
+  const i1 = Math.ceil((cam + W + 90) / step) + 1;
+  ctx.save();
+  // 電線（電柱の前に薄く）
+  ctx.strokeStyle = nightish ? 'rgba(18,22,22,0.5)' : 'rgba(36,36,36,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  let started = false;
+  for (let i = i0; i <= i1; i++) {
+    const wx0 = i * step + ((i * 37) % 28);
+    const sx = wx(wx0);
+    const y = GROUND_Y - 78 + Math.sin(i * 0.7) * 5;
+    if (!started) { ctx.moveTo(sx, y); started = true; }
+    else ctx.lineTo(sx, y);
+  }
+  ctx.stroke();
+  if (th.decor !== 'pond') {
+    ctx.beginPath();
+    started = false;
+    for (let i = i0; i <= i1; i++) {
+      const wx0 = i * step + ((i * 37) % 28);
+      const sx = wx(wx0);
+      const y = GROUND_Y - 72 + Math.sin(i * 0.7 + 1) * 4;
+      if (!started) { ctx.moveTo(sx + 6, y); started = true; }
+      else ctx.lineTo(sx + 6, y);
+    }
+    ctx.stroke();
+  }
+  const maxProps = low ? 6 : (GFX.quality === 'high' ? 18 : 12);
+  let drawn = 0;
+  for (let i = i0; i <= i1 && drawn < maxProps; i++) {
+    const wx0 = i * step + ((i * 37) % 28);
+    const sx = wx(wx0);
+    if (sx < -70 || sx > W + 70) continue;
+    const h = streetHash(i * 17 + (th.decor === 'alley' ? 1 : th.decor === 'pond' ? 2 : th.decor === 'neon' ? 3 : 4));
+    // 電柱
+    drawPixelRect(sx - 3, GROUND_Y - 92, 6, 92, nightish ? '#2a2a28' : '#4a4a44');
+    drawPixelRect(sx - 14, GROUND_Y - 86, 28, 4, nightish ? '#3a3a36' : '#5a5a54');
+    drawPixelRect(sx - 1, GROUND_Y - 88, 2, 6, '#333');
+    if (nightish && h > 0.35) {
+      const glow = ctx.createRadialGradient(sx, GROUND_Y - 44, 1, sx, GROUND_Y - 44, 22);
+      glow.addColorStop(0, 'rgba(255,220,140,0.35)');
+      glow.addColorStop(1, 'rgba(255,180,60,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(sx - 22, GROUND_Y - 66, 44, 40);
+      drawPixelRect(sx - 4, GROUND_Y - 46, 8, 4, '#ffe080');
+    }
+    drawn++;
+    // 室外機（路地・外縁。池は控えめ）
+    if (th.decor !== 'pond' && (i + 3) % 2 === 0) {
+      const ax = sx + 16;
+      drawPixelRect(ax, GROUND_Y - 20, 16, 12, nightish ? '#3a403c' : '#6a7068');
+      drawPixelRect(ax + 2, GROUND_Y - 18, 12, 3, '#2a2e2c');
+      drawPixelRect(ax + 3, GROUND_Y - 14, 10, 4, '#4a504c');
+      if (nightish && h > 0.7) drawPixelRect(ax + 6, GROUND_Y - 16, 3, 2, '#3ad0c8');
+    }
+    // 自販機（路地／ネオンに疎ら。810 は1台だけ）
+    if ((th.decor === 'alley' || th.decor === 'neon') && i % 5 === 2) {
+      const vx = sx - 28;
+      const vend = th.decor === 'neon' ? (nightish ? '#3a2040' : '#6a3058') : (nightish ? '#1a3a32' : '#2a6a58');
+      drawPixelRect(vx, GROUND_Y - 36, 14, 36, vend);
+      drawPixelRect(vx + 2, GROUND_Y - 32, 10, 10, nightish ? '#8cf' : '#cfe');
+      drawPixelRect(vx + 3, GROUND_Y - 18, 3, 3, '#c44');
+      drawPixelRect(vx + 8, GROUND_Y - 18, 3, 3, '#48c');
+      if (nightish) {
+        const vg = ctx.createRadialGradient(vx + 7, GROUND_Y - 20, 1, vx + 7, GROUND_Y - 20, 20);
+        vg.addColorStop(0, 'rgba(58,208,200,0.28)');
+        vg.addColorStop(1, 'rgba(58,208,200,0)');
+        ctx.fillStyle = vg;
+        ctx.fillRect(vx - 12, GROUND_Y - 40, 38, 40);
+      }
+      if (i % 10 === 2 && GFX.quality === 'high') {
+        ctx.font = uiFont(11);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#f0c040';
+        ctx.fillText('810', vx + 7, GROUND_Y - 38);
+      }
+    }
+    // 雑草
+    if (th.decor !== 'neon') {
+      for (let w = 0; w < 3; w++) {
+        const wxw = sx - 18 + w * 11 + h * 6;
+        const gh = 4 + ((i + w) % 4);
+        drawPixelRect(wxw, GROUND_Y - gh, 2, gh, nightish ? '#2a4a28' : '#6a8a38');
+      }
+    }
+    // 剥がれポスター（小さく、看板の壁紙にしない）
+    if (!low && dense && i % 4 === 1) {
+      const px = sx + 22;
+      drawPixelRect(px, GROUND_Y - 34, 10, 12, nightish ? '#4a3020' : '#8a6040');
+      drawPixelRect(px + 1, GROUND_Y - 32, 8, 3, h > 0.5 ? '#c44' : '#c4a070');
+      if (th.decor === 'alley' && i % 8 === 1) {
+        ctx.font = uiFont(11);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(243,234,212,0.7)';
+        ctx.fillText('あり', px + 5, GROUND_Y - 22);
+      }
+    }
+    // 池：ヨシ。外縁：錆びパネル
+    if (th.decor === 'pond' && i % 2 === 0) {
+      drawPixelRect(sx + 10, GROUND_Y - 16, 2, 16, '#3a4a30');
+      drawPixelRect(sx + 8, GROUND_Y - 22, 6, 8, nightish ? '#1a3020' : '#4a6a38');
+    }
+    if (th.decor === 'void' && i % 3 === 0) {
+      drawPixelRect(sx + 14, GROUND_Y - 28, 12, 18, nightish ? '#2a2018' : '#5a4a38');
+      drawPixelRect(sx + 16, GROUND_Y - 24, 8, 2, '#8a6040');
+    }
+  }
+  ctx.restore();
+}
 
 let toastTimer = 0;
 function shortenMsg(msg, max = 56) {
@@ -2640,7 +2779,7 @@ function drawExploreSite(sx, S, found, avail, nightish) {
       drawPixelRect(sx - 14, g - 64, 28, 64, stone);
       drawPixelRect(sx - 18, g - 6, 36, 6, '#5a5448');
       ctx.fillStyle = found ? '#ffd700' : '#aaa';
-      ctx.font = '5px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.font = uiFont(11); ctx.textAlign = 'center';
       ctx.fillText('1145', sx, g - 44); ctx.fillText('14', sx, g - 34);
       break;
     case 'wreck':
@@ -2656,7 +2795,7 @@ function drawExploreSite(sx, S, found, avail, nightish) {
       drawPixelRect(sx - 9, g - 46, 18, 16, found ? '#cfe' : '#567');
       for (let i = 0; i < 3; i++) drawPixelRect(sx - 8 + i * 6, g - 26, 4, 3, '#c44');
       drawPixelRect(sx - 12, g - 10, 24, 3, '#8a4020');
-      ctx.fillStyle = '#ffd700'; ctx.font = '5px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd700'; ctx.font = uiFont(11); ctx.textAlign = 'center';
       if (found) ctx.fillText('810', sx, g - 54);
       break;
     case 'ruin':
@@ -2686,13 +2825,13 @@ function drawExploreSite(sx, S, found, avail, nightish) {
     case 'edge':
       drawPixelRect(sx - 2, g - 46, 4, 46, '#6a4a28');
       drawPixelRect(sx - 22, g - 50, 44, 14, nightish ? '#4a3a28' : '#e8d8b0');
-      ctx.fillStyle = '#c22'; ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#c22'; ctx.font = uiFont(12); ctx.textAlign = 'center';
       ctx.fillText('こ↑こ↓', sx, g - 40);
       break;
   }
   ctx.restore();
   // ラベル
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'center';
   if (found) {
     ctx.globalAlpha = 0.9; ctx.fillStyle = '#8cf';
@@ -2703,9 +2842,9 @@ function drawExploreSite(sx, S, found, avail, nightish) {
     const pulse = 0.5 + Math.sin(state.animT * 4 + S.x * 0.01) * 0.3;
     ctx.globalAlpha = avail ? pulse : 0.35;
     ctx.fillStyle = avail ? '#8cf' : '#889';
-    ctx.font = '10px "Press Start 2P"';
+    ctx.font = uiFont(16);
     ctx.fillText('？', sx, g - 108 + Math.sin(state.animT * 3) * 2);
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.fillText(state.exploreSeen[S.id] ? S.short + (avail ? '' : '（封）') : '未踏', sx, g - 96);
   }
   ctx.globalAlpha = 1;
@@ -2719,7 +2858,7 @@ function drawCacheMarker(sx, c) {
   drawPixelRect(sx - 6, GROUND_Y - 10 + bob, 12, 2, '#fff8');
   ctx.globalAlpha = 0.55 + Math.sin(state.animT * 6) * 0.3;
   ctx.fillStyle = '#fff8c0';
-  ctx.font = '7px "Press Start 2P"';
+  ctx.font = uiFont(13);
   ctx.textAlign = 'center';
   ctx.fillText(k.cost ? '?' : '!', sx, GROUND_Y - 18 + bob);
   ctx.globalAlpha = 1;
@@ -2791,7 +2930,7 @@ function drawExploreLayer(nightish) {
     if (!state.isNight && Math.abs(player.x - ex) < 320) {
       ctx.globalAlpha = 0.6 + Math.sin(state.animT * 3) * 0.2;
       ctx.fillStyle = '#e8f0ff';
-      ctx.font = '6px "Press Start 2P"';
+      ctx.font = uiFont(12);
       ctx.textAlign = 'center';
       ctx.fillText(dir < 0 ? '◀ 未踏の西' : '未踏の東 ▶', clamp(sx + dir * 60, 50, W - 50), GROUND_Y - 120);
       ctx.globalAlpha = 1;
@@ -2806,7 +2945,7 @@ function drawExploreLayer(nightish) {
       const ax = sx < 0 ? 14 : W - 14;
       ctx.globalAlpha = 0.55 + Math.sin(state.animT * 5) * 0.3;
       ctx.fillStyle = '#8cf';
-      ctx.font = '8px "Press Start 2P"';
+      ctx.font = uiFont(14);
       ctx.textAlign = 'center';
       ctx.fillText(sx < 0 ? '◀？' : '？▶', ax + (sx < 0 ? 10 : -10), GROUND_Y - 130);
       ctx.globalAlpha = 1;
@@ -2903,7 +3042,7 @@ function drawEncounter() {
     if (E.id === 'meter_seller') drawPixelRect(sx + 7, g - 24 + bob, 6, 8, '#ccaa44');
   }
   ctx.save();
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'center';
   ctx.globalAlpha = 0.75 + Math.sin(state.animT * 5) * 0.25;
   ctx.fillStyle = '#ffe066';
@@ -3282,7 +3421,7 @@ function drawDungeon() {
   const door = (x, lit, txt) => {
     drawPixelRect(X(x) - 18, g - 60, 36, 60, '#1a1410');
     drawPixelRect(X(x) - 14, g - 56, 28, 56, lit ? '#e8d8a0' : '#2c2218');
-    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
     ctx.fillText(txt, X(x), g - 68);
   };
   door(40, dg.room === 0, dg.room === 0 ? '出口' : '◀');
@@ -3305,10 +3444,10 @@ function drawDungeon() {
       drawPixelRect(cx - 4, g - 40 + bob, 8, 8, D.accent);
       drawPixelRect(cx - 10, g - 14, 20, 14, '#3a3a3a');
     }
-    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = D.accent;
+    ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = D.accent;
     ctx.fillText(O.label, cx, g - 52);
   } else {
-    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#777';
+    ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = '#777';
     ctx.fillText('（空）', cx, g - 30);
   }
   // くさい煙
@@ -3324,19 +3463,19 @@ function drawDungeon() {
   // プレイヤー
   try { drawSoftShadow(X(dg.px), g, 14, 0.3); drawYajyu(X(dg.px), g, player.facing); } catch (_) {}
   // 部屋名・案内
-  ctx.font = '8px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.font = uiFont(14); ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
   ctx.fillText(`${D.name}　${dg.room + 1}/${D.rooms.length}　${R.name}`, W / 2, g - 160);
   const n = dungeonNearest();
   if (n) {
-    ctx.font = '7px "Press Start 2P"'; ctx.fillStyle = '#ffe066';
+    ctx.font = uiFont(13); ctx.fillStyle = '#ffe066';
     ctx.fillText(n.label + '　［Space／💰］', W / 2, g + 40);
   } else {
-    ctx.font = '6px "Press Start 2P"'; ctx.fillStyle = '#aaa';
+    ctx.font = uiFont(12); ctx.fillStyle = '#aaa';
     ctx.fillText('◀▶で移動　扉・宝の前で Space', W / 2, g + 40);
   }
   if (dg.fx) {
     ctx.globalAlpha = Math.min(1, dg.fx.t * 2);
-    ctx.font = '8px "Press Start 2P"'; ctx.fillStyle = '#ffd700';
+    ctx.font = uiFont(14); ctx.fillStyle = '#ffd700';
     ctx.fillText(dg.fx.txt, X(dg.px), g - 80 - (0.8 - dg.fx.t) * 30);
     ctx.globalAlpha = 1;
   }
@@ -3634,7 +3773,7 @@ function drawAdvLayer(nightish) {
       ctx.save();
       ctx.globalAlpha = a.journal.west ? 0.45 : (0.7 + Math.sin(state.animT * 4) * 0.2);
       ctx.fillStyle = a.journal.west ? '#9ab' : '#8cf';
-      ctx.font = '6px "Press Start 2P"';
+      ctx.font = uiFont(12);
       ctx.textAlign = 'center';
       ctx.fillText('→←', sx - 6, g - 32);
       ctx.restore();
@@ -3649,7 +3788,7 @@ function drawAdvLayer(nightish) {
       if (!a.journal.east) {
         ctx.globalAlpha = 0.7;
         ctx.fillStyle = '#ffe066';
-        ctx.font = '7px "Press Start 2P"';
+        ctx.font = uiFont(13);
         ctx.textAlign = 'center';
         ctx.fillText('！', sx, g - 24 + bob);
         ctx.globalAlpha = 1;
@@ -3666,7 +3805,7 @@ function drawAdvLayer(nightish) {
       ctx.beginPath(); ctx.arc(sx, g - 18, 22, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = '#ffd27a';
-      ctx.font = '6px "Press Start 2P"';
+      ctx.font = uiFont(12);
       ctx.textAlign = 'center';
       ctx.fillText(a.relic ? '残響' : '裏穴', sx, g - 40);
       ctx.restore();
@@ -3830,7 +3969,7 @@ function drawAdvDungeon() {
   const door = (x, lit, txt) => {
     drawPixelRect(X(x) - 18, g - 60, 36, 60, '#1a1410');
     drawPixelRect(X(x) - 14, g - 56, 28, 56, lit ? '#e8d8a0' : '#2c2218');
-    ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
     ctx.fillText(txt, X(x), g - 68);
   };
   door(40, dg.room === 0, dg.room === 0 ? '出口' : '◀');
@@ -3841,7 +3980,7 @@ function drawAdvDungeon() {
       const cx = X(DG_RW / 2 + 40);
       drawPixelRect(cx - 16, g - 28, 32, 28, '#6a5040');
       for (let i = 0; i < 3; i++) drawPixelRect(cx - 12 + i * 8, g - 24, 5, 16, '#ffb040');
-      ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffb040';
+      ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = '#ffb040';
       ctx.fillText('暖かい格子', cx, g - 40);
     }
     if (dg.hx != null) {
@@ -3858,7 +3997,7 @@ function drawAdvDungeon() {
     drawPixelRect(fx - 10, g - 16, 20, 10, '#3a3a40');
     drawPixelRect(fx - 6, g - 22, 12, 8, dg.taken.fire ? '#556' : '#9ab');
     if (!dg.taken.fire) {
-      ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#8cf';
+      ctx.font = uiFont(12); ctx.textAlign = 'center'; ctx.fillStyle = '#8cf';
       ctx.fillText('冷たい火', fx, g - 36);
     }
     if (ensureAdvState().journal.room2) {
@@ -3867,14 +4006,14 @@ function drawAdvDungeon() {
       ctx.fillStyle = '#ffb040';
       ctx.beginPath(); ctx.ellipse(cr, g - 28, 8, 22, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffe066'; ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffe066'; ctx.font = uiFont(12); ctx.textAlign = 'center';
       ctx.fillText('隙間', cr, g - 56);
     }
     if (!dg.taken.tea) {
       const tx = X(DG_RW / 2 + 100);
       drawPixelRect(tx - 5, g - 16, 10, 12, '#7ab');
       drawPixelRect(tx - 4, g - 22, 8, 6, '#cfe');
-      ctx.fillStyle = '#cfe'; ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#cfe'; ctx.font = uiFont(12); ctx.textAlign = 'center';
       ctx.fillText('茶', tx, g - 30);
     }
   } else {
@@ -3888,10 +4027,10 @@ function drawAdvDungeon() {
       ctx.fillStyle = '#ffb040';
       ctx.beginPath(); ctx.arc(cx, g - 30, 36, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffd700'; ctx.font = '7px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd700'; ctx.font = uiFont(13); ctx.textAlign = 'center';
       ctx.fillText('残響鈴', cx, g - 56 + bob);
     } else {
-      ctx.fillStyle = '#888'; ctx.font = '6px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#888'; ctx.font = uiFont(12); ctx.textAlign = 'center';
       ctx.fillText('（空）　残り香', cx, g - 30);
     }
     if (dg.fx && dg.fx.reveal) {
@@ -3904,15 +4043,15 @@ function drawAdvDungeon() {
     }
   }
   try { drawSoftShadow(X(dg.px), g, 14, 0.3); drawYajyu(X(dg.px), g, player.facing); } catch (_) {}
-  ctx.font = '8px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+  ctx.font = uiFont(14); ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
   ctx.fillText(`部室の裏穴　${dg.room + 1}/3　${R.name}`, W / 2, 28);
   const n = advDungeonNearest();
-  ctx.font = n ? '7px "Press Start 2P"' : '6px "Press Start 2P"';
+  ctx.font = n ? uiFont(13) : uiFont(12);
   ctx.fillStyle = n ? '#ffe066' : '#aaa';
   ctx.fillText(n ? (n.label + '　［Space／💰］') : '◀▶移動　左の扉で戻れる　日暮れ3秒前は地上', W / 2, g + 40);
   if (dg.fx) {
     ctx.globalAlpha = Math.min(1, dg.fx.t * 2);
-    ctx.font = '8px "Press Start 2P"'; ctx.fillStyle = '#ffd700';
+    ctx.font = uiFont(14); ctx.fillStyle = '#ffd700';
     ctx.fillText(dg.fx.txt, X(dg.px), g - 80 - (0.8 - Math.min(0.8, dg.fx.t)) * 30);
     ctx.globalAlpha = 1;
   }
@@ -6081,51 +6220,51 @@ function audUnlockOnce() {
   window.addEventListener(ev, audUnlockOnce, { once: true, passive: true });
 });
 
-/** Kingdom Crowns級：章テーマ風景＋統一トーン */
+/** 真夏下北パロディ：章ごとに別風景。中世ファンタジーではなく路地／池／ネオン／外縁 */
 const CHAPTER_THEME = {
-  0: { // 下北 — 緑の路地・看板・湿度
+  0: { // 下北 — 住宅壁・電柱・草・コンクリート
     name: 'shimokita',
-    skyBias: { r: -6, g: 10, b: -4 },
-    hills: ['#2a5530', '#3a6a40', '#4a8050', '#5a9458'],
-    hillsNight: ['#0e1812', '#152018', '#1c2a20', '#243428'],
-    hillsDusk: ['#4a5a38', '#5a7040', '#6a8848', '#7a9a50'],
-    ground: '#5c4030', groundNight: '#1e1812', groundDusk: '#4a3828',
-    grass: ['#5a9a40', '#4a8a38', '#7aba50', '#6aaa48'],
-    accent: '#6aaa60', neon: '#ff6b9d',
-    decor: 'alley', fog: 'rgba(120,160,100,0.08)',
+    skyBias: { r: 10, g: 2, b: -14 },
+    hills: ['#4a5840', '#5a6850', '#6a7860', '#7a8870'],
+    hillsNight: ['#0c1816', '#12201c', '#1a2a24', '#223430'],
+    hillsDusk: ['#6a5840', '#7a6848', '#8a7850', '#9a8860'],
+    ground: '#4a4840', groundNight: '#161814', groundDusk: '#3a3428',
+    grass: ['#7aaa48', '#6a9a38', '#8aba50', '#9a8a40'],
+    accent: '#6aaa60', neon: '#3ad0c8',
+    decor: 'alley', fog: 'rgba(180,160,80,0.08)',
   },
-  1: { // 井の頭 — 水面・セピア・木陰
+  1: { // 井の頭 — 水面・木陰・湿った土。路地に潰さない
     name: 'inokashira',
-    skyBias: { r: -4, g: 4, b: 18 },
-    hills: ['#2a4a58', '#3a6070', '#4a7888', '#5a90a0'],
-    hillsNight: ['#0c141c', '#121c28', '#1a2834', '#223040'],
-    hillsDusk: ['#4a5868', '#5a6878', '#6a8090', '#7a98a8'],
-    ground: '#4a4038', groundNight: '#18181c', groundDusk: '#3a3430',
+    skyBias: { r: -10, g: 8, b: 18 },
+    hills: ['#3a5a58', '#4a7070', '#5a8880', '#6aa098'],
+    hillsNight: ['#0a1418', '#101c24', '#162830', '#1c3440'],
+    hillsDusk: ['#5a6860', '#6a8070', '#7a9880', '#8ab090'],
+    ground: '#3a4840', groundNight: '#101818', groundDusk: '#2a3830',
     grass: ['#4a8a60', '#3a7a50', '#6aaa78', '#5a9a68'],
     accent: '#5a9ab8', neon: '#8cf',
-    decor: 'pond', fog: 'rgba(100,150,180,0.1)',
+    decor: 'pond', fog: 'rgba(100,160,180,0.1)',
   },
-  2: { // 新宿 — ネオン・ビル影・夜の片鱗
+  2: { // 新宿外縁 — ネオン看板・ビル窓。魔法紫ではなく街の灯
     name: 'shinjuku',
-    skyBias: { r: 16, g: -8, b: 10 },
-    hills: ['#3a2a40', '#4a3850', '#5a4860', '#6a5870'],
-    hillsNight: ['#100818', '#180c22', '#201030', '#2a1838'],
-    hillsDusk: ['#5a3850', '#6a4860', '#7a5870', '#8a6880'],
+    skyBias: { r: 14, g: -12, b: 6 },
+    hills: ['#3a2a38', '#4a3848', '#5a4858', '#6a5868'],
+    hillsNight: ['#100818', '#180c20', '#201028', '#2a1834'],
+    hillsDusk: ['#6a3848', '#7a4858', '#8a5868', '#9a6878'],
     ground: '#3a3038', groundNight: '#141018', groundDusk: '#2a2228',
     grass: ['#4a6050', '#3a5040', '#5a7860', '#4a6850'],
     accent: '#c07090', neon: '#ff44aa',
     decor: 'neon', fog: 'rgba(180,80,120,0.09)',
   },
-  3: { // 外縁 — 紫霧・測定不能・果て
+  3: { // 外縁 — 熱気・測定塔・ひびアスファルト。魔法圏ではない
     name: 'outer',
-    skyBias: { r: 8, g: -6, b: 22 },
-    hills: ['#2a2848', '#3a3860', '#4a4878', '#5a5890'],
-    hillsNight: ['#0c0a18', '#141028', '#1c1838', '#242048'],
-    hillsDusk: ['#4a3868', '#5a4878', '#6a5888', '#7a6898'],
-    ground: '#342838', groundNight: '#120e18', groundDusk: '#2a2030',
-    grass: ['#4a4868', '#3a3858', '#5a5a80', '#4a4a70'],
-    accent: '#8a6ab0', neon: '#a8f',
-    decor: 'void', fog: 'rgba(120,90,180,0.12)',
+    skyBias: { r: 12, g: -2, b: 4 },
+    hills: ['#4a4038', '#5a5048', '#6a6058', '#7a7068'],
+    hillsNight: ['#101018', '#181820', '#202028', '#282830'],
+    hillsDusk: ['#6a4a38', '#7a5a40', '#8a6a48', '#9a7a50'],
+    ground: '#3a3430', groundNight: '#121014', groundDusk: '#2a2420',
+    grass: ['#6a6848', '#5a5840', '#7a7860', '#4a4a38'],
+    accent: '#c4a070', neon: '#ff9944',
+    decor: 'void', fog: 'rgba(180,140,80,0.1)',
   },
 };
 function chapterTheme() {
@@ -6763,7 +6902,7 @@ function blitOutlined(ox, oy, grid, palette, scale, flipX, outlineCol) {
   blitPixels(ox, oy, grid, palette, s, flipX);
 }
 
-/* 統一パレット（CSS --yk-* と同期：金／薔薇／木／草／夜） */
+/* 統一パレット（CSS --yk-* と同期：真夏・掲示板・自販機シアン／薔薇／木／草／湿った夜） */
 const PAL = {
   N: '#140a10',
   S: '#f0c8a8', D: '#d4a888', d: '#b88868',
@@ -7965,20 +8104,26 @@ function drawNests(nightish) {
     const sx = wx(nest.x);
     if (sx < -80 || sx > W + 80) continue;
     const lit = !!(state.duskRaid || state.isNight);
-    const col = nest.source === 'outpost' ? '#5a2030' : '#3a2a18';
-    drawSoftShadow(sx, GROUND_Y, 20, lit ? 0.45 : 0.22);
-    drawPixelRect(sx - 22, GROUND_Y - 18, 44, 18, nightish ? '#1a1210' : col);
-    drawPixelRect(sx - 10, GROUND_Y - 28, 20, 12, '#1a1010');
-    // mouth
+    const outpost = nest.source === 'outpost';
+    drawSoftShadow(sx, GROUND_Y, 28, lit ? 0.5 : 0.24);
+    // 住宅壁／半開きシャッター。魔法陣ではなく都市の隙間
+    const wall = nightish ? '#1a1816' : (outpost ? '#4a3028' : '#5a5850');
+    drawPixelRect(sx - 34, GROUND_Y - 62, 22, 62, wall);
+    drawPixelRect(sx + 12, GROUND_Y - 54, 22, 54, nightish ? '#161412' : '#4a4840');
+    drawPixelRect(sx - 12, GROUND_Y - 8, 24, 8, '#3a3830');
     const mouth = sx + (side < 0 ? 14 : -14);
-    drawPixelRect(mouth - 6, GROUND_Y - 16, 12, 16, lit ? '#2a1030' : '#141010');
+    drawPixelRect(mouth - 10, GROUND_Y - 36, 20, 8, '#2a2a28');
+    for (let r = 0; r < 6; r++) drawPixelRect(mouth - 10, GROUND_Y - 28 + r * 4, 20, 3, r % 2 ? '#1a1a18' : '#2a2a26');
+    drawPixelRect(mouth - 8, GROUND_Y - 18, 16, 18, lit ? '#1a1008' : '#0c0c0c');
+    drawPixelRect(sx + (side < 0 ? -32 : 16), GROUND_Y - 22, 14, 12, '#4a504c');
+    drawPixelRect(sx + (side < 0 ? -30 : 18), GROUND_Y - 20, 10, 4, '#2a2e2c');
     if (lit) {
       const pulse = 0.28 + Math.sin(state.animT * 5) * 0.12;
       ctx.globalAlpha = pulse;
       const g = ctx.createRadialGradient(mouth, GROUND_Y - 8, 2, mouth, GROUND_Y - 8, 28);
       g.addColorStop(0, 'rgba(255,160,60,0.7)');
-      g.addColorStop(0.5, 'rgba(160,60,255,0.35)');
-      g.addColorStop(1, 'rgba(80,0,40,0)');
+      g.addColorStop(0.55, 'rgba(255,120,40,0.22)');
+      g.addColorStop(1, 'rgba(80,20,0,0)');
       ctx.fillStyle = g;
       ctx.fillRect(mouth - 30, GROUND_Y - 36, 60, 40);
       ctx.globalAlpha = 1;
@@ -7986,11 +8131,9 @@ function drawNests(nightish) {
         drawPixelRect(mouth + rand(-4, 4), GROUND_Y - 20 + rand(-6, 0), 2, 3, '#ffb040');
       }
     }
-    ctx.fillStyle = lit ? '#ffb040' : '#8a7060';
-    ctx.font = '6px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText(nest.short, sx, GROUND_Y - 34);
-    if (lit) ctx.fillText(nest.source === 'outpost' ? '拠点口' : '巣', sx, GROUND_Y - 44);
+    drawUiLabel(nest.short, sx, GROUND_Y - 50, lit ? '#ffb040' : '#c8b090', 12);
+    if (lit) drawUiLabel(outpost ? '拠点口' : '巣', sx, GROUND_Y - 64, '#ffd080', 11);
   }
 }
 
@@ -8013,10 +8156,8 @@ function drawMountStands() {
       drawPixelRect(sx - 12, GROUND_Y - 16, 22, 10, '#6a4828');
       drawPixelRect(sx + 8, GROUND_Y - 22, 6, 8, '#5a3820');
     }
-    ctx.fillStyle = eq ? '#ffd700' : (owned ? '#8cf' : '#c8a878');
-    ctx.font = '6px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText(owned ? (eq ? '乗車中' : m.short) : m.short, sx, GROUND_Y - 26);
+    drawUiLabel(owned ? (eq ? '乗車中' : m.short) : m.short, sx, GROUND_Y - 26, eq ? '#ffd700' : (owned ? '#8cf' : '#c8a878'), 12);
   }
 }
 
@@ -8028,8 +8169,8 @@ function drawNestChevrons() {
     if (sx >= 20 && sx <= W - 20) continue;
     const edgeX = side < 0 ? 18 : W - 18;
     ctx.globalAlpha = 0.85;
-    ctx.fillStyle = '#c8a0ff';
-    ctx.font = '8px "Press Start 2P"';
+    ctx.fillStyle = '#ffb060';
+    ctx.font = uiFont(14);
     ctx.textAlign = 'center';
     ctx.fillText(side < 0 ? '◀巣' : '巣▶', edgeX, 72);
     ctx.globalAlpha = 1;
@@ -9647,7 +9788,7 @@ function drawBossCineOverlay() {
   ctx.fillRect(0, GROUND_Y - 50, W, 2);
   ctx.globalAlpha = 0.65 * p;
   ctx.fillStyle = '#ffd700';
-  ctx.font = '10px "Press Start 2P"';
+  ctx.font = uiFont(16);
   ctx.textAlign = 'center';
   ctx.fillText('— 眼光 —', sx, GROUND_Y - 88);
   ctx.restore();
@@ -9681,16 +9822,18 @@ function dayPhase() {
 function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
 
 function skyColors(phase) {
-  // phase 0..1 → top/mid/bot
+  // 真夏パレット：白い熱昼／琥珀の夕／湿った青緑夜
   const stops = [
-    { p: 0.00, t: '#1a2040', m: '#3a4068', b: '#6a5080' }, // 夜明け前
-    { p: 0.12, t: '#ff9a6a', m: '#ffc090', b: '#8fbc6a' }, // 夜明け
-    { p: 0.28, t: '#5eb8ff', m: '#b8e4ff', b: '#8fbc6a' }, // 朝
-    { p: 0.40, t: '#4aa8ff', m: '#c8e8ff', b: '#7aaa58' }, // 昼
-    { p: 0.58, t: '#ff7a4a', m: '#ffb070', b: '#6a8a48' }, // 夕
-    { p: 0.72, t: '#1a1840', m: '#2a2858', b: '#3a3050' }, // 宵
-    { p: 0.88, t: '#070a18', m: '#121828', b: '#1a2030' }, // 深夜
-    { p: 1.00, t: '#050812', m: '#0c1020', b: '#141820' },
+    { p: 0.00, t: '#0c1820', m: '#1a3040', b: '#2a4050' }, // 湿った夜明け前
+    { p: 0.12, t: '#ffb080', m: '#ffd0a0', b: '#c8c070' }, // 白い朝焼け
+    { p: 0.28, t: '#7ec8ff', m: '#e8f4ff', b: '#d0d080' }, // 漂白された朝
+    { p: 0.38, t: '#5ab0ff', m: '#f0f6ff', b: '#c8c868' }, // Harsh noon
+    { p: 0.48, t: '#ff8a48', m: '#ffc070', b: '#d09040' }, // 昼の終わり＝琥珀へ
+    { p: 0.55, t: '#ff6a30', m: '#ff9040', b: '#c07030' }, // プレイ昼の終端で夕
+    { p: 0.58, t: '#ff6a30', m: '#ff9040', b: '#c07030' }, // 琥珀の夕
+    { p: 0.72, t: '#0c2830', m: '#1a4050', b: '#2a3840' }, // 湿った宵
+    { p: 0.88, t: '#061418', m: '#0c2430', b: '#142830' }, // 自販機色の夜
+    { p: 1.00, t: '#040e12', m: '#0a1c24', b: '#102028' },
   ];
   let a = stops[0], b = stops[1];
   for (let i = 0; i < stops.length - 1; i++) {
@@ -9744,17 +9887,20 @@ function drawTorchLights() {
     const sx = wx(p.x);
     const flick = 0.85 + Math.sin(state.animT * 7 + p.x * 0.05) * 0.15;
     // ポール
-    drawPixelRect(sx - 1, p.y, 3, GROUND_Y - p.y, '#3a2818');
-    // 炎
-    const fi = ((state.animT * 10 + i) | 0) % 3;
-    drawPixelRect(sx - 2, p.y - 6 - fi, 5, 6 + fi, fi === 0 ? '#ff6600' : '#ffcc33');
-    drawPixelRect(sx, p.y - 8 - fi, 2, 3, '#fff8d0');
-    // 暖かい光
+    drawPixelRect(sx - 1, p.y, 3, GROUND_Y - p.y, '#3a3a38');
+    const vendish = i % 3 === 0;
+    drawPixelRect(sx - 4, p.y - 6, 8, 5, vendish ? '#3ad0c8' : '#ffe080');
     const rad = (p.gate ? 70 : 48) * flick;
     const g = ctx.createRadialGradient(sx, p.y - 4, 2, sx, p.y - 4, rad);
-    g.addColorStop(0, `rgba(255,180,70,${0.28 * flick})`);
-    g.addColorStop(0.45, `rgba(255,120,40,${0.1 * flick})`);
-    g.addColorStop(1, 'rgba(255,80,0,0)');
+    if (vendish) {
+      g.addColorStop(0, `rgba(58,208,200,${0.26 * flick})`);
+      g.addColorStop(0.45, `rgba(40,160,180,${0.1 * flick})`);
+      g.addColorStop(1, 'rgba(20,80,90,0)');
+    } else {
+      g.addColorStop(0, `rgba(255,220,140,${0.28 * flick})`);
+      g.addColorStop(0.45, `rgba(255,180,80,${0.1 * flick})`);
+      g.addColorStop(1, 'rgba(255,140,40,0)');
+    }
     ctx.fillStyle = g;
     ctx.fillRect(sx - rad, p.y - rad, rad * 2, rad * 2);
     // 地面の光だまり
@@ -9840,8 +9986,8 @@ function drawAurora() {
     const g = ctx.createLinearGradient(0, y0, W, y0 + 40);
     const a = 0.10 + Math.sin(state.animT * 0.7 + band) * 0.04;
     g.addColorStop(0, `rgba(40,255,180,0)`);
-    g.addColorStop(0.35, `rgba(${60+band*40},${220-band*30},255,${a})`);
-    g.addColorStop(0.65, `rgba(180,80,255,${a * 0.85})`);
+    g.addColorStop(0.35, `rgba(${40+band*20},${200-band*20},210,${a})`);
+    g.addColorStop(0.65, `rgba(80,180,160,${a * 0.85})`);
     g.addColorStop(1, `rgba(40,255,180,0)`);
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -10101,10 +10247,10 @@ function draw() {
       ctx.fillStyle = lg;
       ctx.fillRect(lx - 28, GROUND_Y - 60, 56, 60);
       drawPixelRect(lx - 1, GROUND_Y - 40, 2, 40, '#444');
-      drawPixelRect(lx - 4, GROUND_Y - 44, 8, 5, '#ffe080');
+      drawPixelRect(lx - 4, GROUND_Y - 44, 8, 5, i % 3 === 0 ? '#3ad0c8' : '#ffe080');
     }
     ctx.globalAlpha = 0.12 + Math.min(0.18, (state.humidity|0) / 500);
-    ctx.fillStyle = '#406080';
+    ctx.fillStyle = '#204850';
     ctx.fillRect(0, GROUND_Y - 90, W, 90);
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = state.assault ? '#ff4060' : chapterTheme().neon;
@@ -10124,6 +10270,7 @@ function draw() {
   drawGroundTiles(phase);
   // 天候・空気レイヤ（地面の直後＝キャラの下）
   drawWeatherLayers(phase);
+  try { drawStreetLayer(phase, nightish); } catch (_) {}
 
   // 領地床（聖地解放でマップ横断方向へ伸びる）
   let lx = structures.leftWall.level > 0 ? structures.leftWall.x : -40;
@@ -10132,24 +10279,23 @@ function draw() {
     if (L.side < 0) lx = Math.min(lx, L.x - 30);
     else rx = Math.max(rx, L.x + 30);
   }
-  const territoryAlpha = nightish ? 0.16 : 0.12;
-  const thAcc = chapterTheme().accent;
-  ctx.globalAlpha = territoryAlpha + 0.35;
-  ctx.fillStyle = thAcc;
-  ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 6);
-  ctx.globalAlpha = 0.55;
-  for (let x = wx(lx); x < wx(rx); x += 4) ctx.fillRect(x, GROUND_Y, 2, 2);
+  const asphalt = nightish ? '#1c1e20' : (phase > 0.52 && phase < 0.72 ? '#323028' : '#3a3c40');
+  ctx.fillStyle = asphalt;
+  ctx.fillRect(wx(lx), GROUND_Y, rx - lx, 7);
+  ctx.globalAlpha = 0.22;
+  ctx.fillStyle = '#2a2c2e';
+  for (let x = wx(lx); x < wx(rx); x += 10) ctx.fillRect(x, GROUND_Y + 2, 6, 2);
+  ctx.globalAlpha = 0.38;
+  ctx.fillStyle = nightish ? '#8a7840' : '#c8b050';
+  for (let x = wx(lx); x < wx(rx); x += 14) ctx.fillRect(x, GROUND_Y + 2, 7, 1);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = 'rgba(255,215,0,0.35)';
-  for (let x = wx(lx); x < wx(rx); x += 8) ctx.fillRect(x, GROUND_Y + 1, 2, 1);
-  // 領地の淡い光床
   if (!nightish || state.isNight) {
     const tg = ctx.createLinearGradient(wx(lx), GROUND_Y - 8, wx(rx), GROUND_Y - 8);
-    tg.addColorStop(0, 'rgba(255,215,0,0)');
-    tg.addColorStop(0.5, nightish ? 'rgba(255,180,60,0.08)' : 'rgba(255,215,0,0.06)');
-    tg.addColorStop(1, 'rgba(255,215,0,0)');
+    tg.addColorStop(0, 'rgba(200,180,80,0)');
+    tg.addColorStop(0.5, nightish ? 'rgba(255,180,80,0.07)' : 'rgba(255,230,160,0.05)');
+    tg.addColorStop(1, 'rgba(200,180,80,0)');
     ctx.fillStyle = tg;
-    ctx.fillRect(wx(lx), GROUND_Y - 10, rx - lx, 10);
+    ctx.fillRect(wx(lx), GROUND_Y - 8, rx - lx, 8);
   }
 
   // たき火（影→本体）
@@ -10193,18 +10339,14 @@ function draw() {
       ctx.arc(wx(focus.x), GROUND_Y - 4, 17 + Math.sin(state.animT * 5) * 2, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.font = '8px "Press Start 2P"';
       ctx.textAlign = 'center';
-      ctx.fillStyle = focus.can ? '#ffd700' : '#fa8';
       const ready = focus.can
         ? `[SPACE] ${focus.cost}🪙`
         : (focus.why || '今は払えない');
-      ctx.fillText(ready, wx(focus.x), GROUND_Y - 78);
-      ctx.fillStyle = focus.mount ? '#8cf' : '#ff6b9d';
-      ctx.fillText(focus.label, wx(focus.x), GROUND_Y - 92);
+      drawUiLabel(ready, wx(focus.x), GROUND_Y - 78, focus.can ? '#ffd700' : '#fa8', 15);
+      drawUiLabel(focus.label, wx(focus.x), GROUND_Y - 94, focus.mount ? '#8cf' : '#ff6b9d', 14);
       if (others) {
-        ctx.fillStyle = '#aaa';
-        ctx.fillText('他' + others + '件　近い方を払う', wx(focus.x), GROUND_Y - 64);
+        drawUiLabel('他' + others + '件　近い方を払う', wx(focus.x), GROUND_Y - 64, '#ccc', 12);
       }
     }
   }
@@ -10308,7 +10450,7 @@ function draw() {
       const a = 1 - f.t / f.life;
       ctx.globalAlpha = a;
       ctx.fillStyle = '#ff6b9d';
-      ctx.font = '9px "Press Start 2P"';
+      ctx.font = uiFont(15);
       ctx.textAlign = 'center';
       const my = clamp(f.y - f.t * 26, 108, GROUND_Y - 28);
       const mx = clamp(wx(f.x), 40, W - 40);
@@ -10354,7 +10496,7 @@ function draw() {
       const a = 1 - f.t / f.life;
       ctx.globalAlpha = a;
       ctx.fillStyle = '#ff6b9d';
-      ctx.font = '18px "Press Start 2P"';
+      ctx.font = uiFont(22);
       ctx.textAlign = 'center';
       ctx.fillText(f.text || '（', wx(f.x), f.y);
       ctx.globalAlpha = 1;
@@ -10395,7 +10537,7 @@ function draw() {
       const a = 1 - f.t / f.life;
       ctx.globalAlpha = a;
       ctx.fillStyle = f.color || '#ffe8a0';
-      ctx.font = '9px "Press Start 2P"';
+      ctx.font = uiFont(15);
       ctx.textAlign = 'center';
       ctx.fillText(f.text || '', wx(f.x), f.y + (f.vy || -46) * f.t);
       ctx.globalAlpha = 1;
@@ -10405,12 +10547,9 @@ function draw() {
   try { drawNestChevrons(); } catch (_) {}
 
   // 名前プレート（顔の上）
-  ctx.fillStyle = '#ff6b9d';
-  ctx.font = '8px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('野獣先輩', wx(player.x), GROUND_Y - 102);
-  ctx.fillStyle = '#ffd700';
-  ctx.fillText('👑王道を征く', wx(player.x), GROUND_Y - 114);
+  drawUiLabel('野獣先輩', wx(player.x), GROUND_Y - 102, '#ff6b9d', 14);
+  drawUiLabel('👑王道を征く', wx(player.x), GROUND_Y - 116, '#ffd700', 13);
 
   // 湿度ヘイズ
   drawGroundFog(phase);
@@ -10431,7 +10570,7 @@ function draw() {
   if (nightish) {
     const g = ctx.createRadialGradient(W/2, GROUND_Y - 40, 60, W/2, GROUND_Y, 460);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, `rgba(0,0,0,${0.35 + (phase - 0.68) * 0.5})`);
+    g.addColorStop(1, `rgba(4,14,18,${0.35 + (phase - 0.68) * 0.5})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     // たき火の暖色ボリュームライト
@@ -10460,10 +10599,8 @@ function draw() {
 
   // キャンプHPバー
   drawBar(wx(-30), GROUND_Y + 18, 60, 6, structures.campfire.hp / structures.campfire.maxHp, '#e85', '#333');
-  ctx.fillStyle = '#ccc';
-  ctx.font = '7px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('部室', wx(0), GROUND_Y + 36);
+  drawUiLabel('部室', wx(0), GROUND_Y + 36, '#e8dcc0', 13);
 
   ctx.restore(); // shake
 
@@ -10600,8 +10737,9 @@ function drawParallaxHills(phase) {
     for (let i = -1; i < 8; i++) {
       const tx = ((i * 180 - state.cameraX * 0.28) % (W + 180)) - 40;
       const spire = 40 + (i % 3) * 14;
-      drawPixelRect(tx + 8, GROUND_Y - spire, 4, spire, night ? '#181028' : '#2a2848');
-      blitPixels(tx, GROUND_Y - spire - 10, ['.M.', 'MmM', 'MMM'], PAL, 3, false);
+      drawPixelRect(tx + 8, GROUND_Y - spire, 4, spire, night ? '#201818' : '#4a4038');
+      drawPixelRect(tx + 2, GROUND_Y - spire - 4, 16, 3, night ? '#3a3020' : '#6a5a40');
+      drawPixelRect(tx + 14, GROUND_Y - spire + 8, 8, 2, night ? '#ff9944' : '#8a6040');
     }
   } else if (th.decor === 'pond') {
     for (let i = -2; i < 12; i++) {
@@ -10616,16 +10754,22 @@ function drawParallaxHills(phase) {
         ctx.globalAlpha = 1;
       }
     }
-  } else {
-    // alley / 下北：木＋看板シルエット
+    } else {
+    // alley / 下北：住宅壁・室外機・電柱。中世の森ではない
     for (let i = -2; i < 12; i++) {
       const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160));
       const x = tx - 40;
-      drawPixelRect(x + 6, GROUND_Y - 40, 4, 20, night ? '#2a1a10' : '#4a3020');
-      blitPixels(x, GROUND_Y - 58, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
+      drawPixelRect(x, GROUND_Y - 36, 28, 36, night ? '#2a2824' : '#6a6860');
+      drawPixelRect(x + 4, GROUND_Y - 28, 6, 6, night ? '#ffe080' : '#bcd');
+      drawPixelRect(x + 14, GROUND_Y - 28, 6, 6, night ? '#1a1814' : '#8a8880');
+      drawPixelRect(x + 30, GROUND_Y - 14, 12, 8, night ? '#3a403c' : '#6a7068');
+      if (i % 3 === 0) {
+        drawPixelRect(x + 44, GROUND_Y - 52, 3, 52, night ? '#2a2a28' : '#4a4a44');
+        drawPixelRect(x + 38, GROUND_Y - 48, 16, 2, '#3a3a38');
+      }
       if (i % 4 === 0) {
-        drawPixelRect(x + 18, GROUND_Y - 48, 22, 12, night ? '#3a2018' : '#6a3a28');
-        drawPixelRect(x + 20, GROUND_Y - 46, 18, 2, th.accent);
+        drawPixelRect(x + 18, GROUND_Y - 48, 18, 10, night ? '#3a2018' : '#8a5a38');
+        drawPixelRect(x + 20, GROUND_Y - 46, 14, 2, th.accent);
       }
     }
   }
@@ -10939,7 +11083,7 @@ function drawMidsummerFx() {
   if (state.heatEvent) {
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#ff8844';
-    ctx.font = '7px "Press Start 2P"';
+    ctx.font = uiFont(13);
     ctx.textAlign = 'center';
     ctx.fillText('真夏:' + state.heatEvent, W / 2, 28);
   }
@@ -10959,7 +11103,7 @@ function drawMissionMarker() {
   ctx.lineTo(sx - 6, GROUND_Y - 68 + bob);
   ctx.lineTo(sx + 6, GROUND_Y - 68 + bob);
   ctx.fill();
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fc8';
   ctx.fillText(m.progress + '/' + m.need, sx, GROUND_Y - 84 + bob);
@@ -11068,13 +11212,13 @@ function drawMiliGadgets() {
     ctx.fillStyle = bg;
     ctx.fillRect(cx - 70, GROUND_Y - 100, 140, 90);
     ctx.fillStyle = '#8cf';
-    ctx.font = '6px "Press Start 2P"';
+    ctx.font = uiFont(12);
     ctx.textAlign = 'center';
     ctx.fillText('サムライブルー', cx, GROUND_Y - 92);
   }
   if (state.awakenB === 'iced') {
     ctx.fillStyle = '#8cf';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText('アイスティー砲', wx(0), GROUND_Y - 80);
   }
@@ -11094,7 +11238,7 @@ function drawMiliGadgets() {
     ctx.lineTo(sx + 2 - pinch, GROUND_Y - 22);
     ctx.stroke();
     ctx.fillStyle = '#fc8';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText('スネア', sx, GROUND_Y - 26);
   }
@@ -11105,7 +11249,7 @@ function drawMiliGadgets() {
     drawPixelRect(sx - 5, GROUND_Y - 6, 10, 5, '#333');
     drawPixelRect(sx - 3, GROUND_Y - 8, 6, 3, blink ? '#f44' : '#8a2020');
     ctx.fillStyle = '#8af';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText('810', sx, GROUND_Y - 12);
   }
@@ -11176,7 +11320,7 @@ function drawLocationBus() {
   // サイドストライプ／ロゴ
   drawPixelRect(sx - 26, GROUND_Y - 16 + bob, 52, 2, raid ? '#ff6b9d' : '#ff6b9d');
   ctx.fillStyle = raid ? '#ff4422' : '#5a3a10';
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'center';
   ctx.fillText(raid ? '侵攻バス' : 'ロケバス', sx, GROUND_Y - 34 + bob);
   let dest = '…';
@@ -11208,15 +11352,16 @@ function drawOutposts(nightish) {
     const col = (typeof OUTPOST_KIND_COLOR !== 'undefined' && OUTPOST_KIND_COLOR[kind]) || '#5a2820';
     ctx.globalAlpha = 0.95;
     drawSoftShadow(sx, GROUND_Y, 24, 0.4);
-    // 種別シルエット
+    // 閉ざした店舗／シャッター。城塞ではなく都市の口
     drawPixelRect(sx - 22, GROUND_Y - 38, 44, 38, nightish ? '#2a1010' : col);
-    drawPixelRect(sx - 24, GROUND_Y - 44, 48, 8, '#8b2020');
+    drawPixelRect(sx - 24, GROUND_Y - 44, 48, 8, '#6a3028');
+    for (let r = 0; r < 5; r++) drawPixelRect(sx - 10, GROUND_Y - 30 + r * 5, 20, 4, r % 2 ? '#1a1a18' : '#2a2a26');
     if (kind === 'mur') {
       drawPixelRect(sx - 6, GROUND_Y - 56, 12, 14, '#303050');
       drawPixelRect(sx - 10, GROUND_Y - 60, 20, 6, '#c9a227');
     } else if (kind === 'koko') {
       drawPixelRect(sx - 4, GROUND_Y - 58, 8, 16, '#804060');
-      ctx.fillStyle = '#ff6b9d'; ctx.font = '5px "Press Start 2P"'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff6b9d'; ctx.font = uiFont(11); ctx.textAlign = 'center';
       ctx.fillText('こ↑', sx, GROUND_Y - 62);
     } else if (kind === 'tono') {
       drawPixelRect(sx - 14, GROUND_Y - 28, 10, 10, '#c8a040');
@@ -11240,7 +11385,7 @@ function drawOutposts(nightish) {
     ctx.fillStyle = pct < 0.35 ? '#f84' : '#f44';
     ctx.fillRect(sx - 18, GROUND_Y - 50, 36 * pct, 4);
     ctx.fillStyle = '#ff6b9d';
-    ctx.font = '6px "Press Start 2P"';
+    ctx.font = uiFont(12);
     ctx.textAlign = 'center';
     ctx.fillText(op.short, sx, GROUND_Y - 56);
     ctx.fillStyle = '#c9a227';
@@ -11261,12 +11406,18 @@ function drawLandmarkScenery(sx, L, nightish) {
   const id = L.id;
   const ch = L.chapter | 0;
   if (id === 'kitazawa' || id === 'setagaya' || (L.kind === 'park' && ch === 0)) {
-    // 下北・公園：柵＋街灯
+    // 下北・公園：柵＋街灯＋室外機。池やネオンに潰さない
     drawPixelRect(sx - 40, GROUND_Y - 14, 2, 14, '#5a4a30');
     drawPixelRect(sx + 38, GROUND_Y - 14, 2, 14, '#5a4a30');
     drawPixelRect(sx - 40, GROUND_Y - 14, 80, 2, '#6a5a38');
     drawPixelRect(sx - 36, GROUND_Y - 28, 2, 14, '#444');
     drawPixelRect(sx - 40, GROUND_Y - 32, 10, 5, nightish ? '#ffe080' : '#ccc');
+    drawPixelRect(sx + 28, GROUND_Y - 12, 12, 8, nightish ? '#3a403c' : '#6a7068');
+    drawPixelRect(sx + 30, GROUND_Y - 10, 8, 3, '#2a2e2c');
+    if (id === 'kitazawa') {
+      drawPixelRect(sx - 22, GROUND_Y - 18, 8, 10, nightish ? '#4a3020' : '#8a6040');
+      drawPixelRect(sx - 20, GROUND_Y - 16, 4, 3, '#c44');
+    }
   }
   if (id === 'inokashira' || id === 'gaien_w') {
     // 井の頭・外縁西：水面きらめき
@@ -11372,14 +11523,14 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
     if (id === 'kichijoji') {
       drawPixelRect(sx - 8, GROUND_Y - 48, 16, 6, '#222');
       ctx.fillStyle = '#ffd700';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('吉', sx, GROUND_Y - 43);
     } else if (id === 'gaien_e') {
       drawPixelRect(sx - 6, GROUND_Y - 48, 12, 4, '#8a2a1a');
     } else {
       ctx.fillStyle = '#ffd700';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('寿し', sx, GROUND_Y - 42);
     }
@@ -11408,12 +11559,12 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
     if (id === 'kabuki') {
       drawPixelRect(sx - 16, GROUND_Y - 40, 32, 5, '#ff6b9d');
       ctx.fillStyle = '#fcf';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('NEON洗', sx, GROUND_Y - 36);
     } else {
       ctx.fillStyle = '#8af';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('洗濯', sx, GROUND_Y - 38);
     }
@@ -11452,7 +11603,7 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
     if (id === 'gaien_w') {
       drawPixelRect(sx - 8, GROUND_Y - 64, 16, 6, '#8a6a20');
       ctx.fillStyle = '#ffd700';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('外縁', sx, GROUND_Y - 59);
     }
@@ -11474,7 +11625,7 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
       // 施設看板＋等級で見た目差
       drawPixelRect(sx - 14, GROUND_Y - 62, 28, 8, fac >= 3 ? '#ff6b9d' : fac >= 2 ? '#ffd700' : '#c9a227');
       ctx.fillStyle = '#1a1008';
-      ctx.font = '5px "Press Start 2P"';
+      ctx.font = uiFont(11);
       ctx.textAlign = 'center';
       ctx.fillText('Lv' + fac, sx, GROUND_Y - 56);
       // Lv2+: 旗
@@ -11483,7 +11634,7 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
         drawPixelRect(sx + 18, GROUND_Y - 50, 2, 28 + fac * 2, '#888');
         drawPixelRect(sx + 20, fy, 14, 8, fac >= 3 ? '#ff6b9d' : '#ffd700');
         ctx.fillStyle = '#1a1008';
-        ctx.font = '4px "Press Start 2P"';
+        ctx.font = uiFont(11);
         ctx.fillText(fac >= 3 ? 'MAX' : '施設', sx + 27, fy + 6);
       }
       // Lv3: 屋根金縁＋煙
@@ -11498,7 +11649,7 @@ function drawLandmarkBuilding(sx, L, opened, nightish) {
       // 作業員がいる施設は足元に作業マーク
       if ((state.workers || []).some(w => w.lmId === L.id)) {
         ctx.fillStyle = '#8cf';
-        ctx.font = '5px "Press Start 2P"';
+        ctx.font = uiFont(11);
         ctx.fillText('作業中', sx, GROUND_Y + 12);
       }
     }
@@ -11534,7 +11685,7 @@ function drawLandmarkMap(phase, nightish) {
     drawLandmarkBuilding(sx, L, opened, nightish);
     ctx.globalAlpha = opened ? 0.95 : 0.4 + Math.sin(state.animT * 2 + L.x * 0.01) * 0.06;
     ctx.fillStyle = opened ? '#ffd700' : '#c9a227';
-    ctx.font = '6px "Press Start 2P"';
+    ctx.font = uiFont(12);
     ctx.textAlign = 'center';
     const fac = opened ? facilityLv(L.id) : 0;
     // fac used below for badge
@@ -11555,12 +11706,12 @@ function drawLandmarkMap(phase, nightish) {
     const pulse = 0.45 + Math.sin(state.animT * 5 + sec.x * 0.02) * 0.25;
     ctx.globalAlpha = pulse;
     ctx.fillStyle = '#ffd700';
-    ctx.font = '10px "Press Start 2P"';
+    ctx.font = uiFont(16);
     ctx.textAlign = 'center';
     ctx.fillText('★', sx, GROUND_Y - 36 + Math.sin(state.animT * 3) * 2);
     ctx.globalAlpha = 0.7;
     ctx.fillStyle = '#c9a227';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.fillText('隠し', sx, GROUND_Y - 22);
     ctx.globalAlpha = 1;
   }
@@ -11577,7 +11728,7 @@ function drawLandmarkMap(phase, nightish) {
     drawPixelRect(sx + 48, GROUND_Y - 18, 2, 4, '#6a4a28');
     drawPixelRect(sx + 56, GROUND_Y - 34, 12, 16, '#1a1a1a'); // 時刻表
     ctx.fillStyle = state.assault ? '#f84' : '#8cf';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText(state.assault ? 'RAID' : 'BUS', sx + 46, GROUND_Y - 48);
     if (state.bus) {
@@ -11622,7 +11773,7 @@ function drawWorker(x, y, w) {
     }
   }
   ctx.fillStyle = '#9cf';
-  ctx.font = '5px "Press Start 2P"';
+  ctx.font = uiFont(11);
   ctx.textAlign = 'center';
   ctx.fillText('作業', x, y - 48 + bob);
 }
@@ -11630,18 +11781,13 @@ function drawWorker(x, y, w) {
 function drawCampfire(x, y) {
   ctx.imageSmoothingEnabled = false;
   const sway = state.nightSway;
-  // 石輪
-  blitOutlined(x - 16, y - 10, [
-    '..HH..HH..',
-    '.HhhHHhhH.',
-    'HhhhhhhhhH',
-    '.HHHHHHHH.',
-  ], PAL, 2, false);
-  drawPixelRect(x - 10, y - 10, 8, 8, '#5a3a20');
-  drawPixelRect(x + 2, y - 12, 8, 10, '#4a2a10');
+  // 部室コア：コンクリートブロック＋七輪。中世の焚き火輪ではない
+  drawPixelRect(x - 16, y - 10, 12, 10, '#6a6860');
+  drawPixelRect(x + 4, y - 10, 12, 10, '#5a5850');
+  drawPixelRect(x - 10, y - 14, 20, 6, '#4a3a28');
+  drawPixelRect(x - 8, y - 16, 16, 3, '#3a2a1a');
   const flame = (FR_FLAME && FR_FLAME.length) ? FR_FLAME : [['..F.','FYF.','..C.']];
   const fi = frameIndex(10, flame.length);
-  // 火のコア光
   {
     const cg = ctx.createRadialGradient(x, y - 22, 2, x, y - 22, 36);
     cg.addColorStop(0, 'rgba(255,230,120,0.55)');
@@ -11651,7 +11797,12 @@ function drawCampfire(x, y) {
     ctx.fillRect(x - 40, y - 60, 80, 70);
   }
   blitOutlined(x - 8 + sway * 0.3, y - 40, flame[fi] || flame[0], PAL, 3 + Math.min(2, state.civilTier|0), false);
-  // 内政Lvでたき火規模差
+  // 折りたたみ机＋アイスティー缶
+  drawPixelRect(x - 28, y - 8, 18, 3, '#8a7a58');
+  drawPixelRect(x - 26, y - 8, 2, 8, '#6a5a40');
+  drawPixelRect(x - 14, y - 8, 2, 8, '#6a5a40');
+  drawPixelRect(x - 22, y - 14, 4, 6, '#3ad0c8');
+  drawPixelRect(x - 21, y - 16, 2, 2, '#cfe');
   if ((state.civilTier|0) >= 2) {
     const cg2 = ctx.createRadialGradient(x, y - 28, 4, x, y - 28, 50 + (state.bankTier|0)*6);
     cg2.addColorStop(0, 'rgba(255,200,80,0.35)');
@@ -11660,10 +11811,8 @@ function drawCampfire(x, y) {
     ctx.fillRect(x - 55, y - 70, 110, 80);
   }
   if ((state.bankTier|0) >= 1) {
-    ctx.fillStyle = '#8af';
-    ctx.font = '5px "Press Start 2P"';
     ctx.textAlign = 'center';
-    ctx.fillText('810銀行', x, y - 72);
+    drawUiLabel('810銀行', x, y - 72, '#8af', 12);
   }
   const emberN = Math.max(2, Math.round((state.isNight ? 10 : 5) * (GFX.emberMul || 1) * (1 + (state.civilTier|0)*0.25)));
   for (let i = 0; i < emberN; i++) {
@@ -11671,23 +11820,21 @@ function drawCampfire(x, y) {
     const py = y - 28 - ((state.animT * 50 + i * 19) % 48);
     drawPixelRect(px, py, 2, 2, i % 2 ? '#ffcc33' : '#ff6600');
   }
-  // 看板（風で微揺れ）
+  // コルク掲示板（風で微揺れ）
   const signSway = (state.wind || 0) * 0.35;
   ctx.fillStyle = '#3d2b1f';
   ctx.fillRect(x + 18 + signSway * 0.2, y - 40, 4, 40);
-  ctx.fillStyle = '#5a2a1a';
+  ctx.fillStyle = '#8a6a40';
   ctx.fillRect(x + 10 + signSway, y - 64, 78, 30);
-  ctx.strokeStyle = '#ffd700';
+  ctx.strokeStyle = '#c4a070';
   ctx.lineWidth = 2;
   ctx.strokeRect(x + 10 + signSway, y - 64, 78, 30);
-  // 影
+  drawPixelRect(x + 16 + signSway, y - 58, 8, 6, '#f3ead4');
+  drawPixelRect(x + 28 + signSway, y - 56, 10, 5, '#ff6b9d');
   drawSoftShadow(x + 40 + signSway, y, 20, 0.18);
-  ctx.fillStyle = '#ffd700';
-  ctx.font = '7px "Press Start 2P"';
   ctx.textAlign = 'left';
-  ctx.fillText('王道を征く', x + 14 + signSway, y - 50);
-  ctx.fillStyle = '#ff6b9d';
-  ctx.fillText('部室・IKZO', x + 14 + signSway, y - 38);
+  drawUiLabel('王道を征く', x + 14 + signSway, y - 48, '#ffd700', 13);
+  drawUiLabel('部室・IKZO', x + 14 + signSway, y - 36, '#ff6b9d', 13);
   if (SPR.icon) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.icon, x - 36, y - 48, 28, 28);
@@ -11707,96 +11854,75 @@ function drawWall(wall, isLeft) {
   }
   if (wall.level <= 0) {
     const bob = Math.sin(state.animT * 2 + wall.x * 0.01) * 1;
-    // バリケード：斜め丸太＋縄
-    blitOutlined(x - 10, GROUND_Y - 24 + bob, [
-      '..T....T',
-      '.tTT..Tt',
-      'tTTTTTTT',
-      '.TTttTT.',
-      '..T..T..',
-    ], PAL, 3, false);
-    drawPixelRect(x - 12, GROUND_Y - 8 + bob, 24, 2, '#5a3a18');
-    ctx.fillStyle = 'rgba(255,215,0,0.55)';
-    ctx.font = '8px "Press Start 2P"';
+    // 机・コンテナ・波板の仮囲い
+    drawPixelRect(x - 16, GROUND_Y - 14 + bob, 14, 10, '#6a5840');
+    drawPixelRect(x + 2, GROUND_Y - 12 + bob, 12, 8, '#8a6a28');
+    drawPixelRect(x - 10, GROUND_Y - 22 + bob, 20, 8, '#7a7a70');
+    drawPixelRect(x - 8, GROUND_Y - 20 + bob, 16, 2, '#5a5a54');
+    drawPixelRect(x + 10, GROUND_Y - 10 + bob, 5, 8, '#ff8844');
     ctx.textAlign = 'center';
-    ctx.fillText(miliWallName(), x, GROUND_Y - 30);
+    drawUiLabel(miliWallName(), x, GROUND_Y - 30, 'rgba(255,215,0,0.85)', 13);
     return;
   }
   const wood = wall.level === 1;
   const h = wood ? 56 : 82;
   const sway = (state.wind || 0) * 0.55 + (state.isNight ? state.nightSway * 0.2 : 0);
 
-  // 足元の影シルエット
   ctx.globalAlpha = 0.28;
   ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.ellipse(x, GROUND_Y + 3, wood ? 18 : 22, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  // 軍事Lv／壁Lvでオーラ差
   if ((wall.level|0) >= 2 || (state.miliTier|0) >= 2) {
     const ag = ctx.createRadialGradient(x, GROUND_Y - 30, 4, x, GROUND_Y - 30, 40);
-    ag.addColorStop(0, 'rgba(255,107,157,0.22)');
+    ag.addColorStop(0, 'rgba(255,107,157,0.18)');
     ag.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = ag;
     ctx.fillRect(x - 40, GROUND_Y - 70, 80, 70);
   }
 
   if (wood) {
-    // 木壁：横ログ積み＋節＋縄帯
-    for (let row = 0; row < Math.ceil(h / 6); row++) {
-      const oy = GROUND_Y - (row + 1) * 6;
-      const shade = row % 2 === 0 ? '#7a4a22' : '#8b5a2b';
-      const hi = row % 2 === 0 ? '#a07040' : '#c09058';
-      drawPixelRect(x - 14 + sway, oy, 28, 5, shade);
-      drawPixelRect(x - 14 + sway, oy, 28, 1, '#3a2010');
-      drawPixelRect(x - 14 + sway, oy, 1, 5, '#2a1508');
-      drawPixelRect(x + 13 + sway, oy, 1, 5, '#2a1508');
-      // 木目ハイライト
-      drawPixelRect(x - 10 + sway + (row % 3) * 4, oy + 1, 6, 1, hi);
-      // 節
-      if (row % 3 === 1) drawPixelRect(x - 2 + sway, oy + 2, 2, 2, '#4a2810');
+    // 合板＋波板＋土嚢。ログ城壁ではない
+    for (let row = 0; row < Math.ceil(h / 8); row++) {
+      const oy = GROUND_Y - (row + 1) * 8;
+      const shade = row % 2 === 0 ? '#8a7a58' : '#6a5a40';
+      drawPixelRect(x - 15 + sway, oy, 30, 7, shade);
+      drawPixelRect(x - 15 + sway, oy, 30, 1, '#3a3020');
+      if (row % 2 === 0) drawPixelRect(x - 12 + sway, oy + 2, 8, 3, '#c4a070');
     }
-    // 縄バンド
-    for (const by of [GROUND_Y - 18, GROUND_Y - 40]) {
-      drawPixelRect(x - 15 + sway, by, 30, 3, '#c9a227');
-      drawPixelRect(x - 15 + sway, by + 1, 30, 1, '#ffe566');
+    for (const by of [GROUND_Y - 16, GROUND_Y - 36]) {
+      drawPixelRect(x - 16 + sway, by, 32, 5, '#7a7a70');
+      drawPixelRect(x - 16 + sway, by + 1, 32, 1, '#4a4a44');
     }
-    // 簡易歯（尖塔）
-    for (let i = 0; i < 5; i++) {
-      const bx = x - 14 + i * 6 + sway;
-      blitPixels(bx, GROUND_Y - h - 8, ['.T.','TTT','tTt'], PAL, 2, false);
-    }
+    drawPixelRect(x - 18 + sway, GROUND_Y - 10, 10, 8, '#8a7848');
+    drawPixelRect(x + 8 + sway, GROUND_Y - 10, 10, 8, '#8a7848');
+    // 屋上スピーカー
+    drawPixelRect(x - 6 + sway, GROUND_Y - h - 10, 12, 8, '#3a3a38');
+    drawPixelRect(x - 4 + sway, GROUND_Y - h - 8, 8, 4, '#2a2a28');
   } else {
-    // 石壁：煉瓦目地＋苔＋狭間
-    const brickW = 5, brickH = 4;
+    // コンクリートブロック＋錆び鋼。狭間の石城ではない
+    const brickW = 6, brickH = 5;
     const rows = Math.ceil(h / brickH);
     for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < 7; col++) {
+      for (let col = 0; col < 6; col++) {
         const ox = x - 16 + col * brickW + (row % 2) * 2;
         const oy = GROUND_Y - (row + 1) * brickH;
-        const n = (row * 7 + col) % 5;
-        const shade = n === 0 ? '#3a3a44' : n === 1 ? '#5a5a66' : n === 2 ? '#7a7a88' : n === 3 ? '#6a6a74' : '#8a8a96';
+        const n = (row * 6 + col) % 4;
+        const shade = n === 0 ? '#6a6860' : n === 1 ? '#5a5850' : n === 2 ? '#7a7868' : '#4a4840';
         drawPixelRect(ox + sway, oy, brickW - 1, brickH - 1, shade);
-        // 目地
-        drawPixelRect(ox + sway, oy + brickH - 1, brickW, 1, '#1a1a22');
-        if ((row + col) % 6 === 0) drawPixelRect(ox + sway + 1, oy + 1, 1, 1, '#c8c8d8');
-        // 苔（下側）
-        if (row < 3 && (col + row) % 4 === 0) drawPixelRect(ox + sway, oy + 2, 3, 1, '#3a6a38');
+        drawPixelRect(ox + sway, oy + brickH - 1, brickW, 1, '#2a2820');
+        if ((row + col) % 5 === 0) drawPixelRect(ox + sway + 1, oy + 1, 2, 1, '#8a6040');
+        if (row < 2 && (col + row) % 3 === 0) drawPixelRect(ox + sway, oy + 3, 3, 1, '#3a6a38');
       }
     }
-    // アウトライン
-    drawPixelRect(x - 17 + sway, GROUND_Y - h, 1, h, '#0e0e14');
-    drawPixelRect(x + 16 + sway, GROUND_Y - h, 1, h, '#0e0e14');
-    // 狭間（石の歯）
-    for (let i = 0; i < 5; i++) {
-      const bx = x - 16 + i * 7 + sway;
-      drawPixelRect(bx, GROUND_Y - h - 12, 5, 12, '#6a6a78');
-      drawPixelRect(bx, GROUND_Y - h - 12, 5, 1, '#d0d0e0');
-      drawPixelRect(bx + 1, GROUND_Y - h - 10, 3, 2, '#9a9aac');
-    }
-    // 上部の金縁アクセント
-    drawPixelRect(x - 16 + sway, GROUND_Y - h, 32, 2, '#c9a227');
+    drawPixelRect(x - 17 + sway, GROUND_Y - h, 1, h, '#1a1814');
+    drawPixelRect(x + 16 + sway, GROUND_Y - h, 1, h, '#1a1814');
+    // 屋上室外機＋鉄筋
+    drawPixelRect(x - 10 + sway, GROUND_Y - h - 10, 14, 8, '#5a6058');
+    drawPixelRect(x - 8 + sway, GROUND_Y - h - 8, 10, 3, '#2a2e2c');
+    drawPixelRect(x + 8 + sway, GROUND_Y - h - 14, 2, 14, '#4a4030');
+    drawPixelRect(x - 16 + sway, GROUND_Y - h, 32, 2, '#c4a070');
   }
 
   // 旗（風連動 + IKZO影）
@@ -11816,19 +11942,14 @@ function drawWall(wall, isLeft) {
     'RrRRRRrR',
     'RRRRRRRR',
   ], PAL, 2, false);
-  ctx.fillStyle = '#fff';
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'left';
-  // IKZO文字も風で揺れる
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillText('IKZO', fx + 5 + (state.wind || 0) * 0.3, GROUND_Y - poleH + 13);
   ctx.fillStyle = '#fff';
   ctx.fillText('IKZO', fx + 4, GROUND_Y - poleH + 12);
-  // レベルラベル
-  ctx.fillStyle = wood ? '#c9a227' : '#d0d0e8';
-  ctx.font = '6px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText(miliWallName(wall.level), x, GROUND_Y - h - 16);
+  drawUiLabel(miliWallName(wall.level), x, GROUND_Y - h - 16, wood ? '#c9a227' : '#d0d0e8', 12);
   drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, wood ? '#8c4' : '#4cf', '#333');
 }
 
@@ -11942,7 +12063,7 @@ function drawYajyu(x, y, facing) {
   const M = state.mounts;
   if (mount && M) {
     ctx.fillStyle = M.stam < 18 ? '#f84' : '#8cf';
-    ctx.font = '6px "Press Start 2P"';
+    ctx.font = uiFont(12);
     ctx.textAlign = 'center';
     ctx.fillText(mount.short + ' ' + Math.round(M.stam), x, y + 14);
   }
@@ -11966,7 +12087,7 @@ function drawArcher(x, y, u) {
     drawPixelRect(x + 10 + fw, y - 44 + bob, 10, 8, '#ff6b9d');
     drawPixelRect(x + 10 + fw, y - 42 + bob, 8, 2, '#ffd700');
     ctx.fillStyle = '#ff6b9d';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText('トリオ', x, y - 48 + bob);
     if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 52 + bob, 24, 24);
@@ -11977,8 +12098,12 @@ function drawArcher(x, y, u) {
   const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
   // 台座（塔感）＋装備スキンアクセント
   const skinA = towerSkinAccent();
-  drawPixelRect(x - 12, y - 4, 24, 4, '#3a2818');
-  drawPixelRect(x - 10, y - 6, 20, 2, skinA);
+  // 屋上スピーカー台座（木の砲台ではない）
+  drawPixelRect(x - 12, y - 10, 24, 10, '#4a4a44');
+  drawPixelRect(x - 10, y - 16, 20, 6, '#2a2a28');
+  drawPixelRect(x - 8, y - 14, 6, 4, skinA);
+  drawPixelRect(x + 2, y - 14, 6, 4, skinA);
+  drawPixelRect(x - 12, y - 4, 24, 4, '#3a3830');
   if (state.towerSkin && state.towerSkin !== 'default') {
     drawPixelRect(x - 14, y - 8, 28, 2, skinA);
     ctx.globalAlpha = 0.22;
@@ -11996,7 +12121,7 @@ function drawArcher(x, y, u) {
   }
   if ((u.tier | 0) > 0) {
     ctx.fillStyle = '#ffd700';
-    ctx.font = '5px "Press Start 2P"';
+    ctx.font = uiFont(11);
     ctx.textAlign = 'center';
     ctx.fillText('T' + (u.tier | 0), x, y - 56 + bob);
   }
@@ -12055,7 +12180,7 @@ function drawArcher(x, y, u) {
     ctx.globalAlpha = 1;
   }
   ctx.fillStyle = state.awakenA ? '#6af' : (state.awakenB === 'iced' ? '#8cf' : '#8af');
-  ctx.font = '5px "Press Start 2P"';
+  ctx.font = uiFont(11);
   ctx.textAlign = 'center';
   let tag = miliGunNameShort(u.tier|0);
   if (state.awakenA) tag = '青' + tag;
@@ -12115,7 +12240,7 @@ function drawEnemy(x, y, e) {
   }
   if (e.isKoko) {
     ctx.fillStyle = '#44ddff';
-    ctx.font = '8px "Press Start 2P"';
+    ctx.font = uiFont(14);
     ctx.textAlign = 'center';
     ctx.fillText('↑', x - 10, y - 50 + Math.sin(state.animT * 12) * 3);
     ctx.fillStyle = '#ff44aa';
@@ -12123,7 +12248,7 @@ function drawEnemy(x, y, e) {
   }
   if (e.stunned > 0) {
     ctx.fillStyle = '#ff6b9d';
-    ctx.font = '7px "Press Start 2P"';
+    ctx.font = uiFont(13);
     ctx.textAlign = 'center';
     ctx.fillText('（）', x, y - 54);
   }
@@ -12166,7 +12291,7 @@ function drawEnemy(x, y, e) {
     }
   }
   ctx.fillStyle = e.isTaka ? '#ff8' : e.isMur ? '#33ffee' : e.isTono ? '#ffe066' : '#f88';
-  ctx.font = '6px "Press Start 2P"';
+  ctx.font = uiFont(12);
   ctx.textAlign = 'center';
   ctx.fillText(e.name, x, y - 48 + stunBob);
   drawBar(x - 14, y + 4, 28, 3, e.hp / e.maxHp, '#f44', '#333');
@@ -12174,7 +12299,7 @@ function drawEnemy(x, y, e) {
 }
 try {
   window.__YK = {
-    get state() { return state; }, player, ADV, SAVE_KEY, MOUNTS, NEST_DEFS,
+    get state() { return state; }, player, ADV, SAVE_KEY, MOUNTS, NEST_DEFS, structures,
     inspectAdvCue, inspectAdvGraffiti, inspectAdvBox, enterAdvDungeon,
     advDungeonInteract, exitDungeon, resetGame, applySave, buildSaveBlob,
     saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
