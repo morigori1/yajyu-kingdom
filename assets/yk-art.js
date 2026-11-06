@@ -118,24 +118,42 @@
     if (spec.hunch) rect(b, cx - (w >> 1) - 1, y + 2, 2, 4, k.shirt);
   }
 
-  function paintArm(b, x, y, k, raised, fwd) {
-    const len = raised ? 4 : 6;
-    const dy = raised ? -1 : 1;
-    const dx = fwd ? 1 : 0;
-    for (let i = 0; i < len; i++) setp(b, x + dx * (i > 2 ? 1 : 0), y + i * dy + (raised ? -i : 0), k.skin);
-    setp(b, x + (fwd ? 2 : 0), y + (raised ? -len : len - 1), k.shade);
+  function line2(b, x0, y0, x1, y1, ch, ch2, thick) {
+    const n = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
+    const w = thick || 2;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = Math.round(x0 + (x1 - x0) * t);
+      const y = Math.round(y0 + (y1 - y0) * t);
+      for (let k = 0; k < w; k++) setp(b, x + k, y, k ? (ch2 || ch) : ch);
+    }
   }
 
-  function paintLeg(b, x, y, k, spec, bent, fwd) {
-    const h = spec.thin ? 9 : spec.bulky ? 6 : 7;
-    const lift = bent ? 2 : 0;
-    const ox = fwd ? 2 : 0;
-    for (let i = 0; i < h - lift; i++) {
-      setp(b, x + (i > 3 ? ox : 0), y + i, k.pants);
-      setp(b, x + 1 + (i > 3 ? ox : 0), y + i, k.pants);
-    }
-    const fy = y + h - lift;
-    rect(b, x + ox - 1, fy, 4, 2, k.shoe);
+  function paintArm(b, sx, sy, k, raise, swing, side) {
+    // 2-bone: upper then forearm. raise 0 hang / 1 up. swing -2..2.
+    const dir = side < 0 ? -1 : 1;
+    const sw = swing || 0;
+    const up = raise ? 1 : 0;
+    const elX = sx + dir + Math.round(sw * 0.6);
+    const elY = sy + (up ? -3 : 4);
+    const hx = elX + Math.round(sw * 0.9) + (up ? dir : 0);
+    const hy = elY + (up ? -2 : 3) + (Math.abs(sw) > 1 ? 0 : 1);
+    line2(b, sx, sy, elX, elY, k.shirt, k.hi);
+    line2(b, elX, elY, hx, hy, k.skin, k.skin);
+    setp(b, hx, hy, k.shade);
+    setp(b, hx + dir, hy, k.shade);
+  }
+
+  function paintLeg(b, hx, hipY, ground, k, spec, bent, fwd, plant) {
+    const thigh = spec.thin ? 4 : spec.bulky ? 3 : 4;
+    const shin = spec.thin ? 5 : spec.bulky ? 3 : 4;
+    const kneeX = hx + Math.round((fwd || 0) * 0.45);
+    const kneeY = hipY + thigh - (bent ? 2 : 0);
+    const footX = plant ? hx + Math.round((fwd || 0) * 0.15) : hx + (fwd || 0);
+    const footY = plant ? ground - 2 : ground - 2 - (bent ? 3 : 2);
+    line2(b, hx, hipY, kneeX, kneeY, k.pants, k.pants, spec.thin ? 2 : 3);
+    line2(b, kneeX, kneeY, footX, footY, k.pants, k.pants, spec.thin ? 2 : 3);
+    rect(b, footX - 1, plant ? ground - 2 : footY, plant ? 5 : 4, 2, k.shoe);
   }
 
   function paintProp(b, spec, pose, cx, ty) {
@@ -179,46 +197,89 @@
   }
 
   const POSES = {
-    idle: { lFwd: 0, rFwd: 0, lBent: 0, rBent: 0, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0 },
-    idle1: { lFwd: 0, rFwd: 0, lBent: 0, rBent: 0, lArm: 0, rArm: 1, lRaise: 0, rRaise: 1, torso: 0, head: 0, lean: 0 },
-    walk0: { lFwd: 2, rFwd: -1, lBent: 0, rBent: 1, lArm: -1, rArm: 1, lRaise: 0, rRaise: 0, torso: -1, head: 0, lean: 1 },
-    walk1: { lFwd: 1, rFwd: 0, lBent: 0, rBent: 0, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0 },
-    walk2: { lFwd: -1, rFwd: 2, lBent: 1, rBent: 0, lArm: 1, rArm: -1, lRaise: 0, rRaise: 0, torso: -1, head: 0, lean: 1 },
-    walk3: { lFwd: 0, rFwd: 1, lBent: 0, rBent: 0, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0 },
-    run0: { lFwd: 3, rFwd: -2, lBent: 0, rBent: 1, lArm: -2, rArm: 2, lRaise: 1, rRaise: 0, torso: -2, head: -1, lean: 2 },
-    run1: { lFwd: 2, rFwd: -1, lBent: 1, rBent: 0, lArm: -1, rArm: 1, lRaise: 1, rRaise: 0, torso: -1, head: 0, lean: 2 },
-    run2: { lFwd: -2, rFwd: 3, lBent: 1, rBent: 0, lArm: 2, rArm: -2, lRaise: 0, rRaise: 1, torso: -2, head: -1, lean: 2 },
-    run3: { lFwd: -1, rFwd: 2, lBent: 0, rBent: 1, lArm: 1, rArm: -1, lRaise: 0, rRaise: 1, torso: -1, head: 0, lean: 2 },
-    windup: { lFwd: -1, rFwd: 1, lBent: 1, rBent: 0, lArm: -1, rArm: 0, lRaise: 0, rRaise: 1, torso: 1, head: 0, lean: -1 },
-    attack: { lFwd: 2, rFwd: -1, lBent: 0, rBent: 1, lArm: 2, rArm: -1, lRaise: 0, rRaise: 0, torso: -1, head: 0, lean: 2 },
-    hit: { lFwd: -1, rFwd: 0, lBent: 1, rBent: 0, lArm: -1, rArm: -1, lRaise: 1, rRaise: 0, torso: 1, head: 1, lean: -1 },
-    skill: { lFwd: 0, rFwd: 0, lBent: 0, rBent: 0, lArm: 0, rArm: 0, lRaise: 1, rRaise: 1, torso: -1, head: 0, lean: 0 },
-    ride: { lFwd: 1, rFwd: 1, lBent: 1, rBent: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 2, head: 1, lean: 1 },
-    die_slump: { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 6, head: 7, lean: 0, squat: 1 },
-    die_sit: { lFwd: 3, rFwd: 2, lBent: 1, rBent: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 8, head: 9, lean: 0, squat: 1 },
-    die_fold: { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lArm: 1, rArm: -1, lRaise: 0, rRaise: 0, torso: 10, head: 12, lean: 1, squat: 1 },
-    die_lid: { lFwd: 2, rFwd: 0, lBent: 1, rBent: 1, lArm: 1, rArm: -1, lRaise: 0, rRaise: 0, torso: 7, head: 8, lean: 1, squat: 1 },
-    die_flag: { lFwd: 0, rFwd: 1, lBent: 1, rBent: 0, lArm: 1, rArm: 1, lRaise: 0, rRaise: 0, torso: 6, head: 7, lean: 1, squat: 1 },
-    die_bag: { lFwd: -1, rFwd: 1, lBent: 1, rBent: 1, lArm: -1, rArm: 0, lRaise: 0, rRaise: 0, torso: 7, head: 8, lean: -1, squat: 1 },
-    die_pop: { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lArm: 1, rArm: -1, lRaise: 1, rRaise: 1, torso: 5, head: 4, lean: 0, squat: 1 },
+    idle:      { lFwd: 0, rFwd: 1, lBent: 0, rBent: 1, lPlant: 1, rPlant: 0, lArm: 0, rArm: 1, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0, hip: -1 },
+    idle1:     { lFwd: 1, rFwd: 0, lBent: 1, rBent: 0, lPlant: 0, rPlant: 1, lArm: 1, rArm: 0, lRaise: 0, rRaise: 1, torso: 0, head: 0, lean: 0, hip: 1 },
+    walk0:     { lFwd: 0, rFwd: 3, lBent: 0, rBent: 1, lPlant: 1, rPlant: 0, lArm: 1, rArm: -2, lRaise: 0, rRaise: 0, torso: 1, head: 0, lean: 0, hip: -1 },
+    walk1:     { lFwd: -1, rFwd: 2, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: 0, rArm: -1, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0, hip: 0 },
+    walk2:     { lFwd: -3, rFwd: 3, lBent: 1, rBent: 0, lPlant: 0, rPlant: 1, lArm: 2, rArm: -2, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 1, hip: 0 },
+    walk3:     { lFwd: 3, rFwd: 0, lBent: 1, rBent: 0, lPlant: 0, rPlant: 1, lArm: -2, rArm: 1, lRaise: 0, rRaise: 0, torso: 1, head: 0, lean: 0, hip: 1 },
+    walk4:     { lFwd: 2, rFwd: -1, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: -1, rArm: 0, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 0, hip: 0 },
+    walk5:     { lFwd: 3, rFwd: -3, lBent: 0, rBent: 1, lPlant: 1, rPlant: 0, lArm: -2, rArm: 2, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 1, hip: 0 },
+    run0:      { lFwd: 1, rFwd: 3, lBent: 0, rBent: 1, lPlant: 1, rPlant: 0, lArm: 2, rArm: -2, lRaise: 0, rRaise: 1, torso: 0, head: -1, lean: 1, hip: -1 },
+    run1:      { lFwd: -1, rFwd: 2, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: 1, rArm: -1, lRaise: 1, rRaise: 1, torso: -1, head: -1, lean: 2, hip: 0 },
+    run2:      { lFwd: -3, rFwd: 3, lBent: 1, rBent: 0, lPlant: 0, rPlant: 0, lArm: 2, rArm: -2, lRaise: 1, rRaise: 0, torso: -1, head: 0, lean: 2, hip: 0 },
+    run3:      { lFwd: 3, rFwd: 1, lBent: 1, rBent: 0, lPlant: 0, rPlant: 1, lArm: -2, rArm: 2, lRaise: 1, rRaise: 0, torso: 0, head: -1, lean: 1, hip: 1 },
+    run4:      { lFwd: 2, rFwd: -1, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: -1, rArm: 1, lRaise: 1, rRaise: 1, torso: -1, head: -1, lean: 2, hip: 0 },
+    run5:      { lFwd: 3, rFwd: -3, lBent: 0, rBent: 1, lPlant: 0, rPlant: 0, lArm: -2, rArm: 2, lRaise: 0, rRaise: 1, torso: -1, head: 0, lean: 2, hip: 0 },
+    windup:    { lFwd: -2, rFwd: 1, lBent: 1, rBent: 0, lPlant: 0, rPlant: 1, lArm: -2, rArm: 0, lRaise: 1, rRaise: 0, torso: 1, head: 0, lean: -1, hip: 1 },
+    attack:    { lFwd: 3, rFwd: -1, lBent: 0, rBent: 1, lPlant: 1, rPlant: 0, lArm: 2, rArm: -1, lRaise: 0, rRaise: 0, torso: 0, head: 0, lean: 2, hip: -1 },
+    recover:   { lFwd: 1, rFwd: 1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 1, head: 1, lean: 0, hip: 0 },
+    emerge:    { lFwd: 0, rFwd: 2, lBent: 1, rBent: 0, lPlant: 1, rPlant: 0, lArm: 1, rArm: 1, lRaise: 1, rRaise: 0, torso: 3, head: 2, lean: 0, hip: -1 },
+    hit:       { lFwd: 0, rFwd: 1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: -1, rArm: 1, lRaise: 1, rRaise: 0, torso: 1, head: 1, lean: -1, hip: 0 },
+    skill:     { lFwd: 1, rFwd: 1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 0, rArm: 0, lRaise: 1, rRaise: 1, torso: 1, head: 0, lean: 0, hip: 0 },
+    ride:      { lFwd: 1, rFwd: 1, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: 0, rArm: 1, lRaise: 0, rRaise: 0, torso: 2, head: 1, lean: 1, hip: 0 },
+    die_brace: { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 0, rArm: -1, lRaise: 0, rRaise: 0, torso: 2, head: 1, lean: 0, hip: 0 },
+    die_slump: { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 6, head: 7, lean: 0, squat: 1, hip: 0 },
+    die_sit:   { lFwd: 2, rFwd: 2, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 0, rArm: 0, lRaise: 0, rRaise: 0, torso: 8, head: 9, lean: 0, squat: 1, hip: 0 },
+    die_fold:  { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 0, lArm: 1, rArm: -1, lRaise: 0, rRaise: 0, torso: 10, head: 12, lean: 1, squat: 1, hip: 0 },
+    die_lid:   { lFwd: 2, rFwd: 0, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: 1, rArm: -1, lRaise: 0, rRaise: 0, torso: 7, head: 8, lean: 1, squat: 1, hip: 0 },
+    die_flag:  { lFwd: 0, rFwd: 1, lBent: 1, rBent: 0, lPlant: 1, rPlant: 0, lArm: 1, rArm: 1, lRaise: 0, rRaise: 0, torso: 6, head: 7, lean: 1, squat: 1, hip: 0 },
+    die_bag:   { lFwd: -1, rFwd: 1, lBent: 1, rBent: 1, lPlant: 1, rPlant: 1, lArm: -1, rArm: 0, lRaise: 0, rRaise: 0, torso: 7, head: 8, lean: -1, squat: 1, hip: 0 },
+    die_pop:   { lFwd: 1, rFwd: -1, lBent: 1, rBent: 1, lPlant: 0, rPlant: 0, lArm: 1, rArm: -1, lRaise: 1, rRaise: 1, torso: 5, head: 4, lean: 0, squat: 1, hip: 0 },
   };
+
+  function strideMul(kindId) {
+    if (kindId === 'runner') return 1.35;
+    if (kindId === 'shield' || kindId === 'boss') return 0.65;
+    if (kindId === 'gaze') return 0.8;
+    if (kindId === 'taka') return 0.85;
+    if (kindId === 'kohai') return 0.8;
+    if (kindId === 'senpai') return 1.05;
+    return 1;
+  }
+
+  function poseForKind(kindId, poseName) {
+    const src = POSES[poseName] || POSES.idle;
+    const p = Object.assign({}, src);
+    const s = strideMul(kindId);
+    p.lFwd = Math.round((p.lFwd || 0) * s);
+    p.rFwd = Math.round((p.rFwd || 0) * s);
+    if (kindId === 'runner') {
+      p.lean = (p.lean || 0) + (poseName.indexOf('walk') === 0 || poseName.indexOf('run') === 0 ? 1 : 0);
+      if (poseName === 'idle' || poseName === 'idle1') { p.lBent = 1; p.rBent = 1; }
+    }
+    if (kindId === 'shield' || kindId === 'boss') {
+      p.lArm = Math.round((p.lArm || 0) * 0.5);
+      p.rArm = Math.round((p.rArm || 0) * 0.5);
+    }
+    if (kindId === 'taka') { p.torso = (p.torso || 0) + 1; p.head = (p.head || 0) + 1; }
+    if (kindId === 'gaze') { p.head = (p.head || 0) - 1; }
+    if (kindId === 'support' && (poseName === 'attack' || poseName === 'windup')) p.rRaise = 1;
+    if (kindId === 'ranged' && poseName === 'windup') { p.rRaise = 1; p.rArm = 1; }
+    if (kindId === 'kohai' && (poseName === 'attack' || poseName === 'windup')) p.rRaise = 1;
+    return p;
+  }
 
   function paintStanding(kindId, poseName) {
     const k = KIND[kindId];
     const spec = Object.assign({ kind: kindId }, k);
-    const p = POSES[poseName] || POSES.idle;
+    const p = poseForKind(kindId, poseName);
     const b = buf(CW, CH);
-    const cx = 12 + (p.lean || 0);
     const ground = CH - 2;
+    const hip = p.hip || 0;
+    const cx = 12 + (p.lean || 0) + hip;
     const torsoH = spec.tall;
     let ty = ground - 8 - torsoH + (p.torso || 0) + (p.squat ? 2 : 0);
     if (ty < 6) ty = 6;
     if (ty > ground - 8) ty = ground - 8;
-    paintLeg(b, cx - 3, ground - 8 + (p.torso || 0), k, spec, p.lBent, p.lFwd);
-    paintLeg(b, cx + 1, ground - 8 + (p.torso || 0), k, spec, p.rBent, p.rFwd);
+    const hipY = ty + torsoH - 1;
+    paintLeg(b, cx - 3 + Math.min(0, hip), hipY, ground, k, spec, p.lBent, p.lFwd, !!p.lPlant);
+    paintLeg(b, cx + 1 + Math.max(0, hip), hipY, ground, k, spec, p.rBent, p.rFwd, !!p.rPlant);
+    rect(b, cx - 3, hipY, Math.max(6, spec.wide - 1), 2, k.pants);
     paintTorso(b, cx, ty, k, spec);
-    paintArm(b, cx - (spec.wide >> 1) - 1 + p.lArm, ty + 1, k, p.lRaise, p.lFwd < 0);
-    paintArm(b, cx + (spec.wide >> 1) + p.rArm, ty + 1, k, p.rRaise, p.rFwd > 0);
+    const shX = Math.round(((p.rFwd || 0) - (p.lFwd || 0)) * 0.25);
+    paintArm(b, cx - (spec.wide >> 1) - 1 + (p.lArm || 0) + shX, ty + 1, k, p.lRaise, -(p.rFwd || 0) + (p.lArm || 0), -1);
+    paintArm(b, cx + (spec.wide >> 1) + (p.rArm || 0) + shX, ty + 1, k, p.rRaise, (p.lFwd || 0) + (p.rArm || 0), 1);
     let hy = ty - 4 + (p.head || 0);
     if (hy < 4) hy = 4;
     if (hy > ty - 2) hy = ty - 2;
@@ -418,19 +479,16 @@
 
   const ACTORS = ['senpai', 'grunt', 'runner', 'shield', 'ranged', 'support', 'taka', 'gaze', 'boss', 'kohai'];
   const ACTOR_POSES = [
-    'idle', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3',
-    'windup', 'attack', 'hit',
+    'idle', 'idle1',
+    'walk0', 'walk1', 'walk2', 'walk3', 'walk4', 'walk5',
+    'run0', 'run1', 'run2', 'run3', 'run4', 'run5',
+    'windup', 'attack', 'recover', 'emerge', 'hit', 'skill', 'ride',
+    'die_brace',
     'die_slump', 'die_topple', 'die_tumble', 'die_sit', 'die_fold',
     'die_lid', 'die_flag', 'die_bag', 'die_pop',
   ];
   for (const kind of ACTORS) {
     for (const pose of ACTOR_POSES) add(kind + '_' + pose, actorFrame(kind, pose));
-    add(kind + '_run0', actorFrame(kind, 'run0'));
-    add(kind + '_run1', actorFrame(kind, 'run1'));
-    add(kind + '_run2', actorFrame(kind, 'run2'));
-    add(kind + '_run3', actorFrame(kind, 'run3'));
-    add(kind + '_skill', actorFrame(kind, 'skill'));
-    add(kind + '_ride', actorFrame(kind, 'ride'));
   }
   for (let i = 0; i < 4; i++) add('wheel_' + i, wheelFrame(i));
   add('chari_body', chariBody());
@@ -547,7 +605,7 @@
       return {
         frames: n,
         actors: ACTORS.length,
-        posesPerActor: ACTOR_POSES.length + 6,
+        posesPerActor: ACTOR_POSES.length,
         atlasW: Art.canvas ? Art.canvas.width : 0,
         atlasH: Art.canvas ? Art.canvas.height : 0,
         files: 1,

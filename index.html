@@ -7289,10 +7289,38 @@ function enemyArtKind(kind) {
   if (kind === 'runner' || kind === 'shield' || kind === 'ranged' || kind === 'support' || kind === 'taka' || kind === 'gaze' || kind === 'boss') return kind;
   return 'grunt';
 }
+
+function gaitStepIndex(gait, mul, n) {
+  n = n || 6;
+  const w = n >= 6
+    ? [1.4, 0.75, 0.85, 1.4, 0.75, 0.85]
+    : [1.3, 0.7, 1.3, 0.7];
+  const total = w.slice(0, n).reduce((a, b) => a + b, 0);
+  let f = Math.abs((gait || 0) * (mul || 1));
+  f = f - Math.floor(f / total) * total;
+  for (let i = 0; i < n; i++) {
+    if (f < w[i]) return i;
+    f -= w[i];
+  }
+  return n - 1;
+}
+
+function gaitWalkFi(gait, mul) {
+  const low = REDUCE_MOTION || (typeof GFX !== 'undefined' && GFX.quality === 'low');
+  const n = low ? 4 : 6;
+  const i = gaitStepIndex(gait, mul, n);
+  return n === 4 ? [0, 2, 3, 5][i] : i;
+}
+
 function enemyArtKey(e, kind, pose) {
   const k = enemyArtKind(kind);
   if (pose === 'die') {
     const beat = (e && e.deathBeat) || 'slump';
+    const deadP = (e && e.deadT > 0 && e.deadMax) ? 1 - e.deadT / e.deadMax : 1;
+    const reactP = Math.min(1, deadP / 0.55);
+    if (reactP < 0.38 && beat !== 'topple' && beat !== 'tumble' && beat !== 'pop') {
+      return k + '_die_brace';
+    }
     const map = {
       slump: 'die_slump', topple: 'die_topple', tumble: 'die_tumble',
       sit: 'die_sit', fold: 'die_fold', lid: 'die_lid', flag: 'die_flag',
@@ -7301,12 +7329,13 @@ function enemyArtKey(e, kind, pose) {
     return k + '_' + (map[beat] || 'die_slump');
   }
   if (pose === 'walk') {
-    const rate = kind === 'runner' ? 10 : kind === 'shield' || kind === 'boss' ? 4 : 6;
-    const fi = Math.abs(Math.floor((e.gait || 0) * rate)) % 4;
-    return k + '_walk' + fi;
+    const mul = kind === 'runner' ? 8 : kind === 'shield' || kind === 'boss' ? 3.2 : kind === 'taka' ? 5.2 : 5;
+    return k + '_walk' + gaitWalkFi(e && e.gait, mul);
   }
+  if (pose === 'emerge') return k + '_emerge';
   if (pose === 'windup') return k + '_windup';
   if (pose === 'attack') return k + '_attack';
+  if (pose === 'recover') return k + '_recover';
   if (pose === 'hit') return k + '_hit';
   const fg = ((e && e.fidgetKind) | 0) % 2;
   return k + (fg ? '_idle1' : '_idle');
@@ -10175,9 +10204,19 @@ function updateMoveEssential(dt) {
     player.turnT = REDUCE_MOTION ? 0.06 : 0.14;
     player.facing = input;
   }
+  const movingNow = Math.abs(player.vx || 0) > 8;
+  if (movingNow) {
+    player._wasWalk = true;
+    player.stopT = 0;
+    player.walkFi = gaitWalkFi(player.gait || 0, Math.abs(player.vx) > 118 ? 7 : 5);
+  } else if (player._wasWalk) {
+    player._wasWalk = false;
+    player.stopT = REDUCE_MOTION ? 0.05 : 0.16;
+  }
   player.gait = (player.gait || 0) + Math.abs(player.vx || 0) * dt * 0.048;
   player.lean = (player.lean || 0) * 0.72 + ((player.vx || 0) / 220) * 0.28;
   if (player.turnT > 0) player.turnT -= dt;
+  if (player.stopT > 0) player.stopT -= dt;
   if (player.skillPoseT > 0) player.skillPoseT -= dt;
   if (player.hitT > 0) player.hitT -= dt;
   player.mountSpin = (player.mountSpin || 0) + Math.abs(player.vx || 0) * dt * 0.12;
@@ -10338,7 +10377,9 @@ function update(dt) {
         w.x = state.bus.x;
       } else {
         const target = home + Math.sin(state.animT * 0.6 + (w.bob || 0)) * 36;
+        const prevX = w.x;
         w.x += (target - w.x) * Math.min(1, dt * 1.4);
+        w.gait = (w.gait || 0) + Math.abs(w.x - prevX) * 0.14;
       }
       if (w.workCd <= 0) {
         const job = w.job || 'gather';
@@ -10401,7 +10442,9 @@ function update(dt) {
   } else {
     // 夜は部室付近に退避
     for (const w of workers) {
+      const prevX = w.x;
       w.x += (rand(-30, 30) - w.x) * dt * 0.8;
+      w.gait = (w.gait || 0) + Math.abs(w.x - prevX) * 0.14;
     }
   }
 
@@ -12716,19 +12759,25 @@ function drawLandmarkMap(phase, nightish) {
 
 function drawWorker(x, y, w) {
   ctx.imageSmoothingEnabled = false;
-  const bob = Math.sin(state.animT * 4 + (w.bob || 0)) * 1.2;
+  const fi = gaitWalkFi(w.gait || 0, 5);
+  const contact = (fi % 3 === 0);
+  const moving = Math.abs((w.x || 0) - (w._px || w.x || 0)) > 0.28;
+  w._px = w.x;
+  const bob = contact && moving ? 0.8 : (moving ? 0.15 : Math.sin(state.animT * 1.4 + (w.bob || 0)) * 0.4);
   const wind = (state.wind || 0) * 0.3;
-  // 体
-  blitOutlined(x - 10 + wind, y - 30 + bob, [
-    '..oo..',
-    '.oooo.',
-    'oossoo',
-    '.ssss.',
-    '.s..s.',
-    'nn..nn',
-  ], Object.assign({}, PAL, { o: '#f0c8a0', s: '#4a6aaa', n: '#2a2a30' }), 2, false);
+  const key = moving ? ('kohai_walk' + fi) : (Math.sin(state.animT * 1.1 + (w.bob || 0)) > 0 ? 'kohai_idle1' : 'kohai_idle');
+  if (!artBlit(key, x - 24 + wind, y - 64 + bob, (w.side || 0) < 0)) {
+    blitOutlined(x - 10 + wind, y - 30 + bob, [
+      '..oo..',
+      '.oooo.',
+      'oossoo',
+      '.ssss.',
+      '.s..s.',
+      'nn..nn',
+    ], Object.assign({}, PAL, { o: '#f0c8a0', s: '#4a6aaa', n: '#2a2a30' }), 2, false);
+  }
   if (SPR.kohai) {
-    ctx.drawImage(SPR.kohai, x - 12, y - 44 + bob, 24, 24);
+    ctx.drawImage(SPR.kohai, x - 12, y - 50 + bob, 22, 22);
   }
   // 袋／ツール
   drawPixelRect(x + 8 + wind, y - 18 + bob, 6, 8, '#8b5a2b');
@@ -13023,26 +13072,23 @@ function drawYajyu(x, y, facing) {
   const walking = Math.abs(player.vx) > 8 || state.titleCine;
   const running = Math.abs(player.vx) > 118;
   const gait = player.gait || 0;
+  const stopping = (player.stopT || 0) > 0 && !state.titleCine;
+  const turning = (player.turnT || 0) > 0 && !walking;
   const fi = walking && !state.titleCine
-    ? ((Math.floor(gait * (running ? 8 : 5)) % 4) + 4) % 4
-    : frameIndex(2, 2);
-  const step = walking && !state.titleCine ? Math.sin(gait * Math.PI * 2) : Math.sin(state.animT * 2.2);
-  const bob = walking && !state.titleCine ? (rm ? step * 0.6 : (running ? step * 2.2 : step * 1.4)) : step * 0.7;
-  const squash = walking && !state.titleCine && step > 0.55 ? (rm ? 0 : 1.4) : 0;
+    ? gaitWalkFi(gait, running ? 7 : 5)
+    : ((player.walkFi | 0) % 6);
+  const contact = (fi % 3 === 0);
+  const bob = walking && !state.titleCine
+    ? (contact ? (running ? 1.1 : 0.9) : (running ? (rm ? 0.4 : 1.6) : 0.15))
+    : (stopping ? 0.8 : Math.sin(state.animT * 1.6) * 0.45);
+  const squash = walking && !state.titleCine && contact && !rm ? (running ? 1.1 : 0.7) : 0;
   const flip = facing < 0;
-  const lean = rm ? 0 : clamp(player.lean || 0, -0.28, 0.28);
-  const turn = (player.turnT || 0) > 0 ? (player.turnT / 0.14) : 0;
   const skill = player.skillPoseT || 0;
   const hit = player.hitT || 0;
   const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
   let rideLift = 0;
   const spin = player.mountSpin || 0;
   ctx.save();
-  if (Math.abs(lean) > 0.02 || skill > 0 || turn > 0) {
-    ctx.translate(x, y);
-    ctx.transform(1, 0, lean + (skill > 0 ? -facing * 0.12 : 0) + (turn * 0.08 * facing), 1, 0, 0);
-    ctx.translate(-x, -y);
-  }
   // 乗り物（顔の下）— 車輪／ギャロップは移動量に連動
   if (mount) {
     const gallop = walking ? Math.abs(Math.sin(gait * Math.PI * (mount.id === 'horse' ? 2 : 1))) : 0;
@@ -13058,7 +13104,7 @@ function drawYajyu(x, y, facing) {
       if (!artBlit('wheel_' + wi, mx - 22, my - 16, false)) drawSpokeWheel(mx - 12, my - 5, 4, spin, '#222');
       if (!artBlit('wheel_' + ((wi + 1) % 4), mx + 2, my - 16, false)) drawSpokeWheel(mx + 10, my - 5, 4, spin + 0.12, '#222');
     } else if (mount.id === 'scooter') {
-      const scootLean = rm ? 0 : lean * 8;
+      const scootLean = rm ? 0 : (player.lean || 0) * 8;
       if (!artBlit('scooter_body', mx - 24 + scootLean, my - 32, flip)) {
         drawPixelRect(mx - 14 + scootLean, my - 8, 28, 6, '#334');
         drawPixelRect(mx - 12 + scootLean, my - 14, 18, 6, '#556');
@@ -13091,9 +13137,11 @@ function drawYajyu(x, y, facing) {
     if (skill > 0) poseKey = 'senpai_skill';
     else if (hit > 0) poseKey = 'senpai_hit';
     else if (mount) poseKey = 'senpai_ride';
+    else if (turning) poseKey = 'senpai_recover';
+    else if (stopping) poseKey = 'senpai_walk' + (((player.walkFi | 0) % 3 === 0) ? (player.walkFi | 0) : 0);
     else if (walking && !state.titleCine && running) poseKey = 'senpai_run' + fi;
     else if (walking && !state.titleCine) poseKey = 'senpai_walk' + fi;
-    else poseKey = fi % 2 ? 'senpai_idle1' : 'senpai_idle';
+    else poseKey = (Math.sin(state.animT * 1.15) > 0 ? 'senpai_idle1' : 'senpai_idle');
     const by = y - 64 + bob + squash - rideLift;
     const drew = artBlit(poseKey, x - 24, by, flip);
     if (!drew) {
@@ -13103,7 +13151,7 @@ function drawYajyu(x, y, facing) {
       ctx.fillRect(x - 9, y - 32 + bob - rideLift, 18, 26);
     }
   }
-  if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
+  if (walking && !state.titleCine && GFX.quality !== 'low' && !rm && contact) {
     ctx.globalAlpha = 0.35;
     drawPixelRect(x + (flip ? 6 : -10), y - 2, 3, 2, '#c8a878');
     ctx.globalAlpha = 1;
@@ -13154,14 +13202,15 @@ function drawYajyu(x, y, facing) {
 function drawArcher(x, y, u) {
   ctx.imageSmoothingEnabled = false;
   if (u.role === 'vanguard') {
-    const bob = Math.sin(state.animT * 4 + (u.x || 0) * 0.05) * 1.2;
-    const march = Math.sin(state.animT * 6 + (u.x || 0)) * 1.5;
-    // 部室トリオ：3体シルエット
+    const bob = Math.sin(state.animT * 1.6 + (u.x || 0) * 0.05) * 0.5;
     for (let k = -1; k <= 1; k++) {
-      const ox = k * 7 + march * (k === 0 ? 0 : 0.3);
-      const oy = bob + Math.abs(k) * 1;
-      drawPixelRect(x - 4 + ox, y - 26 + oy, 8, 22, k === 0 ? '#5a2a18' : '#3a1a10');
-      drawPixelRect(x - 5 + ox, y - 30 + oy, 10, 4, '#c9a227');
+      const ox = k * 8;
+      const fi = gaitWalkFi(state.animT * 1.15 + k * 0.35, 5);
+      const oy = bob + ((fi % 3 === 0) ? 0.6 : 0) + Math.abs(k);
+      if (!artBlit('kohai_walk' + fi, x - 24 + ox, y - 62 + oy, u.side === 'left')) {
+        drawPixelRect(x - 4 + ox, y - 26 + oy, 8, 22, k === 0 ? '#5a2a18' : '#3a1a10');
+        drawPixelRect(x - 5 + ox, y - 30 + oy, 10, 4, '#c9a227');
+      }
     }
     drawPixelRect(x + 8, y - 28 + bob, 4, 18, '#888');
     // 旗揺れ
@@ -13176,8 +13225,9 @@ function drawArcher(x, y, u) {
     return;
   }
   const shooting = (u._shotFlash || 0) > 0;
+  const winding = !shooting && raidActive() && (u.cooldown || 99) > 0 && (u.cooldown || 99) < 0.22;
   const fi = shooting ? 3 : frameIndex(5, FR_ARCH.length);
-  const bob = Math.sin(state.animT * 3 + (u.x || 0) * 0.05) * 0.7 + state.nightSway * 0.2;
+  const bob = shooting ? 0.4 : (winding ? 1.1 : Math.sin(state.animT * 1.4 + (u.x || 0) * 0.05) * 0.35);
   // 台座（塔感）＋装備スキンアクセント
   const skinA = towerSkinAccent();
   // 屋上スピーカー台座（木の砲台ではない）
@@ -13196,7 +13246,7 @@ function drawArcher(x, y, u) {
     ctx.fillRect(x - 28, y - 52 + bob, 56, 48);
     ctx.globalAlpha = 1;
   }
-  const kohaiKey = shooting ? 'kohai_attack' : 'kohai_idle';
+  const kohaiKey = shooting ? 'kohai_attack' : (winding ? 'kohai_windup' : (Math.sin(state.animT * 1.2 + (u.x || 0)) > 0 ? 'kohai_idle1' : 'kohai_idle'));
   if (!artBlit(kohaiKey, x - 24, y - 64 + bob, u.side === 'left')) {
     blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
   }
@@ -13302,18 +13352,18 @@ function drawEnemy(x, y, e) {
   const stepping = pose === 'walk';
   let bob = 0, lean = 0, squash = 0, tilt = 0;
   if (stepping) {
+    const mul = kind === 'runner' ? 8 : kind === 'shield' || kind === 'boss' ? 3.2 : kind === 'taka' ? 5.2 : 5;
+    const fi = gaitWalkFi(gait, mul);
+    const contact = (fi % 3 === 0);
     if (kind === 'runner') {
-      bob = Math.abs(Math.sin(gait * Math.PI * 2)) * (rm ? 2 : 7) * amp;
-      lean = toward * (rm ? 0.08 : 0.22);
+      bob = (contact ? 0.5 : (rm ? 1.2 : 2.4)) * amp;
     } else if (kind === 'shield' || kind === 'boss') {
-      bob = Math.abs(Math.sin(gait * Math.PI)) * 3 * amp;
-      squash = Math.max(0, Math.cos(gait * Math.PI * 2)) * 2 * amp;
-      lean = toward * 0.04;
+      bob = (contact ? 1.1 : 0.15) * amp;
+      squash = contact ? 1.2 * amp : 0;
     } else if (kind === 'taka') {
-      bob = Math.sin(gait * Math.PI * 2) * 3 * amp;
-      lean = toward * 0.12;
+      bob = (contact ? 0.8 : 0.2) * amp;
     } else {
-      bob = Math.sin(gait * Math.PI * 2) * 2.1 * amp;
+      bob = (contact ? 0.9 : 0.12) * amp;
     }
   } else if (pose === 'idle' || pose === 'recover') {
     const fg = (e.fidgetKind | 0) % 3;
@@ -13403,8 +13453,8 @@ function drawEnemy(x, y, e) {
       bob += drop * 12 * amp;
     }
   }
-  const rate = kind === 'runner' ? 10 : kind === 'shield' || kind === 'boss' ? 4 : 6;
-  const fi = stepping ? Math.abs(Math.floor(gait * rate)) % 4 : 0;
+  const mul = kind === 'runner' ? 8 : kind === 'shield' || kind === 'boss' ? 3.2 : kind === 'taka' ? 5.2 : 5;
+  const fi = stepping ? gaitWalkFi(gait, mul) : 0;
   let frames = FR_ENEMY;
   if (kind === 'gaze') frames = FR_GAZE;
   else if (kind === 'taka') frames = FR_TAKA;
@@ -13599,6 +13649,7 @@ try {
     get YKWorld() { return window.YKWorld; },
     worldBlit, worldGround, pickWorldHouse,
     units, raidActive, gunCount, wallBuiltCount, survivalNeed, enemyHittable,
+    gaitStepIndex, gaitWalkFi,
     campMaxHp, syncCampHpCap, civilGrowCost, civilGrowGate, applyCivilGrow, nextGrowthHint,
   };
 } catch (_) {}
