@@ -6521,7 +6521,11 @@ function trySkill() {
     if (!enemyHittable(e)) continue;
     if (Math.abs(e.x - player.x) < 160) {
       e.stunned = Math.max(e.stunned || 0, 2.6);
+      pickHitBeat(e, { src: 'q', running: e.pose === 'walk' });
+      e.hitT = Math.max(e.hitT || 0, 0.2);
+      e.hitDir = Math.sign(player.x - e.x) || (e.side < 0 ? 1 : -1);
       if (e.pose === 'windup') { e.windup = 0; setEnemyPose(e, 'hit'); }
+      else if (e.pose !== 'die') { e.pose = 'hit'; e.poseT = 0; }
       spawnSparks(e.x, GROUND_Y - 28, 4, ['#ff6b9d', '#fff'], 70);
     }
   }
@@ -7920,17 +7924,93 @@ function creditEnemyKill(e) {
   try { spawnKillEcho(e.x, GROUND_Y, e.isBoss || e.isMur); } catch (_) {}
 }
 
-function beginEnemyDeath(e) {
+const LAST_DEATH_BEAT = {}; // 種類ごと直前の拍。セーブしない
+const LAST_DEATH_I = {}; // 状況シグネチャごとの回転。セーブしない
+
+function deathCandidates(kind, ctx) {
+  const running = !!(ctx && ctx.running);
+  const src = (ctx && ctx.src) || 'unknown';
+  if (kind === 'runner') return running ? ['tumble', 'topple', 'slump'] : ['slump', 'topple', 'fold'];
+  if (kind === 'shield') {
+    if (src === 'ice') return ['sit', 'lid', 'slump'];
+    return running ? ['tumble', 'lid', 'topple'] : ['lid', 'slump', 'topple'];
+  }
+  if (kind === 'ranged') return src === 'ice' ? ['sit', 'pop', 'slump'] : ['pop', 'topple', 'slump'];
+  if (kind === 'support') return running ? ['tumble', 'flag', 'topple'] : ['flag', 'slump', 'topple'];
+  if (kind === 'taka') return running ? ['tumble', 'bag', 'topple'] : ['bag', 'slump', 'topple'];
+  if (kind === 'boss') return (src === 'ice' || src === 'q') ? ['fold', 'slump', 'topple'] : ['topple', 'slump', 'lid'];
+  if (kind === 'gaze') return ['slump', 'topple', 'fold'];
+  if (src === 'ice') return ['sit', 'slump', 'topple'];
+  if (src === 'q') return ['fold', 'slump', 'topple'];
+  return running ? ['tumble', 'topple', 'slump'] : ['slump', 'topple', 'sit'];
+}
+
+function pickDeathBeat(e, ctx) {
+  ctx = ctx || {};
+  const kind = (e && (e.kind || kindFromName(e.name))) || 'grunt';
+  const cands = deathCandidates(kind, ctx);
+  const role = ['pop', 'lid', 'flag', 'bag'].filter(b => cands.indexOf(b) >= 0)[0];
+  let prefer = 0;
+  if (ctx.running) prefer = Math.max(0, cands.indexOf('tumble'));
+  else if (ctx.src === 'ice') {
+    const ice = cands.indexOf('sit') >= 0 ? cands.indexOf('sit') : cands.indexOf('fold');
+    prefer = ice >= 0 ? ice : 0;
+  } else if (ctx.src === 'q') prefer = Math.max(0, cands.indexOf('fold'));
+  else if (ctx.src === 'mine') prefer = Math.max(0, cands.indexOf('topple'));
+  else if (role) prefer = cands.indexOf(role);
+  else if ((ctx.vx || 0) !== 0) prefer = Math.max(0, cands.indexOf('topple'));
+  const sig = kind + ':' + (ctx.src || 'unknown') + ':' + (ctx.running ? 'run' : 'stand');
+  const rot = LAST_DEATH_I[sig] | 0;
+  let idx = (prefer + rot) % cands.length;
+  if (cands[idx] === LAST_DEATH_BEAT[kind] && cands.length > 1) idx = (idx + 1) % cands.length;
+  const beat = cands[idx] || cands[0];
+  LAST_DEATH_BEAT[kind] = beat;
+  LAST_DEATH_I[sig] = rot + 1;
+  if (e) {
+    e.deathBeat = beat;
+    e.deathDir = Math.sign(ctx.vx || e.hitDir || 0) || ((e.side < 0) ? 1 : -1);
+    e.deathSrc = ctx.src || 'unknown';
+    e.deathRun = !!ctx.running;
+  }
+  return beat;
+}
+
+function pickHitBeat(e, ctx) {
+  ctx = ctx || {};
+  const running = !!(ctx.running || (e && e.pose === 'walk'));
+  let beat = 'flinch';
+  if (ctx.src === 'ice') beat = 'stiff';
+  else if (ctx.src === 'q') beat = 'wobble';
+  else if (running) beat = 'stagger';
+  if (e && beat === e._lastHitBeat && beat === 'flinch') beat = 'stagger';
+  else if (e && beat === e._lastHitBeat && beat === 'stagger') beat = 'flinch';
+  if (e) { e.hitBeat = beat; e._lastHitBeat = beat; }
+  return beat;
+}
+
+function makeHitCtx(e, vx, opts) {
+  opts = opts || {};
+  return {
+    src: opts.src || 'unknown',
+    vx: vx || 0,
+    running: !!(e && (e.pose === 'walk' || enemyStepping(e))),
+    dmg: opts.dmg,
+  };
+}
+
+function beginEnemyDeath(e, ctx) {
   if (!e) return;
   e.hp = 0;
-  if (e.deadT > 0) return;
-  // 時間は据え置き（見た目の種類分けだけ）。当たらないのは即時。
+  if (e._credited || e.pose === 'die' || (e.deadT || 0) > 0) return;
+  ctx = ctx || makeHitCtx(e, e.hitDir, { src: 'unknown' });
+  if (ctx.running == null) ctx.running = !!(e.pose === 'walk');
+  pickDeathBeat(e, ctx);
   e.deadT = e.isBoss ? 0.72 : 0.42;
   e.deadMax = e.deadT;
   e.pose = 'die';
   e.poseT = 0;
+  e.windup = 0;
   e.deathKind = e.kind || kindFromName(e.name);
-  e.gait = e.gait || 0;
   creditEnemyKill(e);
 }
 
@@ -7939,6 +8019,7 @@ function hurtEnemy(e, dmg, vx, opts) {
   opts = opts || {};
   const kind = e.kind || kindFromName(e.name);
   const toward = e.side < 0 ? 1 : -1;
+  const ctx = makeHitCtx(e, vx, Object.assign({ dmg: dmg }, opts));
   const front = ((vx || 0) * toward) < 0;
   const shielded = (kind === 'shield' || kind === 'boss') && (e.shield | 0) > 0 && front && !(e.stunned > 0) && !opts.pierce;
   if (shielded) {
@@ -7947,6 +8028,7 @@ function hurtEnemy(e, dmg, vx, opts) {
     e.poseT = 0;
     e.hitT = 0.2;
     e.hitDir = Math.sign(vx || 0) || toward;
+    e.hitBeat = 'flinch';
     e._flash = 0.12;
     spawnFloat(e.x, GROUND_Y - 40, e.shield > 0 ? '盾!' : '盾割れ', '#8ee');
     if (e.shield <= 0) e.shieldBrokeT = 0.55;
@@ -7954,13 +8036,14 @@ function hurtEnemy(e, dmg, vx, opts) {
     return 'block';
   }
   e.hp -= dmg;
+  pickHitBeat(e, ctx);
   e.pose = 'hit';
   e.poseT = 0;
-  e.hitT = 0.16;
+  e.hitT = e.hitBeat === 'stiff' ? 0.22 : 0.16;
   e.hitDir = Math.sign(vx || 0) || toward;
   e._flash = 0.14;
-  e.x += Math.sign(vx || toward) * 6;
-  if (e.hp <= 0) beginEnemyDeath(e);
+  if (!opts.noKnock) e.x += Math.sign(vx || toward) * 6;
+  if (e.hp <= 0) beginEnemyDeath(e, ctx);
   return 'hurt';
 }
 
@@ -8067,6 +8150,15 @@ function tickEnemy(e, dt) {
   e.anim = (e.anim || 0) + dt;
   e.poseT = (e.poseT || 0) + dt;
   e.idleT = (e.idleT || 0) + dt;
+  if (e.pose === 'idle') {
+    const slot = Math.floor((e.idleT || 0) / 1.55);
+    if (e._fidgetSlot !== slot) {
+      e._fidgetSlot = slot;
+      let k = Math.abs(((e.idleSeed || 1) * 3 + slot * 5) | 0) % 3;
+      if (k === (e.fidgetKind | 0)) k = (k + 1) % 3;
+      e.fidgetKind = k;
+    }
+  }
   if (e.stunned > 0) e.stunned -= dt;
   if (e._snareSlow > 0) e._snareSlow -= dt;
   if (e.cheerT > 0) e.cheerT -= dt;
@@ -8504,6 +8596,7 @@ function emergeEnemy(spec) {
     shield: spec.shield | 0, shieldMax: spec.shieldMax | spec.shield | 0,
     attackCd: 0.15, stealCd: 0, stunned: 0, anim: rand(0, 3), w: 18, h: 28,
     windup: 0, shotCd: 0.4, cheerCd: 0.2, hopT: rand(0, 4), cheerT: 0,
+    idleSeed: rand(0, 40), idleT: rand(0, 8), fidgetKind: 0, _fidgetSlot: -1,
     emergeT: spec.isBoss ? 0.7 : 0.48, emergeMax: spec.isBoss ? 0.7 : 0.48,
     fromNest: nest.id, fromOutpost: spec.fromOutpost || null,
   };
@@ -8758,7 +8851,7 @@ function lockPlayVisual() {
   if (player.vx == null || !Number.isFinite(player.vx)) player.vx = 0;
   player.facing = player.facing || 1;
   state.cameraX = player.x - W / 2;
-  state.debugHUD = true;
+  state.debugHUD = false;
   state._drawErrLogged = false;
   state._updErrLogged = false;
 }
@@ -9977,7 +10070,7 @@ function update(dt) {
           e.stunned = Math.max(e.stunned || 0, 0.25);
           if (Math.random() < 0.25) spawnMeme(e.x, GROUND_Y - 44, '冷えてるゾ');
         }
-        const result = hurtEnemy(e, a.dmg || 1, a.vx, { pierce: !!a.iced });
+        const result = hurtEnemy(e, a.dmg || 1, a.vx, { pierce: !!a.iced, src: a.iced ? 'ice' : 'arrow' });
         if (result === 'hurt') spawnFloat(e.x, GROUND_Y - 36, '-' + (a.dmg || 1), a.iced ? '#8cf' : '#ffe8a0');
         spawnArrowHit(e.x, GROUND_Y, a.vx);
         state.hitStop = Math.max(state.hitStop, 0.04);
@@ -11551,9 +11644,7 @@ function tickMiliGadgets(dt) {
           if (!enemyHittable(e)) continue;
           if (Math.abs(e.x - wall.x) >= 70) continue;
           e._snareSlow = Math.max(e._snareSlow || 0, 0.55);
-          e.hp = (e.hp || 1) - 0.35;
-          e._flash = Math.max(e._flash || 0, 0.08);
-          if (e.hp <= 0) beginEnemyDeath(e);
+          hurtEnemy(e, 0.35, 0, { src: 'gas', pierce: true, noKnock: true });
         }
         if (Math.random() < 0.35) spawnMeme(wall.x, GROUND_Y - 55, 'くっさ');
       }
@@ -11583,10 +11674,9 @@ function tickMiliGadgets(dt) {
       const d = Math.abs(e.x - m.x);
       if (d > mR + 22) continue;
       const falloff = d <= mR ? 1 : 0.55;
-      e.hp = (e.hp || 1) - mD * falloff;
-      e._flash = 0.22;
+      const blast = Math.sign(e.x - m.x) || 1;
+      hurtEnemy(e, mD * falloff, blast * 40, { src: 'mine', pierce: true, noKnock: true });
       e.stunned = Math.max(e.stunned || 0, 0.65);
-      if (e.hp <= 0) beginEnemyDeath(e);
     }
     state.mines.splice(i, 1);
   }
@@ -12680,57 +12770,86 @@ function drawEnemy(x, y, e) {
       bob = Math.sin(gait * Math.PI * 2) * 2.1 * amp;
     }
   } else if (pose === 'idle' || pose === 'recover') {
-    // 足は止め、上体だけ役割ごとにくすぐる
-    const br = Math.sin(idleT * 2.2);
+    const fg = (e.fidgetKind | 0) % 3;
+    const seed = e.idleSeed || 0;
+    const br = Math.sin(idleT * (2.0 + fg * 0.35) + seed);
     if (kind === 'runner') {
-      bob = (0.6 + Math.abs(Math.sin(idleT * 7)) * 1.8) * amp; // つま先で弾む。歩かない
-      lean = toward * 0.04 * amp;
+      bob = (0.4 + Math.abs(Math.sin(idleT * (5.5 + fg) + seed)) * (fg === 2 ? 2.4 : 1.4)) * amp;
+      lean = toward * (fg === 1 ? 0.07 : 0.03) * amp;
     } else if (kind === 'shield' || kind === 'boss') {
-      bob = br * 0.5 * amp;
-      lean = toward * 0.02;
+      bob = br * (fg === 2 ? 0.9 : 0.45) * amp;
+      lean = toward * (fg === 1 ? 0.05 : 0.02);
     } else if (kind === 'taka') {
       bob = br * 0.7 * amp;
-      lean = Math.sin(idleT * 1.4) * 0.05 * amp;
+      lean = Math.sin(idleT * (1.2 + fg) + seed) * (fg === 2 ? 0.08 : 0.04) * amp;
     } else if (kind === 'ranged') {
-      bob = br * 0.6 * amp;
+      bob = br * (fg === 1 ? 0.9 : 0.5) * amp;
     } else if (kind === 'support') {
       bob = br * 0.5 * amp;
-    } else if (kind === 'gaze') {
-      bob = br * 0.4 * amp;
+      lean = (fg === 2 ? Math.sin(idleT * 1.6 + seed) * 0.04 : 0) * amp;
     } else {
-      bob = br * 0.55 * amp;
+      bob = br * (0.4 + fg * 0.15) * amp;
+      lean = fg === 1 ? Math.sin(idleT * 1.3 + seed) * 0.03 * amp : 0;
     }
   }
   if (pose === 'windup') { lean += -toward * (kind === 'boss' ? 0.18 : 0.12); bob -= 2; }
   if (pose === 'attack') { lean += toward * 0.2; bob += 1; }
-  if (pose === 'recover') { lean += -toward * 0.05; }
-  if (e.hitT > 0 && pose !== 'die') x += (e.hitDir || toward) * 5 * (e.hitT / 0.16);
+  if (pose === 'recover') {
+    const hb = e.hitBeat || 'flinch';
+    lean += -toward * (hb === 'stagger' ? 0.08 : 0.05);
+    if (hb === 'stiff') bob += 1;
+  }
+  if (e.hitT > 0 && pose !== 'die') {
+    const hb = e.hitBeat || 'flinch';
+    const ht = Math.max(0, e.hitT / Math.max(0.12, e.hitT + 0.001));
+    const hd = e.hitDir || toward;
+    if (hb === 'stagger') { bob += 5 * amp; lean += -hd * 0.1; x += hd * 3 * amp; }
+    else if (hb === 'stiff') { squash += 3 * amp; }
+    else if (hb === 'wobble') { lean += Math.sin(state.animT * 16) * 0.08 * amp; }
+    else x += hd * 5 * (e.hitT / 0.16) * amp;
+  }
   if (e.stunned > 0 && pose !== 'die') bob += Math.sin(state.animT * 18) * 2 * amp;
   bob += squash;
+  const beat = e.deathBeat || 'slump';
+  const ddir = e.deathDir || toward;
   if (deadP > 0) {
-    if (kind === 'runner') {
-      tilt = toward * reactP * 1.35;
-      x += toward * reactP * 10 * amp;
-      bob += Math.sin(reactP * Math.PI) * 10 * amp;
-    } else if (kind === 'shield') {
-      lean += -toward * reactP * 0.28;
-      bob += reactP * 8;
-    } else if (kind === 'ranged') {
-      squash += reactP * 6;
-      bob += reactP * 4;
-    } else if (kind === 'support') {
-      lean += toward * reactP * 0.2;
-      bob += reactP * 6;
-    } else if (kind === 'taka') {
-      tilt = -toward * reactP * 0.7;
-      bob += reactP * 5;
-    } else if (kind === 'boss') {
-      tilt = toward * reactP * 0.45;
-      bob += reactP * 12;
-      squash += reactP * 4;
+    if (beat === 'tumble') {
+      tilt = ddir * reactP * 1.45;
+      x += ddir * reactP * 12 * amp;
+      bob += Math.sin(reactP * Math.PI) * 11 * amp;
+    } else if (beat === 'topple') {
+      tilt = ddir * reactP * 0.95;
+      x += ddir * reactP * 7 * amp;
+      bob += reactP * 4 * amp;
+    } else if (beat === 'sit') {
+      squash += reactP * 10 * amp;
+      bob += reactP * 7 * amp;
+    } else if (beat === 'fold') {
+      squash += reactP * 7 * amp;
+      lean += toward * reactP * 0.16;
+      bob += reactP * 8 * amp;
+    } else if (beat === 'lid') {
+      squash += reactP * 8 * amp;
+      bob += reactP * 9 * amp;
+      lean += toward * reactP * 0.1;
+    } else if (beat === 'flag') {
+      tilt = ddir * reactP * 0.4;
+      lean += ddir * reactP * 0.2;
+      bob += reactP * 5 * amp;
+    } else if (beat === 'bag') {
+      squash += reactP * 5 * amp;
+      bob += reactP * 6 * amp;
+      x += -ddir * reactP * 4 * amp;
+    } else if (beat === 'pop') {
+      squash += reactP * 9 * amp;
+      bob += Math.sin(reactP * Math.PI) * 6 * amp;
+      lean += -ddir * reactP * 0.1;
     } else {
-      bob += reactP * 10;
-      lean += -toward * reactP * 0.12;
+      const knee = reactP < 0.4 ? reactP / 0.4 : 1;
+      const drop = reactP < 0.4 ? 0 : (reactP - 0.4) / 0.6;
+      lean += -toward * knee * 0.18;
+      squash += drop * 10 * amp;
+      bob += drop * 12 * amp;
     }
   }
   const rate = kind === 'runner' ? 10 : kind === 'shield' || kind === 'boss' ? 4 : 6;
@@ -12763,10 +12882,11 @@ function drawEnemy(x, y, e) {
   }
   // 役割小物（盾・旗・袋・↑↓）＋待機の手・撃破の飛び
   if (kind === 'shield' || kind === 'boss') {
-    const fidget = (!stepping && pose !== 'die') ? Math.sin(idleT * 2.6) * 1.2 * amp : 0;
-    const brace = pose === 'windup' ? 3 : pose === 'hit' ? -5 : pose === 'attack' ? 6 : pose === 'die' ? -8 - reactP * 10 : fidget;
-    const lidX = toward * (11 + brace);
-    const lidY = pose === 'die' ? -30 + reactP * 22 : -30;
+    const fidget = (!stepping && pose !== 'die') ? Math.sin(idleT * 2.6 + (e.idleSeed || 0)) * (1 + (e.fidgetKind|0) * 0.4) * amp : 0;
+    const fly = pose === 'die' && (beat === 'lid' || beat === 'tumble') ? 1 : (pose === 'die' ? 0.45 : 0);
+    const brace = pose === 'windup' ? 3 : pose === 'hit' ? -5 : pose === 'attack' ? 6 : pose === 'die' ? -8 - reactP * (10 + fly * 12) : fidget;
+    const lidX = toward * (11 + brace) + (pose === 'die' ? ddir * reactP * 6 * fly : 0);
+    const lidY = pose === 'die' ? -30 + reactP * (14 + fly * 16) : -30;
     if ((e.shield | 0) > 0 || pose === 'die') {
       drawPixelRect(lidX - 3, lidY, 7, 22, '#8aa');
       drawPixelRect(lidX - 2, lidY + 2, 5, 18, '#cde');
@@ -12779,16 +12899,18 @@ function drawEnemy(x, y, e) {
     }
   }
   if (kind === 'support') {
-    const drop = pose === 'die' ? reactP * 18 : 0;
-    const up = pose === 'die' ? 2 : (pose === 'windup' || pose === 'attack' ? 10 : 3 + Math.sin(idleT * 2.4) * 2 * amp);
-    const wave = pose === 'die' ? toward * reactP * 8 : (pose === 'attack' ? Math.sin(state.animT * 16) * 4 : Math.sin(idleT * 3.1) * 2.2 * amp);
+    const drop = pose === 'die' ? reactP * (beat === 'flag' ? 22 : 12) : 0;
+    const fg = (e.fidgetKind | 0);
+    const up = pose === 'die' ? 2 : (pose === 'windup' || pose === 'attack' ? 10 : 3 + Math.sin(idleT * (2.1 + fg) + (e.idleSeed||0)) * 2 * amp);
+    const wave = pose === 'die' ? ddir * reactP * (beat === 'flag' ? 14 : 6) : (pose === 'attack' ? Math.sin(state.animT * 16) * 4 : Math.sin(idleT * 3.1 + (e.idleSeed||0)) * 2.2 * amp);
     drawPixelRect(toward * 10 + wave * 0.2, -28 - up + drop, 2, 18 + up, '#864');
     drawPixelRect(toward * 12 + wave, -40 - up + drop, 10, 7, '#3c8');
     drawPixelRect(toward * 12 + wave, -38 - up + drop, 8, 2, '#ffe066');
   }
   if (kind === 'taka') {
-    const swing = pose === 'die' ? toward * reactP * 14 : (pose === 'attack' ? 6 : (stepping ? Math.sin(gait * Math.PI * 2) * 3 : Math.sin(idleT * 3.2) * 2 * amp));
-    const bagY = pose === 'die' ? -18 + reactP * 16 : -18;
+    const spill = pose === 'die' && beat === 'bag';
+    const swing = pose === 'die' ? ddir * reactP * (spill ? 18 : 10) : (pose === 'attack' ? 6 : (stepping ? Math.sin(gait * Math.PI * 2) * 3 : Math.sin(idleT * 3.2 + (e.idleSeed||0)) * 2 * amp));
+    const bagY = pose === 'die' ? -18 + reactP * (spill ? 18 : 10) : -18;
     drawPixelRect(-toward * 12 + swing, bagY, 8, 7, '#642');
     drawPixelRect(-toward * 10 + swing, bagY + 4, 4, 3, '#c9a227');
     if (pose === 'die' && !rm) {
@@ -12797,8 +12919,8 @@ function drawEnemy(x, y, e) {
     }
   }
   if (kind === 'runner') {
-    const fly = pose === 'die' ? reactP * 16 : 0;
-    const tw = pose === 'idle' ? Math.sin(idleT * 5) * 2 * amp : Math.sin((stepping ? gait : idleT) * 14) * 3;
+    const fly = pose === 'die' ? reactP * (beat === 'tumble' ? 22 : 12) : 0;
+    const tw = pose === 'idle' ? Math.sin(idleT * (4 + (e.fidgetKind|0)) + (e.idleSeed||0)) * 2 * amp : Math.sin((stepping ? gait : idleT) * 14) * 3;
     ctx.fillStyle = '#44ddff';
     ctx.font = uiFont(14);
     ctx.textAlign = 'center';
@@ -12807,15 +12929,15 @@ function drawEnemy(x, y, e) {
     ctx.fillText('↓', 10 + fly, -44 - tw + fly * 0.4);
   }
   if (kind === 'boss') {
-    const pulse = (pose === 'windup') ? 1 : (pose === 'idle' ? (Math.sin(idleT * 3) > 0.65 ? 1 : 0) : 0);
-    const fall = pose === 'die' ? reactP * 14 : 0;
-    drawPixelRect(-8, -54 - pulse * 2 + fall, 16, 3, '#ffd700');
+    const pulse = (pose === 'windup') ? 1 : (pose === 'idle' ? (Math.sin(idleT * 3 + (e.idleSeed||0)) > 0.65 ? 1 : 0) : 0);
+    const fall = pose === 'die' ? reactP * (beat === 'lid' ? 18 : 10) : 0;
+    drawPixelRect(-8 + (pose === 'die' ? ddir * reactP * 4 : 0), -54 - pulse * 2 + fall, 16, 3, '#ffd700');
     drawPixelRect(-6, -58 - pulse * 2 + fall, 3, 4, '#ffd700');
     drawPixelRect(-1, -60 - pulse * 3 + fall, 3, 6, '#fff8c8');
     drawPixelRect(4, -58 - pulse * 2 + fall, 3, 4, '#ffd700');
   }
   if (kind === 'ranged' && pose === 'idle' && !rm) {
-    ctx.globalAlpha = 0.25 + Math.sin(idleT * 4) * 0.12;
+    ctx.globalAlpha = 0.25 + Math.sin(idleT * 4 + (e.idleSeed||0)) * 0.12;
     ctx.fillStyle = '#ffb040';
     ctx.fillRect(-5, -38, 10, 4);
     ctx.globalAlpha = 1;
@@ -12824,7 +12946,13 @@ function drawEnemy(x, y, e) {
     ctx.fillStyle = '#ff8c28';
     ctx.font = uiFont(13);
     ctx.textAlign = 'center';
-    ctx.fillText('笑', toward * 8, -48 - reactP * 10);
+    ctx.fillText(beat === 'pop' ? '笑' : '…', ddir * 8, -48 - reactP * (beat === 'pop' ? 14 : 6));
+  }
+  if (e.hitBeat === 'stiff' && pose === 'hit' && !rm) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#8cf';
+    ctx.fillRect(-12, -34, 24, 30);
+    ctx.globalAlpha = 1;
   }
   if (pose === 'windup' && (kind === 'ranged' || kind === 'boss')) {
     ctx.fillStyle = '#ff8c28';
@@ -12901,9 +13029,10 @@ try {
     saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
     openBranchPanel, closeBranchPanel, ensureMountState, equippedMount, activeNestForSide,
     beginDuskRaid, queueNightWave, emergeEnemy, startLocationBus, startRaidBus, tryPay,
-    eShots, enemies, arrows, kindFromName, kindsUnlocked, KIND_CUE, normalizeEnemyKind,
+    eShots, enemies, arrows, fx, kindFromName, kindsUnlocked, KIND_CUE, normalizeEnemyKind,
     makeNightSpec, mixedPackSpecs, hurtEnemy, fireTonoShot, pulseSupport, tickEnemy, tickEShots,
-    enemyStepping, beginEnemyDeath,
+    enemyStepping, beginEnemyDeath, pickDeathBeat, pickHitBeat, deathCandidates,
+    LAST_DEATH_BEAT, LAST_DEATH_I,
   };
 } catch (_) {}
 </script>
