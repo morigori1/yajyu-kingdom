@@ -5164,17 +5164,15 @@ function openBranchPanel(tab) {
           return true;
         });
       }
-      if (state.civilTier < 3 && unlockedCount() >= 1) {
-        addBtn(`内政整備 Lv${state.civilTier}→${state.civilTier+1}`, 4 + state.civilTier * 3, () => {
-          state.civilTier++; toast(pick(LORE.civilUp)); return true;
-        });
+      if (state.civilTier < 3) {
+        const gate = civilGrowGate();
+        addBtn(civilGrowLabel(), civilGrowCost(), () => applyCivilGrow(), !!gate.can);
       }
     } else {
       // spot: 施設・バス・銀行
-      if (state.civilTier < 3 && unlockedCount() >= 1) {
-        addBtn(`内政整備 Lv${state.civilTier}→${state.civilTier+1}`, 4 + state.civilTier * 3, () => {
-          state.civilTier++; toast(pick(LORE.civilUp)); return true;
-        });
+      if (state.civilTier < 3) {
+        const gate = civilGrowGate();
+        addBtn(civilGrowLabel(), civilGrowCost(), () => applyCivilGrow(), !!gate.can);
       }
       if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
         addBtn(`810銀行運用 Lv${state.bankTier}→${state.bankTier+1}`, 3 + state.bankTier * 2, () => {
@@ -6804,6 +6802,10 @@ function morningCivilIncome() {
     dropCoin(rand(-30, 30), idle);
     gain += idle;
   }
+  if (state.civilTier >= 1) {
+    dropCoin(0, 1);
+    gain += 1;
+  }
   if (state.civilTier >= 2) {
     dropCoin(rand(-40, 40), 1);
     gain += 1;
@@ -7217,14 +7219,43 @@ function drawWorldMidHouses(phase) {
 }
 function drawWorldClubhouse(phase) {
   if (!worldReady()) return;
+  const t = state.civilTier | 0;
   const sx = wx(-86);
-  if (sx < -140 || sx > W + 140) return;
+  if (sx < -200 || sx > W + 200) return;
   drawSoftShadow(sx + 36, GROUND_Y, 28, phase >= 0.68 ? 0.34 : 0.22);
   worldGround('house_club', sx, GROUND_Y, {});
-  if (phase >= 0.5) YKWorld.paintLights(ctx, 'house_club', sx, GROUND_Y, phase, {});
-  if (!REDUCE_MOTION && GFX.quality !== 'low') {
-    const fi = Math.sin(state.animT * 1.8) > 0 ? 1 : 0;
+  const nightLit = t >= 3 || phase >= 0.5;
+  if (nightLit) YKWorld.paintLights(ctx, 'house_club', sx, GROUND_Y, t >= 3 ? Math.max(phase, 0.72) : phase, {});
+  const low = GFX.quality === 'low';
+  if (t >= 1 || (!REDUCE_MOTION && !low)) {
+    const fi = (REDUCE_MOTION || low) ? 0 : (Math.sin(state.animT * 1.8) > 0 ? 1 : 0);
     worldGround('laundry_' + fi, sx + 54, GROUND_Y - 36, {});
+  }
+  if (t >= 1) {
+    worldGround('board', sx - 18, GROUND_Y, {});
+    if (!low) worldGround('fence', wx(-118), GROUND_Y, {});
+  }
+  if (t >= 2) {
+    const stall = wx(82);
+    drawSoftShadow(stall + 24, GROUND_Y, 22, 0.22);
+    worldGround('house_c', stall, GROUND_Y, {});
+    if (phase >= 0.5 || t >= 3) YKWorld.paintLights(ctx, 'house_c', stall, GROUND_Y, phase, {});
+    if (!low) worldGround('ex_vend', stall + 38, GROUND_Y, {});
+  }
+  if (t >= 3 && !low) {
+    const annex = wx(-168);
+    drawSoftShadow(annex + 22, GROUND_Y, 20, 0.2);
+    worldGround('house_d', annex, GROUND_Y, {});
+    YKWorld.paintLights(ctx, 'house_d', annex, GROUND_Y, Math.max(phase, 0.7), {});
+    worldGround('tank', sx + 10, GROUND_Y, {});
+  }
+}
+function drawSettlementYard() {
+  if (!worldReady()) return;
+  if (structures.leftWall.level >= 1) worldGround('fence', wx(-108), GROUND_Y, {});
+  if (structures.rightWall.level >= 1) worldGround('fence', wx(124), GROUND_Y, {});
+  if ((state.miliTier | 0) >= 1) {
+    worldGround('weeds', wx(-70), GROUND_Y, {});
   }
 }
 function drawWorldNearFacades(phase) {
@@ -7426,22 +7457,23 @@ function shopSpots() {
       });
     }
   }
-  // 軍事：全体教練
-  if (state.miliTier < 3 && (units.length >= 2 || state.assault)) {
+  // 軍事：全体教練（壁と砲台のあと、部室前で払う）
+  if (state.miliTier < 3 && (gunCount() >= 2 || units.length >= 2 || state.assault)) {
     spots.push({
       id: 'mili_tier',
-      x: -150,
-      r: 40,
+      x: -40,
+      r: 44,
       cost: 4 + state.miliTier * 3,
       can: true,
       branch: 'mili',
-      label: `教練Lv${state.miliTier}→${state.miliTier + 1}（砲台間隔↓）`,
+      label: `見張りLv${state.miliTier}→${state.miliTier + 1}（砲台間隔↓）`,
       buy() {
         if (state.miliTier >= 3) return false;
         state.miliTier++;
-        toast(pick(LORE.miliUp));
-        story(`軍事教練 Lv${state.miliTier}`, 2.0);
-        spawnMeme(-150, GROUND_Y - 50, '軍事' + state.miliTier);
+        toast('見張りが増えた　砲台の間隔↓', 2.4);
+        story(`軍事教練 Lv${state.miliTier}　壁に灯`, 2.0);
+        spawnBuildFx(-40, '見張り');
+        spawnMeme(-40, GROUND_Y - 50, '軍事' + state.miliTier);
         return true;
       }
     });
@@ -7510,14 +7542,14 @@ function shopSpots() {
       });
     }
   }
-  // 内政：作業員（上限を内政で拡張）
-  {
+  // 内政：作業員（部室を整えたら前に出る）
+  if ((state.civilTier | 0) >= 1) {
     const maxW = 2 + Math.min(2, state.civilTier | 0);
     const wc = workers.length;
     spots.push({
       id: 'worker',
-      x: -95,
-      r: 40,
+      x: -44,
+      r: 46,
       cost: 3 + wc * 2,
       can: wc < maxW,
       branch: 'civil',
@@ -7527,7 +7559,7 @@ function shopSpots() {
         if (workers.length >= maxW) return false;
         const unlocked = unlockedLandmarks();
         let side = Math.random() < 0.5 ? -1 : 1;
-        let base = rand(-70, 70);
+        let base = rand(-36, 36);
         if (unlocked.length) {
           const L = unlocked[unlocked.length - 1];
           side = L.side;
@@ -7545,25 +7577,24 @@ function shopSpots() {
       }
     });
   }
-  // 内政：全体整備
-  if (state.civilTier < 3 && unlockedCount() >= 1) {
-    spots.push({
-      id: 'civil_tier',
-      x: 160,
-      r: 40,
-      cost: 4 + state.civilTier * 3,
-      can: true,
-      branch: 'civil',
-      label: `整備Lv${state.civilTier}→${state.civilTier + 1}（収入・バス）`,
-      buy() {
-        if (state.civilTier >= 3) return false;
-        state.civilTier++;
-        toast(pick(LORE.civilUp));
-        story(`内政整備 Lv${state.civilTier}`, 2.0);
-        spawnMeme(160, GROUND_Y - 50, '内政' + state.civilTier);
-        return true;
-      }
-    });
+  // 内政：部室の段階整備（壁と砲台の次。パネルなしで現地）
+  {
+    const t = state.civilTier | 0;
+    const show = t >= 1 || (wallBuiltCount() >= 2 && gunCount() >= 1);
+    if (show && t < 3) {
+      const gate = civilGrowGate();
+      spots.push({
+        id: 'civil_tier',
+        x: 32,
+        r: 52,
+        cost: civilGrowCost(),
+        can: !!gate.can,
+        branch: 'civil',
+        label: civilGrowLabel(),
+        why: gate.why,
+        buy() { return applyCivilGrow(); }
+      });
+    }
   }
   // 内政：810運用強化（銀行残高が必要）
   if (state.bankTier < 3 && state.bank >= 8 + state.bankTier * 8) {
@@ -7906,6 +7937,8 @@ function spotSurvivalRank(s) {
   if (s.adv) return 0;
   const id = s.id || '';
   if (id.startsWith('wall-') || id.startsWith('archer-')) return 1;
+  if (id === 'civil_tier' || id === 'worker' || id === 'mili_tier') return survivalNeed() ? 8 : 2;
+  if ((id.indexOf('lm_') === 0 || id.indexOf('fac_') === 0) && !survivalNeed()) return 3;
   if (s.branch === 'mili') return 2;
   if (s.mount) return survivalNeed() ? 7 : 4;
   if (id === 'heal' || id === 'bank-out' || id === 'mugicha' || id.indexOf('iced') >= 0 || id === 'ice-stand') return 6;
@@ -7924,11 +7957,22 @@ function nearbySpots() {
 }
 
 function nearestSpot() {
-  let can = nearbySpots().filter(s => s.can);
+  const all = nearbySpots();
+  let can = all.filter(s => s.can);
   if (survivalNeed()) {
     const pri = can.filter(s => spotSurvivalRank(s) <= 2);
     if (pri.length) can = pri;
     else return null;
+  } else {
+    const grow = all.filter(s => {
+      const id = s.id || '';
+      return id === 'civil_tier' || id === 'worker' || id === 'mili_tier' || id.indexOf('lm_') === 0;
+    });
+    if (grow.length) {
+      const growCan = grow.filter(s => s.can);
+      if (growCan.length) can = growCan;
+      else return null;
+    }
   }
   if (raidActive()) {
     const mili = can.filter(s => s.branch === 'mili' || (s.id || '').indexOf('wall') === 0 || (s.id || '').indexOf('archer') === 0);
@@ -7964,6 +8008,12 @@ function tryPay() {
     if (gunCount() < 1) {
       toast('壁の前で砲台を雇え（4🪙）。夜に撃つのは砲台', 2.4);
       spawnMeme(player.x, GROUND_Y - 40, '砲台へ');
+      return;
+    }
+    const grow = nextGrowthHint();
+    if (grow) {
+      toast(grow, 2.4);
+      spawnMeme(player.x, GROUND_Y - 40, '拠点へ');
       return;
     }
     if (state.coins <= 0) { toast(pick(LORE.payEmpty)); spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?'); return; }
@@ -8138,6 +8188,87 @@ function wallBuiltCount() {
 
 function survivalNeed() {
   return wallBuiltCount() < 2 || gunCount() < 1;
+}
+
+function campMaxHp() {
+  return 100 + (state.civilTier | 0) * 20;
+}
+
+function syncCampHpCap() {
+  const m = campMaxHp();
+  if (!structures.campfire) return;
+  structures.campfire.maxHp = m;
+  if ((structures.campfire.hp | 0) > m) structures.campfire.hp = m;
+}
+
+function civilGrowCost() {
+  const t = state.civilTier | 0;
+  if (t <= 0) return 4;
+  if (t === 1) return 7;
+  return 10;
+}
+
+function civilGrowLabel() {
+  const t = state.civilTier | 0;
+  if (t <= 0) return '部室を整える（机・火・朝+1）';
+  if (t === 1) return '屋台を出す（収入・作業上限）';
+  return '二階を足す（夜灯・朝+）';
+}
+
+function civilGrowGate() {
+  const t = state.civilTier | 0;
+  if (t >= 3) return { can: false, why: '部室は最大まで整えた' };
+  if (t < 1) {
+    const ok = wallBuiltCount() >= 2 && gunCount() >= 1;
+    return { can: ok, why: ok ? null : '先に東西の壁と砲台' };
+  }
+  if (t < 2) {
+    const ok = unlockedCount() >= 1;
+    return { can: ok, why: ok ? null : '先に聖地を一つ　西の北沢か東の寿し' };
+  }
+  const ok = unlockedCount() >= 2 || !!state.assault;
+  return { can: ok, why: ok ? null : '聖地をもう一つ、または攻勢' };
+}
+
+function applyCivilGrow() {
+  if ((state.civilTier | 0) >= 3) return false;
+  if (!civilGrowGate().can) return false;
+  state.civilTier = (state.civilTier | 0) + 1;
+  syncCampHpCap();
+  structures.campfire.hp = Math.min(structures.campfire.maxHp, (structures.campfire.hp | 0) + 18);
+  const t = state.civilTier | 0;
+  const done = t === 1 ? '机と七輪が増えた　朝+1' : t === 2 ? '屋台が出た　作業の上限↑' : '二階の灯　夜も部室が見える';
+  toast(done, 2.8);
+  story(t === 1 ? '部室　整えた　次は作業員か聖地へ' : t === 2 ? '屋台　やりますねぇ　路地が伸びる' : '二階　王道を征く', 2.4);
+  spawnMeme(0, GROUND_Y - 50, t === 1 ? 'おかのした' : t === 2 ? 'やりますねぇ' : '王道を征く');
+  return true;
+}
+
+function nextGrowthHint() {
+  const walls = wallBuiltCount();
+  const guns = gunCount();
+  const coins = state.coins | 0;
+  const lack = (cost) => coins >= cost ? '' : '　不足' + (cost - coins);
+  if (walls < 2) {
+    const side = structures.leftWall.level < 1 ? '西' : '東';
+    return side + 'へ歩いて壁を払え 3🪙' + lack(3);
+  }
+  if (!guns) return '壁の前で砲台を雇え 4🪙' + lack(4);
+  if ((state.civilTier | 0) < 1) return '部室で整える 4🪙　机と火' + lack(4);
+  if (!workers.length) return '部室前で作業員 3🪙' + lack(3);
+  if (unlockedCount() < 1) {
+    const L = LANDMARKS.find(l => (l.chapter | 0) === 0 && (l.needLv | 0) <= 1) || LANDMARKS[0];
+    const dir = L && L.side < 0 ? '西' : '東';
+    return dir + 'の' + (L.short || '聖地') + 'へ歩いて払え ' + (L.cost | 0) + '🪙' + lack(L.cost | 0);
+  }
+  if ((state.civilTier | 0) < 2) return '部室で屋台 7🪙' + lack(7);
+  if ((state.miliTier | 0) < 1 && guns >= 2) return '部室で見張り 4🪙　砲の間隔↓' + lack(4);
+  const stoneNeed = (structures.leftWall.level === 1 ? '西' : '') || (structures.rightWall.level === 1 ? '東' : '');
+  if (stoneNeed) return stoneNeed + 'の壁を石へ 6🪙' + lack(6);
+  if ((state.civilTier | 0) < 3) {
+    return (unlockedCount() >= 2 || state.assault) ? ('部室で二階 10🪙' + lack(10)) : '聖地をもう一つ解放';
+  }
+  return '';
 }
 
 function sideHaltX(side) {
@@ -9147,6 +9278,11 @@ function startDay() {
   try { didIntro = !!maybeChapterIntroStory(); } catch (_) { didIntro = false; }
   let open = 'Day1　西と東へ歩いて壁を払え';
   try { open = (state.day | 0) === 1 ? '西と東へ歩いて壁を払え　砲台を雇う　夜は砲台が撃ち、先輩はQで止める' : dayOpenLine(state.day); } catch (_) {}
+  try {
+    if ((state.day | 0) >= 2 && (state.civilTier | 0) < 1 && wallBuiltCount() >= 2 && gunCount() >= 1) {
+      open = '部室を整える 4🪙　机と火が増える　そのあと聖地へ';
+    }
+  } catch (_) {}
   const heatExtra = state._heatStoryPending || '';
   state._heatStoryPending = null;
   try {
@@ -9655,7 +9791,8 @@ function applySave(d) {
     maxHp: Math.max(0, rw.maxHp | 0),
     level: clamp(rw.level | 0, 0, 2),
   };
-  structures.campfire = { x: 0, hp: clamp(d.campHp | 0, 1, 100), maxHp: 100 };
+  structures.campfire = { x: 0, hp: clamp(d.campHp | 0, 1, campMaxHp()), maxHp: campMaxHp() };
+  syncCampHpCap();
   const maxU = 8;
   for (const u of (d.units || []).slice(0, maxU)) {
     if (u.side !== 'left' && u.side !== 'right') continue;
@@ -10415,12 +10552,15 @@ function update(dt) {
       return side + 'へ歩いて壁を払え 3🪙';
     }
     if (!guns) return '壁の前で砲台を雇え 4🪙';
-    return '現地で払う　夜は砲台、先輩はQ';
+    return nextGrowthHint() || '現地で払う　夜は砲台、先輩はQ';
   })();
-  const showPay = spot && (spot.cost <= (state.coins | 0)) && (!raidActive() || (spot.branch === 'mili') || (spot.id || '').indexOf('wall') === 0 || (spot.id || '').indexOf('archer') === 0);
+  const coins = state.coins | 0;
+  const showPay = spot && (spot.cost <= coins) && (!raidActive() || (spot.branch === 'mili') || (spot.id || '').indexOf('wall') === 0 || (spot.id || '').indexOf('archer') === 0);
   if (showPay) {
     right.innerHTML = `<span class="meme">いま払う</span><br>${spot.label}<br><span class="gold">${spot.cost}🪙　スペース</span>`;
-  } else if (blocked && !blocked.can && spotSurvivalRank(blocked) <= 2) {
+  } else if (spot && (spot.cost | 0) > coins) {
+    right.innerHTML = `${spot.label}<br><span style="color:#fa8">不足${(spot.cost | 0) - coins}　${spot.cost}🪙</span>`;
+  } else if (blocked && !blocked.can && (blocked.why || spotSurvivalRank(blocked) <= 3)) {
     right.innerHTML = `${blocked.label}<br><span style="color:#fa8">${blocked.why || 'いまは払えない'}</span>`;
   } else {
     right.innerHTML = `${sk}<br>${actionHint}`;
@@ -11093,6 +11233,7 @@ function draw() {
   // 天候・空気レイヤ（地面の直後＝キャラの下）
   drawWeatherLayers(phase);
   try { drawWorldClubhouse(phase); } catch (_) {}
+  try { drawSettlementYard(); } catch (_) {}
   try { drawWorldNearFacades(phase); } catch (_) {}
   try { drawGroundContact(phase); } catch (_) {}
   try { drawStreetLayer(phase, nightish); } catch (_) {}
@@ -11146,8 +11287,12 @@ function draw() {
 
   // 現地払い：足元にいるときだけ1つ。常時の謎円は出さない
   if (state.running) {
-    const focus = nearestSpot();
-    const inRange = !!(focus && Math.abs(player.x - focus.x) <= focus.r && (!raidActive() || (focus.cost <= (state.coins | 0))));
+    let focus = nearestSpot();
+    if (!focus) {
+      const near = nearbySpots()[0];
+      if (near && (!survivalNeed() || spotSurvivalRank(near) <= 2)) focus = near;
+    }
+    const inRange = !!(focus && Math.abs(player.x - focus.x) <= focus.r && (!raidActive() || (focus.cost <= (state.coins | 0)) || !focus.can));
     if (inRange) {
       const others = nearbySpots().filter(s => s !== focus && Math.abs(player.x - s.x) <= s.r).length;
       ctx.strokeStyle = focus.can ? '#ffd700' : '#c88';
@@ -12603,7 +12748,9 @@ function drawWorker(x, y, w) {
   ctx.fillStyle = '#9cf';
   ctx.font = uiFont(11);
   ctx.textAlign = 'center';
-  ctx.fillText('作業', x, y - 48 + bob);
+  const job = (w && w.job) || 'gather';
+  const tag = job === 'supply' ? '補給' : job === 'film' ? '撮影' : job === 'cheer' ? '応援' : ((state.civilTier | 0) >= 2 && Math.abs((w.x || 0) - 82) < 48 ? '屋台' : '作業');
+  ctx.fillText(tag, x, y - 48 + bob);
 }
 
 function drawCampfire(x, y) {
@@ -12635,12 +12782,35 @@ function drawCampfire(x, y) {
     drawPixelRect(x - 22, y - 14, 4, 6, '#3ad0c8');
     drawPixelRect(x - 21, y - 16, 2, 2, '#cfe');
   }
+  if ((state.civilTier | 0) >= 1) {
+    drawPixelRect(x + 22, y - 10, 22, 3, '#8a7a58');
+    drawPixelRect(x + 24, y - 10, 2, 10, '#6a5a40');
+    drawPixelRect(x + 40, y - 10, 2, 10, '#6a5a40');
+    drawPixelRect(x + 26, y - 16, 6, 5, '#cfe8d0');
+    drawPixelRect(x + 34, y - 18, 5, 7, '#3a2a1a');
+    drawPixelRect(x - 40, y - 22, 3, 16, '#3a3020');
+    const lg = ctx.createRadialGradient(x - 38, y - 26, 1, x - 38, y - 26, 14);
+    lg.addColorStop(0, 'rgba(255,210,90,0.55)');
+    lg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(x - 54, y - 40, 32, 28);
+    drawPixelRect(x - 40, y - 28, 5, 5, '#ffcc66');
+  }
   if ((state.civilTier|0) >= 2) {
     const cg2 = ctx.createRadialGradient(x, y - 28, 4, x, y - 28, 50 + (state.bankTier|0)*6);
     cg2.addColorStop(0, 'rgba(255,200,80,0.35)');
     cg2.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = cg2;
     ctx.fillRect(x - 55, y - 70, 110, 80);
+  }
+  if ((state.civilTier | 0) >= 3) {
+    drawPixelRect(x - 6, y - 78, 3, 14, '#3a3020');
+    drawPixelRect(x - 10, y - 84, 11, 8, '#c45');
+    const ng = ctx.createRadialGradient(x - 4, y - 80, 2, x - 4, y - 80, 22);
+    ng.addColorStop(0, 'rgba(255,140,80,0.4)');
+    ng.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ng;
+    ctx.fillRect(x - 28, y - 102, 48, 40);
   }
   if ((state.bankTier|0) >= 1) {
     ctx.textAlign = 'center';
@@ -12790,6 +12960,21 @@ function drawWall(wall, isLeft) {
   ctx.fillText('IKZO', fx + 5 + (state.wind || 0) * 0.3, GROUND_Y - poleH + 13);
   ctx.fillStyle = '#fff';
   ctx.fillText('IKZO', fx + 4, GROUND_Y - poleH + 12);
+  if ((state.miliTier | 0) >= 1 && wall.level >= 1) {
+    const lx = x + (isLeft ? 16 : -20);
+    drawPixelRect(lx, GROUND_Y - 26, 3, 14, '#3a3020');
+    const glow = ctx.createRadialGradient(lx + 2, GROUND_Y - 30, 1, lx + 2, GROUND_Y - 30, 16);
+    glow.addColorStop(0, 'rgba(255,200,80,0.5)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(lx - 16, GROUND_Y - 46, 36, 36);
+    drawPixelRect(lx - 1, GROUND_Y - 32, 5, 5, '#ffcc66');
+    if ((state.miliTier | 0) >= 2) {
+      const lx2 = x + (isLeft ? -18 : 14);
+      drawPixelRect(lx2, GROUND_Y - h + 6, 3, 10, '#3a3020');
+      drawPixelRect(lx2 - 1, GROUND_Y - h, 5, 5, '#ffaa55');
+    }
+  }
   ctx.textAlign = 'center';
   drawUiLabel(miliWallName(wall.level), x, GROUND_Y - h - 16, wood ? '#c9a227' : '#d0d0e8', 12);
   drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, wood ? '#8c4' : '#4cf', '#333');
@@ -13414,6 +13599,7 @@ try {
     get YKWorld() { return window.YKWorld; },
     worldBlit, worldGround, pickWorldHouse,
     units, raidActive, gunCount, wallBuiltCount, survivalNeed, enemyHittable,
+    campMaxHp, syncCampHpCap, civilGrowCost, civilGrowGate, applyCivilGrow, nextGrowthHint,
   };
 } catch (_) {}
 </script>
