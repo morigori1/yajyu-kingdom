@@ -1804,6 +1804,7 @@ const state = {
   nestQ: [],
   duskRaid: false,
   nestRel: 0,
+  seenKind: {},       // 初遭遇ヒント済み（旧セーブ欠落→空）
   _ledgerHint: false,
   _payLock: 0,
   endCut: -1,
@@ -5508,8 +5509,14 @@ function openBranchPanel(tab) {
         });
         const bk = Object.keys(state.bestiary || {}).length;
         addBtn(`撃破図鑑 ${bk}種　汗${state.sweatDrops|0}　撮影${state.filmShots|0}　ギフト${state._bondGifts|0}`, 0, () => {
-          const names = Object.keys(state.bestiary || {}).slice(0, 10).join('／') || 'まだなし';
-          toast(names, 3.2);
+          const names = Object.keys(state.bestiary || {});
+          if (!names.length) { toast('まだなし　夜の巣から出てきた相手を倒すと残る', 2.8); return; }
+          const lines = names.slice(0, 6).map(n => {
+            const k = kindFromName(n);
+            const short = (KIND_CUE[k] || '').split('。')[0];
+            return n + (short ? '｜' + short : '');
+          });
+          toast(lines.join('／'), 3.6);
         });
         addBtn(`収集サマリ　語録${cc.codex}／写真${cc.photo}／塔${cc.skin}／隠し${cc.secret}`, 0, () => {
           state.collectSub = 'ach'; openBranchPanel('bond');
@@ -5652,6 +5659,7 @@ function spawnRetaliation(op, dmg) {
       hp: hpBase, maxHp: hpBase, speed: spd + rand(0, 6),
       fromOutpost: op.id,
     };
+    normalizeEnemyKind(spec);
     if (!state.nestQ) state.nestQ = [];
     state.nestQ.push(spec);
   }
@@ -5682,6 +5690,8 @@ const player = {
 const coinsOnGround = [];
 /** 飛んでる矢 */
 const arrows = [];
+/** 敵の笑顔弾など。味方の氷／金矢とは別物 */
+const eShots = [];
 /** 敵 */
 const enemies = [];
 /** パーティクル（テキスト/ドット） */
@@ -6502,13 +6512,16 @@ function trySkill() {
   state.humidity = clamp(state.humidity + 6, 0, 100);
   try { if (typeof audPlay === 'function') audPlay('meme'); } catch (_) {}
   spawnSkillFx(player.x);
+  player.skillPoseT = 0.38;
   spawnMeme(player.x, GROUND_Y - 70, 'あっ（察し）');
   spawnMeme(player.x + 30, GROUND_Y - 90, '（迫真）');
   toast('括弧ツッコミ！　周囲のたかりが鈍る', 2.4);
   story('あっ（察し）　見とけよ見とけよ〜', 2.0);
   for (const e of enemies) {
+    if (!enemyHittable(e)) continue;
     if (Math.abs(e.x - player.x) < 160) {
       e.stunned = Math.max(e.stunned || 0, 2.6);
+      if (e.pose === 'windup') { e.windup = 0; setEnemyPose(e, 'hit'); }
       spawnSparks(e.x, GROUND_Y - 28, 4, ['#ff6b9d', '#fff'], 70);
     }
   }
@@ -7803,6 +7816,458 @@ const ENEMY_NAMES_JP = [
 ];
 const BOSS_NAMES = ['迫真ボス', '部室の主・真', '野獣の眼光', '迫真の淫獣', 'MUR・真'];
 
+// 役割は既存名フラグを再利用。見た目・対処が違う6系統＋後の複合ボス。
+const KIND_CUE = {
+  grunt: '歩き役。壁に着いたら殴る',
+  runner: 'こ↑こ↓　速い・薄い。壁とQで止める',
+  taka: 'たかり　小銭を狙う。離れるかQ',
+  ranged: '遠野　離れて笑顔弾。予備動作中に詰めろ',
+  shield: 'MUR　前盾。Qで隙／背後／氷弾',
+  support: 'ンギモ　近くを応援。先に潰すかQ',
+  gaze: '眼光　近いと遅くなる。離れて撃つ',
+  boss: '部室の主　盾＋笑顔弾＋眼光。習った対処を重ねる',
+};
+
+function kindFromName(name) {
+  const n = String(name || '');
+  if (n.indexOf('部室の主') >= 0 || n.indexOf('・真') >= 0 || n.indexOf('迫真ボス') >= 0 || n.indexOf('淫獣') >= 0) return 'boss';
+  if (n.indexOf('たかり') >= 0) return 'taka';
+  if (n.indexOf('眼光') >= 0) return 'gaze';
+  if (n.indexOf('遠野') >= 0) return 'ranged';
+  if (n.indexOf('ンギモ') >= 0 || n.indexOf('応援') >= 0) return 'support';
+  if (n.indexOf('こ↑こ↓') >= 0 || n.indexOf('俊足') >= 0 || n.indexOf('跳び') >= 0) return 'runner';
+  if (n.indexOf('MUR') >= 0 || n.indexOf('盾') >= 0 || n.indexOf('鉄壁') >= 0) return 'shield';
+  return 'grunt';
+}
+
+function kindsUnlocked() {
+  const d = state.day | 0;
+  const ch = state.chapter | 0;
+  const ks = ['grunt'];
+  if (d >= 1) ks.push('taka');
+  if (d >= 2) ks.push('runner');
+  if (d >= 3) ks.push('ranged');
+  if (d >= 4) ks.push('shield');
+  if (d >= 5) ks.push('support');
+  if (d >= 6 || ch >= 1) ks.push('gaze');
+  return ks;
+}
+
+function pickNameForKind(kind) {
+  if (kind === 'boss') return '部室の主・真';
+  if (kind === 'taka') return 'たかり後輩';
+  if (kind === 'gaze') return '野獣の眼光';
+  if (kind === 'ranged') return '遠野笑顔';
+  if (kind === 'support') return pick(['ンギモ', '応援後輩']);
+  if (kind === 'runner') return pick(['こ↑こ↓', '俊足後輩', '跳び後輩']);
+  if (kind === 'shield') return pick(['MUR', '盾持ち後輩', '鉄壁の見学者']);
+  return pick(['覗き見学者', '嫌がらせ先輩', 'ちび後輩', 'もぐり後輩']);
+}
+
+function normalizeEnemyKind(o) {
+  if (!o) return o;
+  let k = o.kind;
+  if (!k) k = kindFromName(o.name);
+  if (!k || k === 'grunt') {
+    if (o.isBoss) k = 'boss';
+    else if (o.isTaka) k = 'taka';
+    else if (o.isGaze) k = 'gaze';
+    else if (o.isTono) k = 'ranged';
+    else if (o.isNgimo) k = 'support';
+    else if (o.isKoko) k = 'runner';
+    else if (o.isMur) k = 'shield';
+    else k = k || 'grunt';
+  }
+  o.kind = k;
+  o.isTaka = k === 'taka';
+  o.isGaze = k === 'gaze' || k === 'boss';
+  o.isTono = k === 'ranged' || k === 'boss';
+  o.isNgimo = k === 'support';
+  o.isKoko = k === 'runner';
+  o.isMur = k === 'shield' || k === 'boss';
+  o.isBoss = k === 'boss' || !!o.isBoss;
+  if ((k === 'shield' || k === 'boss') && o.shield == null) o.shield = k === 'boss' ? 3 : 2;
+  if (o.shield != null && o.shieldMax == null) o.shieldMax = o.shield;
+  return o;
+}
+
+function cueKindOnce(kind, x) {
+  if (!kind) return;
+  if (!state.seenKind) state.seenKind = {};
+  if (state.seenKind[kind]) return;
+  state.seenKind[kind] = true;
+  const cue = KIND_CUE[kind];
+  if (cue) toast(cue, 3.1);
+  const tag = kind === 'runner' ? 'こ↑こ↓' : kind === 'shield' ? '前盾' : kind === 'ranged' ? '笑顔弾' : kind === 'support' ? '応援' : kind === 'taka' ? 'たかり' : kind === 'gaze' ? '眼光' : kind === 'boss' ? '複合' : '';
+  if (tag) spawnFloat(x || player.x, GROUND_Y - 54, tag, '#ffe8a0');
+}
+
+function enemyHittable(e) {
+  return !!(e && e.hp > 0 && !(e.deadT > 0) && !(e.emergeT > 0));
+}
+
+function creditEnemyKill(e) {
+  if (!e || e._credited) return;
+  e._credited = true;
+  try { spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown)); } catch (_) {}
+  if (Math.random() < 0.55) dropCoin(e.x, 1);
+  if (e.isTaka && Math.random() < 0.5) dropCoin(e.x, 1);
+  try { onSacredKill(); } catch (_) {}
+  bestiaryKill(e.name || '?');
+  try { noteKill(); } catch (_) {}
+  if (e.isBoss) try { bumpBond('kohai', 3); } catch (_) {}
+  try { checkAchievements(); } catch (_) {}
+  try { spawnKillEcho(e.x, GROUND_Y, e.isBoss || e.isMur); } catch (_) {}
+}
+
+function beginEnemyDeath(e) {
+  if (!e) return;
+  e.hp = 0;
+  if (e.deadT > 0) return;
+  e.deadT = e.isBoss ? 0.72 : 0.42;
+  e.deadMax = e.deadT;
+  e.pose = 'die';
+  e.poseT = 0;
+  creditEnemyKill(e);
+}
+
+function hurtEnemy(e, dmg, vx, opts) {
+  if (!enemyHittable(e)) return false;
+  opts = opts || {};
+  const kind = e.kind || kindFromName(e.name);
+  const toward = e.side < 0 ? 1 : -1;
+  const front = ((vx || 0) * toward) < 0;
+  const shielded = (kind === 'shield' || kind === 'boss') && (e.shield | 0) > 0 && front && !(e.stunned > 0) && !opts.pierce;
+  if (shielded) {
+    e.shield = (e.shield | 0) - 1;
+    e.pose = 'hit';
+    e.poseT = 0;
+    e.hitT = 0.2;
+    e.hitDir = Math.sign(vx || 0) || toward;
+    e._flash = 0.12;
+    spawnFloat(e.x, GROUND_Y - 40, e.shield > 0 ? '盾!' : '盾割れ', '#8ee');
+    if (e.shield <= 0) e.shieldBrokeT = 0.55;
+    spawnSparks(e.x + toward * 10, GROUND_Y - 24, REDUCE_MOTION ? 2 : 5, ['#8ee', '#fff'], 70);
+    return 'block';
+  }
+  e.hp -= dmg;
+  e.pose = 'hit';
+  e.poseT = 0;
+  e.hitT = 0.16;
+  e.hitDir = Math.sign(vx || 0) || toward;
+  e._flash = 0.14;
+  e.x += Math.sign(vx || toward) * 6;
+  if (e.hp <= 0) beginEnemyDeath(e);
+  return 'hurt';
+}
+
+function fireTonoShot(e) {
+  if (eShots.length >= 20) eShots.shift();
+  const toward = e.side < 0 ? 1 : -1;
+  let aimX = 0;
+  const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+  if (wall && wall.level > 0 && wall.hp > 0) aimX = wall.x;
+  if (Math.abs(player.x - e.x) < 230) aimX = player.x;
+  const dir = Math.sign(aimX - e.x) || toward;
+  eShots.push({
+    x: e.x + dir * 12, y: GROUND_Y - 28,
+    vx: dir * 138, life: 1.65, dmg: 1, kind: 'tono',
+  });
+  spawnFloat(e.x + dir * 8, GROUND_Y - 46, '笑', '#ff8c28');
+}
+
+function pulseSupport(src) {
+  src.cheerCd = 1.2;
+  const R = 88;
+  let n = 0;
+  for (const e of enemies) {
+    if (e === src || !enemyHittable(e)) continue;
+    if (Math.abs(e.x - src.x) > R) continue;
+    e.cheerT = Math.max(e.cheerT || 0, 1.35);
+    n++;
+  }
+  spawnFloat(src.x, GROUND_Y - 50, '応援', '#9f8');
+  if (n && !REDUCE_MOTION && GFX.quality !== 'low') {
+    for (let i = 0; i < 5; i++) {
+      const ang = (Math.PI * 2 * i) / 5 + (state.animT || 0);
+      pushFx({
+        type: 'spark', x: src.x + Math.cos(ang) * 18, y: GROUND_Y - 28 + Math.sin(ang) * 8,
+        vx: Math.cos(ang) * 24, vy: -20, t: 0, life: 0.28, color: '#9f8', size: 2,
+      });
+    }
+  }
+}
+
+function setEnemyPose(e, pose) {
+  if (e.pose === pose) return;
+  e.pose = pose;
+  e.poseT = 0;
+}
+
+function applyWallSmash(e, wall) {
+  let wd = 3 + Math.floor(combatDayScale() * 0.8);
+  try { wd = Math.max(1, Math.round(wd / (raidFormMul().wall || 1))); } catch (_) {}
+  if ((state.supplyStock | 0) > 0 && Math.random() < 0.28) {
+    state.supplyStock--;
+    wd = Math.max(1, Math.floor(wd * 0.62));
+    spawnMeme(wall.x, GROUND_Y - 62, '補給防');
+  }
+  wall.hp -= wd;
+  wall._flash = 0.22;
+  spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
+  spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
+  spawnFloat(wall.x, GROUND_Y - 54, '-' + wd, '#f84');
+  if (wall.hp <= 0) {
+    wall.hp = 0;
+    wall.level = 0;
+    const bl = pick(LORE.wallBreak);
+    toast((e.side < 0 ? '西' : '東') + 'の壁崩壊！ ' + bl, 3);
+    story(bl, 2.8);
+    spawnMeme(wall.x, GROUND_Y - 60, pick(['あ゛あ゛っ', 'ファッ!?', 'なに!?']));
+    shake(7, 0.4);
+    screenFlash('rgba(200,80,40,0.3)', 0.2);
+    spawnSparks(wall.x, GROUND_Y - 40, 10, ['#8b5a2b', '#ff6b9d', '#fff'], 140);
+  }
+}
+
+function applyCampSmash(e) {
+  let cdmg = 6 + Math.floor(state.day * 0.9);
+  try { cdmg = Math.max(1, Math.round(cdmg / (raidFormMul().wall || 1))); } catch (_) {}
+  structures.campfire.hp -= cdmg;
+  const cl = pick(LORE.campHit);
+  spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
+  spawnFloat(0, GROUND_Y - 64, '-' + cdmg, '#ff8844');
+  spawnSparks(0, GROUND_Y - 30, 5, ['#ff6600', '#ffcc33'], 80);
+  if (structures.campfire.hp < 40) {
+    toast(cl, 2);
+    story(cl, 2.2);
+  }
+  if (structures.campfire.hp <= 0) {
+    structures.campfire.hp = 0;
+    state.over = true;
+    state.running = false;
+    shake(10, 0.55);
+    screenFlash('rgba(180,0,40,0.4)', 0.35);
+    spawnSparks(0, GROUND_Y - 40, 12, ['#f44', '#ff6b9d', '#333'], 160);
+    try { if (typeof audPlay === 'function') audPlay('lose'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
+    showEnd(false);
+  }
+}
+
+function tickEnemy(e, dt) {
+  const kind = e.kind || kindFromName(e.name);
+  e.kind = kind;
+  e.anim = (e.anim || 0) + dt;
+  e.poseT = (e.poseT || 0) + dt;
+  if (e.stunned > 0) e.stunned -= dt;
+  if (e._snareSlow > 0) e._snareSlow -= dt;
+  if (e.cheerT > 0) e.cheerT -= dt;
+  if (e.hitT > 0) e.hitT -= dt;
+  if (e._flash > 0) e._flash -= dt;
+  if (e.shieldBrokeT > 0) e.shieldBrokeT -= dt;
+  if (e.shotCd > 0) e.shotCd -= dt;
+  if (e.cheerCd > 0) e.cheerCd -= dt;
+  if (e.attackCd > 0) e.attackCd -= dt;
+
+  if ((e.deadT || 0) > 0) {
+    e.deadT -= dt;
+    e.pose = 'die';
+    return e.deadT <= 0;
+  }
+  if ((e.emergeT || 0) > 0) {
+    e.emergeT -= dt;
+    e.pose = 'emerge';
+    e.gait = (e.gait || 0) + dt * 1.2;
+    return false;
+  }
+
+  if (e.stunned > 0 && e.pose === 'windup') {
+    e.windup = 0;
+    setEnemyPose(e, 'hit');
+  }
+  if (e.hitT > 0 && e.pose !== 'die') e.pose = 'hit';
+  else if (e.pose === 'hit' && e.hitT <= 0 && e.stunned <= 0) setEnemyPose(e, 'idle');
+
+  const slow = (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * (e.cheerT > 0 ? 1.28 : 1);
+  const gaitRate = kind === 'runner' ? 3.4 : kind === 'shield' || kind === 'boss' ? 1.35 : kind === 'taka' ? 2.6 : 2.0;
+
+  if ((kind === 'gaze' || kind === 'boss') && Math.abs(e.x - player.x) < 220) {
+    state.gazeT = Math.max(state.gazeT, 0.6);
+  }
+
+  // 遠野／ボス：射程で止まって予備→笑顔弾
+  const canShoot = (kind === 'ranged' || kind === 'boss') && e.stunned <= 0;
+  if (canShoot) {
+    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+    const halt = (wall.level > 0 && wall.hp > 0) ? wall.x : 0;
+    const dist = Math.abs(e.x - halt);
+    const inRange = dist < (kind === 'boss' ? 200 : 188);
+    if (inRange && e.pose !== 'hit') {
+      if (e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover') {
+        if ((e.shotCd || 0) <= 0) {
+          setEnemyPose(e, 'windup');
+          e.windup = 0;
+        } else {
+          setEnemyPose(e, 'idle');
+        }
+      }
+      if (e.pose === 'windup') {
+        e.windup = (e.windup || 0) + dt;
+        const need = kind === 'boss' ? 0.7 : 0.52;
+        if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
+        else if (e.windup >= need) {
+          fireTonoShot(e);
+          e.shotCd = kind === 'boss' ? 1.35 : 1.55;
+          setEnemyPose(e, 'attack');
+        }
+      } else if (e.pose === 'attack' && e.poseT >= 0.14) {
+        setEnemyPose(e, 'recover');
+      } else if (e.pose === 'recover' && e.poseT >= 0.42) {
+        setEnemyPose(e, 'idle');
+      }
+      e.gait = (e.gait || 0) + dt * 0.8;
+      if (kind === 'ranged') return false;
+      // ボスは近接も続ける
+    }
+  }
+
+  // ンギモ：止まって旗を振る
+  if (kind === 'support' && e.stunned <= 0) {
+    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+    const halt = (wall.level > 0 && wall.hp > 0) ? wall.x : 0;
+    if (Math.abs(e.x - halt) < 150) {
+      if ((e.cheerCd || 0) <= 0 && e.pose !== 'windup' && e.pose !== 'attack') {
+        setEnemyPose(e, 'windup');
+        e.windup = 0;
+      }
+      if (e.pose === 'windup') {
+        e.windup = (e.windup || 0) + dt;
+        if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
+        else if (e.windup >= 0.32) {
+          pulseSupport(e);
+          setEnemyPose(e, 'attack');
+        }
+        e.gait = (e.gait || 0) + dt;
+        return false;
+      }
+      if (e.pose === 'attack' && e.poseT >= 0.16) setEnemyPose(e, 'recover');
+      if (e.pose === 'recover' && e.poseT >= 0.3) setEnemyPose(e, 'idle');
+    }
+  }
+
+  // たかり：小銭狙い
+  if (kind === 'taka' && state.coins > 0 && Math.abs(e.x - player.x) < 280 && e.stunned <= 0 && e.pose !== 'windup') {
+    const dir = Math.sign(player.x - e.x) || (e.side < 0 ? 1 : -1);
+    e.x += dir * e.speed * 1.15 * slow * dt;
+    e.gait = (e.gait || 0) + dt * gaitRate * slow;
+    setEnemyPose(e, 'walk');
+    e.stealCd = (e.stealCd || 0) - dt;
+    if (Math.abs(e.x - player.x) < 36 && e.stealCd <= 0) {
+      setEnemyPose(e, 'attack');
+      state.coins = Math.max(0, state.coins - 1);
+      e.stealCd = 2.8;
+      dropCoin(e.x + rand(-20, 20), 1, true);
+      spawnMeme(e.x, GROUND_Y - 50, 'たかり!');
+      toast('たかり後輩にコインを…あっ（察し）', 2.0);
+      state.humidity = clamp(state.humidity + 4, 0, 100);
+    }
+    return false;
+  }
+
+  const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+  let blocking = false;
+  if (wall.level > 0 && wall.hp > 0) {
+    if ((e.side < 0 && e.x >= wall.x - 14) || (e.side > 0 && e.x <= wall.x + 14)) blocking = true;
+  }
+  const busy = e.pose === 'windup' || e.pose === 'attack' || e.pose === 'recover' || e.pose === 'hit';
+  if (!blocking && !busy) {
+    if (wall.level === 0 || wall.hp <= 0) {
+      e.x += Math.sign(0 - e.x) * e.speed * slow * dt;
+    } else if ((e.side < 0 && e.x < wall.x - 12) || (e.side > 0 && e.x > wall.x + 12)) {
+      e.x += Math.sign((wall.x - e.side * 12) - e.x) * e.speed * slow * dt;
+    } else {
+      blocking = true;
+    }
+    if (!blocking) {
+      setEnemyPose(e, 'walk');
+      e.gait = (e.gait || 0) + dt * gaitRate * slow;
+    }
+  } else if (!busy) {
+    setEnemyPose(e, 'idle');
+    e.gait = (e.gait || 0) + dt * 0.7;
+  } else {
+    e.gait = (e.gait || 0) + dt * 0.5;
+  }
+
+  const atWall = wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20;
+  const atCamp = Math.abs(e.x - 0) < 28;
+  if ((atWall || atCamp) && e.stunned <= 0 && kind !== 'ranged') {
+    if (e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover' && e.pose !== 'hit') {
+      if ((e.attackCd || 0) <= 0) {
+        setEnemyPose(e, 'windup');
+        e.windup = 0;
+      }
+    }
+    if (e.pose === 'windup') {
+      e.windup = (e.windup || 0) + dt;
+      const need = kind === 'boss' ? 0.5 : kind === 'shield' ? 0.4 : kind === 'runner' ? 0.18 : 0.28;
+      if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
+      else if (e.windup >= need) {
+        setEnemyPose(e, 'attack');
+        e.attackCd = 0.85;
+        if (atWall) applyWallSmash(e, wall);
+        else applyCampSmash(e);
+      }
+    } else if (e.pose === 'attack' && e.poseT >= 0.14) {
+      setEnemyPose(e, 'recover');
+    } else if (e.pose === 'recover' && e.poseT >= 0.26) {
+      setEnemyPose(e, 'idle');
+    }
+  }
+  return false;
+}
+
+function tickEShots(dt) {
+  if (eShots.length > 20) eShots.splice(0, eShots.length - 20);
+  for (let i = eShots.length - 1; i >= 0; i--) {
+    const s = eShots[i];
+    s.x += s.vx * dt;
+    s.life -= dt;
+    let gone = s.life <= 0;
+    if (!gone && Math.abs(s.x - player.x) < 16) {
+      state.humidity = clamp(state.humidity + 6, 0, 100);
+      player.hitT = 0.18;
+      spawnFloat(player.x, GROUND_Y - 40, '笑', '#ff8c28');
+      spawnSparks(player.x, GROUND_Y - 24, REDUCE_MOTION ? 2 : 4, ['#ff8c28', '#fff'], 60);
+      gone = true;
+    }
+    for (const wall of [structures.leftWall, structures.rightWall]) {
+      if (gone || !wall || wall.level <= 0 || wall.hp <= 0) continue;
+      if (Math.abs(s.x - wall.x) < 12) {
+        wall.hp -= 1;
+        wall._flash = 0.16;
+        spawnFloat(wall.x, GROUND_Y - 50, '-1', '#ff8c28');
+        gone = true;
+      }
+    }
+    if (!gone && Math.abs(s.x) < 16) {
+      structures.campfire.hp -= 2;
+      spawnFloat(0, GROUND_Y - 60, '-2', '#ff8c28');
+      gone = true;
+      if (structures.campfire.hp <= 0) {
+        structures.campfire.hp = 0;
+        state.over = true;
+        state.running = false;
+        shake(10, 0.55);
+        screenFlash('rgba(180,0,40,0.4)', 0.35);
+        try { if (typeof audPlay === 'function') audPlay('lose'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
+        showEnd(false);
+      }
+    }
+    if (gone) eShots.splice(i, 1);
+  }
+}
+
 function combatDayScale() {
   // 攻勢長期化で敵が無限に強くなるのをソフトキャップ
   const d = state.day | 0;
@@ -7925,37 +8390,69 @@ function spawnBuildFx(x, label) {
   try { if (typeof audPlay === 'function') audPlay('build'); } catch (_) {}
 }
 
-function makeNightSpec(i, waves, scaleDay, nest) {
-  const side = nest.side;
-  let isBoss = scaleDay >= 8 && i === 0;
-  let name = isBoss ? pick(BOSS_NAMES)
-    : (scaleDay >= 5 && i === 0 && Math.random() < 0.5) ? pick(['部室の主', '迫真ボス', 'たかり後輩'])
-    : pick(ENEMY_NAMES_JP);
-  if (!isBoss && i === 1) name = 'たかり後輩';
-  if (!isBoss && scaleDay >= 3 && i === 2) name = pick(['遠野笑顔', 'ンギモ', 'こ↑こ↓']);
-  if (!isBoss && scaleDay >= 6 && i === waves - 1) name = Math.random() < 0.5 ? 'MUR' : name;
-  if (!isBoss && state.heatEvent === 'gaze_sun' && i === 3) name = pick(['野獣の眼光', '迫真の淫獣', name]);
-  const isTaka = name.indexOf('たかり') >= 0;
-  const isGaze = name.indexOf('眼光') >= 0 || name.indexOf('淫獣') >= 0;
-  const isTono = name.indexOf('遠野') >= 0;
-  const isNgimo = name.indexOf('ンギモ') >= 0;
-  const isKoko = name.indexOf('こ↑こ↓') >= 0;
-  const isMur = name.indexOf('MUR') >= 0;
-  let hp = isBoss ? (12 + scaleDay) : (2 + Math.floor(scaleDay / 2));
-  if (isTaka) hp = 3 + Math.floor(scaleDay / 3);
-  if (isMur) hp = 5 + Math.min(scaleDay, 14);
-  if (isNgimo) hp = 4 + Math.floor(scaleDay / 2);
-  let spd = (isTaka ? 34 : 26) + scaleDay * 2.2 + rand(0, 8);
-  if (scaleDay <= 2) spd *= 0.82;
+function pickKindForWave(i, waves, scaleDay) {
+  const unlocked = kindsUnlocked();
+  if (scaleDay >= 8 && i === waves - 1) return 'boss';
+  if (i === 0) return 'grunt';
+  if (i === 1 && unlocked.indexOf('taka') >= 0) return 'taka';
+  if (i === 2) return unlocked.indexOf('runner') >= 0 ? 'runner' : 'grunt';
+  if (state.heatEvent === 'gaze_sun' && i === 3 && unlocked.indexOf('gaze') >= 0) return 'gaze';
+  const pool = unlocked.slice();
+  if (scaleDay <= 2) return pick(pool.filter(k => k === 'grunt' || k === 'taka' || k === 'runner'));
+  if (scaleDay <= 4) return pick(pool.filter(k => k !== 'gaze' && k !== 'support') || pool);
+  return pick(pool);
+}
+
+function fillKindStats(spec, kind, scaleDay) {
+  spec.kind = kind;
+  spec.name = spec.name || pickNameForKind(kind);
+  spec.isBoss = kind === 'boss';
+  let hp = kind === 'boss' ? (10 + scaleDay) : (2 + Math.floor(scaleDay / 4));
+  let spd = 28 + scaleDay * 1.5 + rand(0, 6);
+  if (kind === 'taka') { hp = 2 + Math.floor(scaleDay / 5); spd = 42 + scaleDay * 1.8; }
+  else if (kind === 'runner') { hp = 2; spd = 50 + scaleDay * 1.5; }
+  else if (kind === 'ranged') { hp = 3 + Math.floor(scaleDay / 5); spd = 24 + scaleDay; }
+  else if (kind === 'shield') { hp = 4 + Math.floor(scaleDay / 3); spd = 18 + scaleDay * 0.8; spec.shield = 2; }
+  else if (kind === 'support') { hp = 3 + Math.floor(scaleDay / 4); spd = 22 + scaleDay; }
+  else if (kind === 'gaze') { hp = 4 + Math.floor(scaleDay / 3); spd = 22 + scaleDay; }
+  else if (kind === 'boss') { hp = 10 + Math.min(scaleDay, 14); spd = 20 + scaleDay * 0.7; spec.shield = 3; }
+  if (scaleDay <= 2) spd *= 0.84;
   if (state.assault) spd *= 0.96;
-  if (isKoko) spd += 10;
-  if (isMur) spd *= 0.85;
-  spd *= 1.08;
-  return {
-    t: i * 1.6, side, nestId: nest.id, x: nestMouthX(nest),
-    name, isBoss, isTaka, isGaze, isTono, isNgimo, isKoko, isMur,
-    hp, maxHp: hp, speed: spd,
+  spec.hp = hp; spec.maxHp = hp; spec.speed = spd;
+  normalizeEnemyKind(spec);
+  return spec;
+}
+
+function makeNightSpec(i, waves, scaleDay, nest, kindOpt) {
+  const kind = kindOpt || pickKindForWave(i, waves, scaleDay);
+  const spec = {
+    t: i * 1.6, side: nest.side, nestId: nest.id, x: nestMouthX(nest),
+    name: pickNameForKind(kind),
   };
+  return fillKindStats(spec, kind, scaleDay);
+}
+
+function mixedPackSpecs(t0, nestA, nestB, scaleDay) {
+  const pack = [];
+  const add = (kind, nest, delay) => {
+    const spec = makeNightSpec(0, 1, scaleDay, nest, kind);
+    spec.t = t0 + delay;
+    spec.hp = Math.max(1, spec.hp - (kind === 'runner' ? 0 : 1));
+    spec.maxHp = spec.hp;
+    pack.push(spec);
+  };
+  if (scaleDay >= 6) {
+    add('support', nestA, 0);
+    add('runner', nestB, 0.18);
+    add('grunt', nestA, 0.36);
+  } else if (scaleDay >= 4) {
+    add('shield', nestA, 0);
+    add('runner', nestB, 0.2);
+  } else {
+    add('ranged', nestA, 0);
+    add('runner', nestB, 0.16);
+  }
+  return pack;
 }
 
 function queueNightWave() {
@@ -7972,6 +8469,15 @@ function queueNightWave() {
     const nest = (i % 2 === 0) ? nestW : nestE;
     state.nestQ.push(makeNightSpec(i, waves, scaleDay, nest));
   }
+  // 1波を混合パックに差し替え（予算はほぼ同じ。両巣口から）
+  if (scaleDay >= 3 && waves >= 4) {
+    const mixAt = Math.min(3, waves - (scaleDay >= 8 ? 2 : 1));
+    const t = mixAt * 1.6;
+    state.nestQ = state.nestQ.filter(s => Math.abs((s.t || 0) - t) > 0.05);
+    const pack = mixedPackSpecs(t, nestW, nestE, scaleDay);
+    for (const s of pack) state.nestQ.push(s);
+    state.nestQ.sort((a, b) => a.t - b.t);
+  }
 }
 
 function emergeEnemy(spec) {
@@ -7984,22 +8490,28 @@ function emergeEnemy(spec) {
   } else {
     nest = spec.side < 0 ? (state._nestW || activeNestForSide(-1)) : (state._nestE || activeNestForSide(1));
   }
+  normalizeEnemyKind(spec);
   const x = nestMouthX(nest);
   const e = {
     x, y: GROUND_Y,
     hp: spec.hp, maxHp: spec.maxHp, speed: spec.speed, side: spec.side,
-    name: spec.name, isBoss: !!spec.isBoss,
+    name: spec.name, kind: spec.kind,
+    isBoss: !!spec.isBoss,
     isTaka: !!spec.isTaka, isGaze: !!spec.isGaze, isTono: !!spec.isTono,
     isNgimo: !!spec.isNgimo, isKoko: !!spec.isKoko, isMur: !!spec.isMur,
+    shield: spec.shield | 0, shieldMax: spec.shieldMax | spec.shield | 0,
     attackCd: 0.15, stealCd: 0, stunned: 0, anim: rand(0, 3), w: 18, h: 28,
+    windup: 0, shotCd: 0.4, cheerCd: 0.2, hopT: rand(0, 4), cheerT: 0,
     emergeT: spec.isBoss ? 0.7 : 0.48, emergeMax: spec.isBoss ? 0.7 : 0.48,
     fromNest: nest.id, fromOutpost: spec.fromOutpost || null,
   };
+  normalizeEnemyKind(e);
   enemies.push(e);
-  spawnSparks(x, GROUND_Y - 8, REDUCE_MOTION ? 3 : 7, ['#8040c0', '#ffb040', '#fff'], 70);
-  pushFx({ type: 'ring', x, y: GROUND_Y - 10, t: 0, life: 0.4, color: 'rgba(140,70,255,0.55)', r0: 4, r1: spec.isBoss ? 42 : 26 });
-  spawnFloat(x, GROUND_Y - 36, spec.isBoss ? 'ボス出現' : '出た', '#c8a0ff');
+  spawnSparks(x, GROUND_Y - 8, REDUCE_MOTION ? 3 : 7, ['#ffb040', '#ffe8a0', '#fff'], 70);
+  pushFx({ type: 'ring', x, y: GROUND_Y - 10, t: 0, life: 0.4, color: 'rgba(255,176,64,0.5)', r0: 4, r1: spec.isBoss ? 42 : 26 });
+  spawnFloat(x, GROUND_Y - 36, spec.isBoss ? 'ボス出現' : '出た', '#ffb040');
   try { if (typeof audPlay === 'function') audPlay('nest'); } catch (_) {}
+  cueKindOnce(e.kind, x);
   if (spec.isBoss) startBossCine(x, spec.name);
   else if (enemies.filter(en => !en.isBoss).length === 1) spawnMeme(x, GROUND_Y - 50, pick(['なに!?', 'ファッ!?', '見とけよ']));
   nestDirWarn(nest);
@@ -8549,6 +9061,7 @@ function buildSaveBlob() {
     filmShots: state.filmShots | 0,
     sweatDrops: state.sweatDrops | 0,
     bestiary: Object.assign({}, state.bestiary || {}),
+    seenKind: Object.assign({}, state.seenKind || {}),
     midsummer: !!state.midsummer,
     _missionsDone: state._missionsDone | 0,
     // 収集・実績（旧セーブ欠落→applyで空）
@@ -8702,6 +9215,7 @@ function applySave(d) {
   state.filmShots = Math.max(0, d.filmShots | 0);
   state.sweatDrops = Math.max(0, d.sweatDrops | 0);
   state.bestiary = Object.assign({}, d.bestiary || {});
+  state.seenKind = Object.assign({}, d.seenKind || {});
   state.midsummer = !!d.midsummer;
   state._missionsDone = Math.max(0, d._missionsDone | 0);
   state.schedule = Array.isArray(d.schedule) ? d.schedule.map(s => Object.assign({}, s)) : [];
@@ -8760,6 +9274,7 @@ function applySave(d) {
   player.vx = 0;
   coinsOnGround.length = 0;
   arrows.length = 0;
+  eShots.length = 0;
   enemies.length = 0;
   fx.length = 0;
   units.length = 0;
@@ -8881,6 +9396,7 @@ function resetGame() {
   player.vx = 0;
   coinsOnGround.length = 0;
   arrows.length = 0;
+  eShots.length = 0;
   enemies.length = 0;
   fx.length = 0;
   units.length = 0;
@@ -8948,6 +9464,7 @@ function resetGame() {
   state._mugichaDrunk = 0;
   state.achievements = {};
   state.bestiary = {};
+  state.seenKind = {};
   state.filmShots = 0;
   state.sweatDrops = 0;
   state._missionsDone = 0;
@@ -9138,8 +9655,26 @@ function updateMoveEssential(dt) {
     if (keys['ArrowLeft'] || keys['KeyA'] || touchMove.left) input -= 1;
     if (keys['ArrowRight'] || keys['KeyD'] || touchMove.right) input += 1;
   } catch (_) {}
-  player.vx = input * (player.speed || 160) * (typeof playerSpeedMul === 'function' ? playerSpeedMul() : 1);
-  if (input) player.facing = input;
+  const targetVx = input * (player.speed || 160) * (typeof playerSpeedMul === 'function' ? playerSpeedMul() : 1);
+  if (REDUCE_MOTION) {
+    player.vx = targetVx;
+  } else {
+    const accel = input ? 1100 : 1600;
+    const dv = targetVx - (player.vx || 0);
+    const maxD = accel * dt;
+    player.vx = (player.vx || 0) + (dv > maxD ? maxD : dv < -maxD ? -maxD : dv);
+    if (!input && Math.abs(player.vx) < 10) player.vx = 0;
+  }
+  if (input && player.facing !== input) {
+    player.turnT = REDUCE_MOTION ? 0.06 : 0.14;
+    player.facing = input;
+  }
+  player.gait = (player.gait || 0) + Math.abs(player.vx || 0) * dt * 0.048;
+  player.lean = (player.lean || 0) * 0.72 + ((player.vx || 0) / 220) * 0.28;
+  if (player.turnT > 0) player.turnT -= dt;
+  if (player.skillPoseT > 0) player.skillPoseT -= dt;
+  if (player.hitT > 0) player.hitT -= dt;
+  player.mountSpin = (player.mountSpin || 0) + Math.abs(player.vx || 0) * dt * 0.12;
   player.x += player.vx * dt;
   const lb = (world && world.leftBound != null) ? world.leftBound + 40 : -2000;
   const rb = (world && world.rightBound != null) ? world.rightBound - 40 : 2000;
@@ -9171,6 +9706,7 @@ function update(dt) {
     if (state.isNight) {
       // 朝へ
       enemies.length = 0; // 残敵逃走
+      eShots.length = 0;
       try { fileBattleReport(); } catch (_) {}
       state.day++;
       startDay();
@@ -9430,8 +9966,8 @@ function update(dt) {
     let hit = false;
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
+      if (!enemyHittable(e)) continue;
       if (Math.abs(a.x - e.x) < 14 && Math.abs((GROUND_Y - 20) - (e.y - 14)) < 24) {
-        e.hp -= (a.dmg || 1);
         hit = true;
         try { if (typeof audPlay === 'function') audPlay('hit'); } catch (_) {}
         if (a.iced) {
@@ -9439,23 +9975,10 @@ function update(dt) {
           e.stunned = Math.max(e.stunned || 0, 0.25);
           if (Math.random() < 0.25) spawnMeme(e.x, GROUND_Y - 44, '冷えてるゾ');
         }
+        const result = hurtEnemy(e, a.dmg || 1, a.vx, { pierce: !!a.iced });
+        if (result === 'hurt') spawnFloat(e.x, GROUND_Y - 36, '-' + (a.dmg || 1), a.iced ? '#8cf' : '#ffe8a0');
         spawnArrowHit(e.x, GROUND_Y, a.vx);
-        e._flash = 0.14;
-        e.x += Math.sign(a.vx || e.side) * 7;
-        spawnFloat(e.x, GROUND_Y - 36, '-' + (a.dmg || 1), a.iced ? '#8cf' : '#ffe8a0');
         state.hitStop = Math.max(state.hitStop, 0.04);
-        if (e.hp <= 0) {
-          spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
-          if (Math.random() < 0.55) dropCoin(e.x, 1);
-          if (e.isTaka && Math.random() < 0.5) dropCoin(e.x, 1);
-          onSacredKill();
-          bestiaryKill(e.name || '?');
-          noteKill();
-          if (e.isBoss) bumpBond('kohai', 3);
-          checkAchievements();
-          spawnKillEcho(e.x, GROUND_Y, e.isBoss || e.isMur);
-          enemies.splice(j, 1);
-        }
         break;
       }
     }
@@ -9473,117 +9996,10 @@ function update(dt) {
 
   // 敵
   for (let i = enemies.length - 1; i >= 0; i--) {
-    const e = enemies[i];
-    e.anim = (e.anim || 0) + dt;
-    if (e.stunned > 0) e.stunned -= dt;
-    if (e._snareSlow > 0) e._snareSlow -= dt;
-    if ((e.emergeT || 0) > 0) {
-      e.emergeT -= dt;
-      continue;
-    }
-    // 眼光デバフ：近距離で視線
-    if (e.isGaze && Math.abs(e.x - player.x) < 220) {
-      state.gazeT = Math.max(state.gazeT, 0.6);
-    }
-    // たかり後輩：壁より先輩のコインを優先して寄る／近接で窃盗
-    if (e.isTaka && state.coins > 0 && Math.abs(e.x - player.x) < 280) {
-      const dir = Math.sign(player.x - e.x) || e.side;
-      const slow = (e.stunned > 0 ? 0.25 : 1) * (e._snareSlow > 0 ? 0.35 : 1);
-      e.x += dir * e.speed * 1.15 * slow * dt;
-      e.stealCd = (e.stealCd || 0) - dt;
-      if (Math.abs(e.x - player.x) < 36 && e.stealCd <= 0) {
-        state.coins = Math.max(0, state.coins - 1);
-        e.stealCd = 2.8;
-        dropCoin(e.x + rand(-20, 20), 1, true); // 奪って落とす演出（回収可）
-        spawnMeme(e.x, GROUND_Y - 50, 'たかり!');
-        toast('たかり後輩にコインを…あっ（察し）', 2.0);
-        state.humidity = clamp(state.humidity + 4, 0, 100);
-      }
-      // たかり中は通常壁AIスキップ
-      continue;
-    }
-    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
-    let targetX = 0; // たき火
-    let blocking = false;
-    if (wall.level > 0 && wall.hp > 0) {
-      // 壁の外側から近づく
-      if (e.side < 0 && e.x < wall.x - 10) { targetX = wall.x - 12; }
-      else if (e.side > 0 && e.x > wall.x + 10) { targetX = wall.x + 12; }
-      else if (e.side < 0 && e.x >= wall.x - 14) { blocking = true; targetX = wall.x; }
-      else if (e.side > 0 && e.x <= wall.x + 14) { blocking = true; targetX = wall.x; }
-      else targetX = 0;
-    }
-    if (!blocking) {
-      const dir = Math.sign(targetX - e.x) || e.side;
-      // 壁を超えたらキャンプへ
-      if (wall.level === 0 || wall.hp <= 0) {
-        e.x += Math.sign(0 - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * dt;
-      } else if ((e.side < 0 && e.x < wall.x - 12) || (e.side > 0 && e.x > wall.x + 12)) {
-        e.x += Math.sign((wall.x - e.side * 12) - e.x) * e.speed * (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * dt;
-      } else {
-        blocking = true;
-      }
-    }
-    // 攻撃判定
-    e.attackCd -= dt;
-    if (wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20) {
-      if (e.attackCd <= 0) {
-        let wd = 3 + Math.floor(combatDayScale() * 0.8);
-        try { wd = Math.max(1, Math.round(wd / (raidFormMul().wall || 1))); } catch (_) {}
-        // 補給物資があれば被弾軽減
-        if ((state.supplyStock | 0) > 0 && Math.random() < 0.28) {
-          state.supplyStock--;
-          wd = Math.max(1, Math.floor(wd * 0.62));
-          spawnMeme(wall.x, GROUND_Y - 62, '補給防');
-        }
-        wall.hp -= wd;
-        e.attackCd = 0.9;
-        wall._flash = 0.22;
-        spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
-        spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
-        spawnFloat(wall.x, GROUND_Y - 54, '-' + wd, '#f84');
-        shake(1.2, 0.08);
-        if (wall.hp <= 0) {
-          wall.hp = 0;
-          wall.level = 0;
-          const bl = pick(LORE.wallBreak);
-          toast((e.side < 0 ? '西' : '東') + 'の壁崩壊！ ' + bl, 3);
-          story(bl, 2.8);
-          spawnMeme(wall.x, GROUND_Y - 60, pick(['あ゛あ゛っ', 'ファッ!?', 'なに!?']));
-          shake(7, 0.4);
-          screenFlash('rgba(200,80,40,0.3)', 0.2);
-          spawnSparks(wall.x, GROUND_Y - 40, 10, ['#8b5a2b', '#ff6b9d', '#fff'], 140);
-        }
-      }
-    } else if (Math.abs(e.x - 0) < 28) {
-      // たき火ダメージ
-      if (e.attackCd <= 0) {
-        let cdmg = 6 + Math.floor(state.day * 0.9);
-        try { cdmg = Math.max(1, Math.round(cdmg / (raidFormMul().wall || 1))); } catch (_) {}
-        structures.campfire.hp -= cdmg;
-        e.attackCd = 0.8;
-        const cl = pick(LORE.campHit);
-        spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
-        spawnFloat(0, GROUND_Y - 64, '-' + cdmg, '#ff8844');
-        shake(3, 0.12);
-        spawnSparks(0, GROUND_Y - 30, 5, ['#ff6600', '#ffcc33'], 80);
-        if (structures.campfire.hp < 40) {
-          toast(cl, 2);
-          story(cl, 2.2);
-        }
-        if (structures.campfire.hp <= 0) {
-          structures.campfire.hp = 0;
-          state.over = true;
-          state.running = false;
-          shake(10, 0.55);
-          screenFlash('rgba(180,0,40,0.4)', 0.35);
-          spawnSparks(0, GROUND_Y - 40, 12, ['#f44', '#ff6b9d', '#333'], 160);
-          try { if (typeof audPlay === 'function') audPlay('lose'); if (typeof audSyncBgm === 'function') audSyncBgm(true); } catch (_) {}
-          showEnd(false);
-        }
-      }
-    }
+    const dead = tickEnemy(enemies[i], dt);
+    if (dead) enemies.splice(i, 1);
   }
+  tickEShots(dt);
 
   tickLocationBus(dt);
   tickMission(dt);
@@ -10397,6 +10813,29 @@ function draw() {
     drawPixelRect(wx(a.x) + (dir > 0 ? 10 : -3), a.y - 2, 4, 5, a.iced ? '#8cf' : '#ffd700');
   }
 
+  // 敵の笑顔弾（金／氷の味方矢とは別：琥珀の菱）
+  for (const s of eShots) {
+    const px = wx(s.x), py = s.y || (GROUND_Y - 28);
+    ctx.fillStyle = '#4a1808';
+    ctx.beginPath();
+    ctx.moveTo(px, py - 6);
+    ctx.lineTo(px + 6, py);
+    ctx.lineTo(px, py + 6);
+    ctx.lineTo(px - 6, py);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ff8c28';
+    ctx.beginPath();
+    ctx.moveTo(px, py - 4);
+    ctx.lineTo(px + 4, py);
+    ctx.lineTo(px, py + 4);
+    ctx.lineTo(px - 4, py);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffe8a0';
+    ctx.fillRect(px - 1, py - 1, 2, 2);
+  }
+
   // プレイヤー
   drawSoftShadow(wx(player.x), GROUND_Y, 14, 0.3);
   drawYajyu(wx(player.x), GROUND_Y, player.facing);
@@ -11090,6 +11529,7 @@ function tickMiliGadgets(dt) {
   // スネア：近接敵を掴んで遅延
   for (const s of state.snares) {
     for (const e of enemies) {
+      if (!enemyHittable(e)) continue;
       if (Math.abs(e.x - s.x) < sRange) {
         e._snareSlow = Math.max(e._snareSlow || 0, sDur);
         if (Math.random() < 0.015) spawnMeme(e.x, GROUND_Y - 48, '胸ぐら');
@@ -11106,17 +11546,12 @@ function tickMiliGadgets(dt) {
         if (wall.level <= 0) continue;
         for (let j = enemies.length - 1; j >= 0; j--) {
           const e = enemies[j];
+          if (!enemyHittable(e)) continue;
           if (Math.abs(e.x - wall.x) >= 70) continue;
           e._snareSlow = Math.max(e._snareSlow || 0, 0.55);
           e.hp = (e.hp || 1) - 0.35;
           e._flash = Math.max(e._flash || 0, 0.08);
-          if (e.hp <= 0) {
-            bestiaryKill(e.name || '?');
-            onSacredKill();
-            noteKill();
-            if (Math.random() < 0.4) dropCoin(e.x, 1);
-            enemies.splice(j, 1);
-          }
+          if (e.hp <= 0) beginEnemyDeath(e);
         }
         if (Math.random() < 0.35) spawnMeme(wall.x, GROUND_Y - 55, 'くっさ');
       }
@@ -11132,6 +11567,7 @@ function tickMiliGadgets(dt) {
     let triggered = false;
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
+      if (!enemyHittable(e)) continue;
       if (Math.abs(e.x - m.x) < mR) { triggered = true; break; }
     }
     if (!triggered) continue;
@@ -11148,15 +11584,7 @@ function tickMiliGadgets(dt) {
       e.hp = (e.hp || 1) - mD * falloff;
       e._flash = 0.22;
       e.stunned = Math.max(e.stunned || 0, 0.65);
-      if (e.hp <= 0) {
-        spawnMeme(e.x, GROUND_Y - 40, pick(LORE.enemyDown));
-        bestiaryKill(e.name || '後輩');
-        onSacredKill();
-        noteKill();
-        if (Math.random() < 0.55) dropCoin(e.x, 1);
-        checkAchievements();
-        enemies.splice(j, 1);
-      }
+      if (e.hp <= 0) beginEnemyDeath(e);
     }
     state.mines.splice(i, 1);
   }
@@ -11942,36 +12370,87 @@ function drawCoin(x, y) {
   drawPixelRect(x - 1, yy - 5, 2, 2, '#fff8c8');
 }
 
+function drawSpokeWheel(cx, cy, r, spin, rim) {
+  drawPixelRect(cx - r, cy - r, r * 2, r * 2, rim || '#222');
+  drawPixelRect(cx - 1, cy - 1, 2, 2, '#888');
+  if (REDUCE_MOTION) {
+    drawPixelRect(cx - 1, cy - r + 1, 2, r * 2 - 2, '#666');
+    return;
+  }
+  const a = (spin || 0) * Math.PI * 2;
+  const c = Math.cos(a), s = Math.sin(a);
+  ctx.strokeStyle = '#9a9a9a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - c * (r - 1), cy - s * (r - 1));
+  ctx.lineTo(cx + c * (r - 1), cy + s * (r - 1));
+  ctx.moveTo(cx + s * (r - 1), cy - c * (r - 1));
+  ctx.lineTo(cx - s * (r - 1), cy + c * (r - 1));
+  ctx.stroke();
+}
+
 function drawYajyu(x, y, facing) {
   ctx.imageSmoothingEnabled = false;
-  const walking = Math.abs(player.vx) > 10 || state.titleCine;
+  const rm = REDUCE_MOTION;
+  const walking = Math.abs(player.vx) > 8 || state.titleCine;
+  const running = Math.abs(player.vx) > 118;
   const walkFrames = (FR_WALK && FR_WALK.length) ? FR_WALK : null;
   const idleFrames = (FR_IDLE && FR_IDLE.length) ? FR_IDLE : walkFrames;
-  const fi = walking && !state.titleCine && walkFrames ? frameIndex(11, walkFrames.length) : frameIndex(2, (idleFrames || [[]]).length);
-  const bob = (walking && !state.titleCine) ? (fi % 2) : Math.sin(state.animT * 2.2) * 0.7;
-  const squash = (walking && !state.titleCine && fi % 2 === 0) ? 1 : 0;
+  const gait = player.gait || 0;
+  const fi = walking && !state.titleCine && walkFrames
+    ? ((Math.floor(gait * (running ? 8 : 5)) % walkFrames.length) + walkFrames.length) % walkFrames.length
+    : frameIndex(2, (idleFrames || [[]]).length);
+  const step = walking && !state.titleCine ? Math.sin(gait * Math.PI * 2) : Math.sin(state.animT * 2.2);
+  const bob = walking && !state.titleCine ? (rm ? step * 0.6 : (running ? step * 2.2 : step * 1.4)) : step * 0.7;
+  const squash = walking && !state.titleCine && step > 0.55 ? (rm ? 0 : 1.4) : 0;
   const flip = facing < 0;
+  const lean = rm ? 0 : clamp(player.lean || 0, -0.28, 0.28);
+  const turn = (player.turnT || 0) > 0 ? (player.turnT / 0.14) : 0;
+  const skill = player.skillPoseT || 0;
+  const hit = player.hitT || 0;
   const body = (walking && !state.titleCine && walkFrames) ? walkFrames[fi] : (idleFrames ? idleFrames[fi % idleFrames.length] : null);
   const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
-  const rideLift = mount ? 8 : 0;
-  // 乗り物（顔の下）
+  let rideLift = 0;
+  const spin = player.mountSpin || 0;
+  ctx.save();
+  if (Math.abs(lean) > 0.02 || skill > 0 || turn > 0) {
+    ctx.translate(x, y);
+    ctx.transform(1, 0, lean + (skill > 0 ? -facing * 0.12 : 0) + (turn * 0.08 * facing), 1, 0, 0);
+    ctx.translate(-x, -y);
+  }
+  // 乗り物（顔の下）— 車輪／ギャロップは移動量に連動
   if (mount) {
-    const mx = x, my = y - 2 + bob;
+    const gallop = walking ? Math.abs(Math.sin(gait * Math.PI * (mount.id === 'horse' ? 2 : 1))) : 0;
+    const bounce = mount.id === 'horse' ? (rm ? gallop * 2 : gallop * 5) : (rm ? gallop : gallop * 2.2);
+    rideLift = 10 + bounce;
+    const mx = x, my = y - 2 + bounce * 0.4;
     if (mount.id === 'chari') {
-      drawPixelRect(mx - 16, my - 8, 7, 7, '#222');
-      drawPixelRect(mx + 8, my - 8, 7, 7, '#222');
       drawPixelRect(mx - 12, my - 14, 24, 5, '#6a4030');
       drawPixelRect(mx + (flip ? -14 : 8), my - 22, 3, 10, '#444');
+      drawSpokeWheel(mx - 12, my - 5, 4, spin, '#222');
+      drawSpokeWheel(mx + 10, my - 5, 4, spin + 0.12, '#222');
     } else if (mount.id === 'scooter') {
-      drawPixelRect(mx - 14, my - 8, 28, 6, '#334');
-      drawPixelRect(mx - 12, my - 14, 18, 6, '#556');
-      drawPixelRect(mx + (flip ? -12 : 8), my - 26, 3, 14, '#99a');
-      drawPixelRect(mx + (flip ? -16 : 6), my - 28, 8, 3, '#ff6b9d');
+      const scootLean = rm ? 0 : lean * 8;
+      drawPixelRect(mx - 14 + scootLean, my - 8, 28, 6, '#334');
+      drawPixelRect(mx - 12 + scootLean, my - 14, 18, 6, '#556');
+      drawPixelRect(mx + (flip ? -12 : 8) + scootLean, my - 26, 3, 14, '#99a');
+      drawPixelRect(mx + (flip ? -16 : 6) + scootLean, my - 28, 8, 3, '#ff6b9d');
+      drawSpokeWheel(mx - 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
+      drawSpokeWheel(mx + 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
+      if (walking && !rm && GFX.quality !== 'low' && (Math.floor(gait * 6) % 2 === 0)) {
+        ctx.globalAlpha = 0.4;
+        drawPixelRect(mx + (flip ? 12 : -16), my - 6, 4, 2, '#889');
+        ctx.globalAlpha = 1;
+      }
     } else {
+      const headNod = rm ? 0 : Math.sin(gait * Math.PI * 2) * 2;
+      const tail = rm ? 0 : Math.sin(gait * Math.PI * 2 + 1.2) * 3;
       drawPixelRect(mx - 20, my - 16, 36, 12, '#6a4828');
-      drawPixelRect(mx + (flip ? -22 : 12), my - 24, 10, 10, '#5a3820');
-      drawPixelRect(mx + (flip ? 12 : -20), my - 10, 8, 4, '#4a2818');
+      drawPixelRect(mx + (flip ? -22 : 12), my - 24 + headNod, 10, 10, '#5a3820');
+      drawPixelRect(mx + (flip ? 12 : -20) + tail, my - 10, 8, 4, '#4a2818');
       drawPixelRect(mx - 6, my - 20, 10, 4, '#ffd700');
+      drawPixelRect(mx + (flip ? -8 : 4), my - 6, 5, 3, '#3a2414');
+      drawPixelRect(mx + (flip ? 4 : -10), my - 6 + (gallop > 0.6 ? 2 : 0), 5, 3, '#3a2414');
     }
   }
   {
@@ -12023,6 +12502,17 @@ function drawYajyu(x, y, facing) {
   if (state.humidity >= 70 || state.titleCine) {
     drawPixelRect(x + (flip ? -14 : 12), faceY + 6, 2, 3, '#8cf');
   }
+  if (skill > 0) {
+    const arms = (1 - skill / 0.38) * 6;
+    drawPixelRect(x - 16, y - 36 - rideLift - arms, 6, 3, '#c87838');
+    drawPixelRect(x + 10, y - 36 - rideLift - arms, 6, 3, '#c87838');
+  }
+  if (hit > 0) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#ff8c28';
+    ctx.fillRect(x - 14, y - 48 - rideLift, 28, 40);
+    ctx.globalAlpha = 1;
+  }
   const M = state.mounts;
   if (mount && M) {
     ctx.fillStyle = M.stam < 18 ? '#f84' : '#8cf';
@@ -12030,6 +12520,7 @@ function drawYajyu(x, y, facing) {
     ctx.textAlign = 'center';
     ctx.fillText(mount.short + ' ' + Math.round(M.stam), x, y + 14);
   }
+  ctx.restore();
 }
 
 function drawArcher(x, y, u) {
@@ -12153,112 +12644,178 @@ function drawArcher(x, y, u) {
 
 function drawEnemy(x, y, e) {
   ctx.imageSmoothingEnabled = false;
+  const kind = e.kind || kindFromName(e.name);
+  const rm = REDUCE_MOTION;
   const emerge = Math.max(0, e.emergeT || 0);
   const emergeP = e.emergeMax ? emerge / e.emergeMax : 0;
+  const deadP = (e.deadT > 0 && e.deadMax) ? 1 - e.deadT / e.deadMax : 0;
   if (emergeP > 0) {
     y = y + emergeP * 26;
     ctx.globalAlpha = 1 - emergeP * 0.55;
   }
-  const fi = frameIndex(e.isKoko ? 10 : 6, 4);
-  const stunBob = e.stunned > 0 ? Math.sin(state.animT * 22) * 2 : 0;
+  if (deadP > 0) {
+    y = y + deadP * 16;
+    ctx.globalAlpha = Math.max(0, 1 - deadP);
+  }
+  const gait = e.gait || 0;
+  const pose = e.pose || (emergeP > 0 ? 'emerge' : 'walk');
+  const toward = e.side < 0 ? 1 : -1;
+  let bob = 0, lean = 0, squash = 0;
+  if (kind === 'runner') {
+    bob = Math.abs(Math.sin(gait * Math.PI * 2)) * (rm ? 2 : 7);
+    lean = toward * (rm ? 0.08 : 0.22);
+  } else if (kind === 'shield' || kind === 'boss') {
+    bob = Math.abs(Math.sin(gait * Math.PI)) * (rm ? 1 : 3);
+    squash = Math.max(0, Math.cos(gait * Math.PI * 2)) * (rm ? 0 : 2);
+    lean = toward * 0.04;
+  } else if (kind === 'taka') {
+    bob = Math.sin(gait * Math.PI * 2) * (rm ? 1 : 3);
+    lean = toward * 0.12;
+  } else {
+    bob = Math.sin(gait * Math.PI * 2) * (rm ? 1 : 2.1);
+  }
+  if (pose === 'windup') { lean += -toward * (kind === 'boss' ? 0.18 : 0.12); bob -= 2; }
+  if (pose === 'attack') { lean += toward * 0.2; bob += 1; }
+  if (pose === 'recover') { lean += -toward * 0.05; }
+  if (e.hitT > 0) x += (e.hitDir || toward) * 5 * (e.hitT / 0.16);
+  const stunBob = e.stunned > 0 ? Math.sin(state.animT * 18) * 2 : 0;
+  bob += stunBob + squash;
+  const rate = kind === 'runner' ? 10 : kind === 'shield' || kind === 'boss' ? 4 : 6;
+  const fi = Math.abs(Math.floor(gait * rate)) % 4;
   let frames = FR_ENEMY;
-  if (e.isGaze) frames = FR_GAZE;
-  else if (e.isTaka) frames = FR_TAKA;
-  else if (e.isTono) frames = FR_TONO;
-  else if (e.isNgimo) frames = FR_NGIMO;
-  else if (e.isKoko) frames = FR_KOKO;
-  else if (e.isMur) frames = FR_MUR;
-  if (e._flash > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; }
-  blitOutlined(x - 16, y - 36 + stunBob, frames[fi % frames.length], PAL, 2, e.side > 0);
+  if (kind === 'gaze') frames = FR_GAZE;
+  else if (kind === 'taka') frames = FR_TAKA;
+  else if (kind === 'ranged') frames = FR_TONO;
+  else if (kind === 'support') frames = FR_NGIMO;
+  else if (kind === 'runner') frames = FR_KOKO;
+  else if (kind === 'shield' || kind === 'boss') frames = FR_MUR;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  if (kind === 'boss') ctx.scale(1.12, 1.12);
+  if (deadP > 0) ctx.transform(1 + deadP * 0.3, 0, 0, 1 - deadP * 0.45, 0, 0);
+  else if (Math.abs(lean) > 0.02) ctx.transform(1, 0, lean, 1, 0, 0);
+  if (e._flash > 0) ctx.globalCompositeOperation = 'lighter';
+  blitOutlined(-16, -36, frames[fi % frames.length], PAL, 2, e.side > 0);
   if (e._flash > 0) {
     ctx.globalAlpha = Math.min(0.7, e._flash * 5);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(x - 14, y - 36 + stunBob, 28, 32);
-    ctx.restore();
-  }
-  // 遠野笑顔は顔スプライト
-  if (e.isTono && SPR.tono) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.tono, x - 14, y - 52 + stunBob, 28, 28);
-  }
-  if (e.isGaze || e.isMur || (e.isBoss && state.bossCineT > 0)) {
-    ctx.globalAlpha = 0.28 + Math.sin(state.animT * 8) * 0.12;
-    ctx.fillStyle = e.isMur ? '#33ffee' : '#f44';
-    ctx.fillRect(x - 48, y - 30, 96, 2);
+    ctx.fillRect(-14, -36, 28, 32);
+    ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
   }
-  if (e.isBoss) {
-    // 王冠風シルエット
-    drawPixelRect(x - 8, y - 52, 16, 3, '#ffd700');
-    drawPixelRect(x - 6, y - 56, 3, 4, '#ffd700');
-    drawPixelRect(x - 1, y - 58, 3, 6, '#fff8c8');
-    drawPixelRect(x + 4, y - 56, 3, 4, '#ffd700');
-    if (state.bossCineT > 0) {
-      ctx.globalAlpha = 0.4 + Math.sin(state.animT * 12) * 0.2;
-      ctx.fillStyle = '#ff2244';
-      ctx.fillRect(x - 10, y - 42, 4, 3);
-      ctx.fillRect(x + 6, y - 42, 4, 3);
-      ctx.globalAlpha = 1;
+  if ((kind === 'ranged' || kind === 'boss') && SPR.tono) {
+    ctx.imageSmoothingEnabled = false;
+    const lift = pose === 'windup' ? -4 : 0;
+    ctx.drawImage(SPR.tono, -14, -52 + lift, 28, 28);
+  }
+  // 役割小物（盾・旗・袋・↑↓）
+  if (kind === 'shield' || kind === 'boss') {
+    const brace = pose === 'windup' ? 3 : pose === 'hit' ? -5 : pose === 'attack' ? 6 : 0;
+    const lidX = toward * (11 + brace);
+    if ((e.shield | 0) > 0) {
+      drawPixelRect(lidX - 3, -30, 7, 22, '#8aa');
+      drawPixelRect(lidX - 2, -28, 5, 18, '#cde');
+      drawPixelRect(lidX - 1, -20, 3, 2, '#667');
+      if ((e.shield | 0) === 1) drawPixelRect(lidX - 2, -16, 5, 1, '#422');
+    } else if ((e.shieldBrokeT || 0) > 0) {
+      const t = 1 - e.shieldBrokeT / 0.55;
+      drawPixelRect(lidX - 4 + t * 8, -24 + t * 10, 4, 8, '#8aa');
+      drawPixelRect(lidX + 2 - t * 6, -18 + t * 12, 3, 6, '#cde');
     }
   }
-  if (e.isKoko) {
+  if (kind === 'support') {
+    const up = pose === 'windup' || pose === 'attack' ? 10 : 2;
+    const wave = pose === 'attack' ? Math.sin(state.animT * 16) * 4 : Math.sin(state.animT * 4) * 1.5;
+    drawPixelRect(toward * 10, -28 - up, 2, 18 + up, '#864');
+    drawPixelRect(toward * 12 + wave, -40 - up, 10, 7, '#3c8');
+    drawPixelRect(toward * 12 + wave, -38 - up, 8, 2, '#ffe066');
+  }
+  if (kind === 'taka') {
+    const swing = Math.sin(gait * Math.PI * 2) * (pose === 'attack' ? 6 : 3);
+    drawPixelRect(-toward * 12 + swing, -18, 8, 7, '#642');
+    drawPixelRect(-toward * 10 + swing, -14, 4, 3, '#c9a227');
+  }
+  if (kind === 'runner') {
     ctx.fillStyle = '#44ddff';
     ctx.font = uiFont(14);
     ctx.textAlign = 'center';
-    ctx.fillText('↑', x - 10, y - 50 + Math.sin(state.animT * 12) * 3);
+    ctx.fillText('↑', -10, -50 + Math.sin(gait * 14) * 3);
     ctx.fillStyle = '#ff44aa';
-    ctx.fillText('↓', x + 10, y - 44 + Math.cos(state.animT * 12) * 3);
+    ctx.fillText('↓', 10, -44 + Math.cos(gait * 14) * 3);
+  }
+  if (kind === 'boss') {
+    const pulse = (pose === 'windup') ? 1 : 0;
+    drawPixelRect(-8, -54 - pulse * 2, 16, 3, '#ffd700');
+    drawPixelRect(-6, -58 - pulse * 2, 3, 4, '#ffd700');
+    drawPixelRect(-1, -60 - pulse * 3, 3, 6, '#fff8c8');
+    drawPixelRect(4, -58 - pulse * 2, 3, 4, '#ffd700');
+  }
+  if (pose === 'windup' && (kind === 'ranged' || kind === 'boss')) {
+    ctx.fillStyle = '#ff8c28';
+    ctx.font = uiFont(16);
+    ctx.textAlign = 'center';
+    ctx.fillText('！', toward * 14, -56);
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#ffb040';
+    ctx.fillRect(-6, -40, 12, 6);
+    ctx.globalAlpha = 1;
+  }
+  if (kind === 'gaze' && Math.abs((e.x || 0) - player.x) < 220 && pose !== 'die') {
+    ctx.globalAlpha = 0.5 + Math.sin(state.animT * 10) * 0.2;
+    drawPixelRect(-5, -30, 3, 3, '#f44');
+    drawPixelRect(3, -30, 3, 3, '#f44');
+    ctx.globalAlpha = 1;
+  }
+  if (e.cheerT > 0) {
+    ctx.fillStyle = '#9f8';
+    ctx.font = uiFont(11);
+    ctx.textAlign = 'center';
+    ctx.fillText('↑応援', 0, -58);
   }
   if (e.stunned > 0) {
     ctx.fillStyle = '#ff6b9d';
     ctx.font = uiFont(13);
     ctx.textAlign = 'center';
-    ctx.fillText('（）', x, y - 54);
+    ctx.fillText('（）', 0, -54);
   }
-  // 敵表情
   {
-    const ey = y - 28 + stunBob;
+    const ey = -28;
     const flip = e.side > 0;
-    const lx = x + (flip ? -6 : -4);
-    const rx = x + (flip ? 2 : 4);
+    const lx = flip ? -6 : -4;
+    const rx = flip ? 2 : 4;
     drawPixelRect(lx, ey, 3, 3, '#fff');
     drawPixelRect(rx, ey, 3, 3, '#fff');
-    if (e.stunned > 0) {
+    if (e.stunned > 0 || pose === 'die') {
       drawPixelRect(lx, ey + 1, 3, 1, '#222');
       drawPixelRect(rx, ey + 1, 3, 1, '#222');
-      drawPixelRect(x - 2, ey + 8, 5, 2, '#844');
-    } else if (e.isGaze || e.isMur) {
+    } else if (kind === 'gaze' || kind === 'boss') {
       drawPixelRect(lx + 1, ey, 2, 3, '#f22');
       drawPixelRect(rx + 1, ey, 2, 3, '#f22');
-    } else if (e.isTono) {
+    } else if (kind === 'ranged') {
       drawPixelRect(lx + 1, ey + 1, 2, 1, '#222');
       drawPixelRect(rx + 1, ey + 1, 2, 1, '#222');
-      drawPixelRect(x - 3, ey + 7, 6, 2, '#c66');
-    } else if (e.isTaka) {
+      drawPixelRect(-3, ey + 7, 6, 2, '#c66');
+    } else if (kind === 'taka') {
       drawPixelRect(lx + 1, ey + 1, 2, 2, '#222');
       drawPixelRect(rx + 1, ey + 1, 2, 2, '#222');
-      drawPixelRect(x - 2, ey + 7, 4, 2, '#422'); // ニヤ
-    } else if (e.isKoko) {
+      drawPixelRect(-2, ey + 7, 4, 2, '#422');
+    } else if (kind === 'runner') {
       drawPixelRect(lx + 1, ey, 2, 2, '#222');
-      drawPixelRect(rx + 1, ey + 1, 2, 2, '#222'); // 非対称
-    } else if (e.isBoss) {
-      drawPixelRect(lx, ey, 3, 3, '#f44');
-      drawPixelRect(rx, ey, 3, 3, '#f44');
-    } else if ((e.hp || 1) <= 1) {
-      drawPixelRect(lx + 1, ey + 1, 2, 1, '#222');
-      drawPixelRect(rx + 1, ey + 1, 2, 1, '#222');
-      drawPixelRect(x - 2, ey + 8, 4, 1, '#844');
+      drawPixelRect(rx + 1, ey + 1, 2, 2, '#222');
     } else {
       drawPixelRect(lx + 1, ey + 1, 2, 2, '#222');
       drawPixelRect(rx + 1, ey + 1, 2, 2, '#222');
     }
   }
-  ctx.fillStyle = e.isTaka ? '#ff8' : e.isMur ? '#33ffee' : e.isTono ? '#ffe066' : '#f88';
+  ctx.restore();
+  ctx.globalAlpha = emergeP > 0 || deadP > 0 ? (emergeP > 0 ? 1 - emergeP * 0.55 : 1 - deadP) : 1;
+  ctx.fillStyle = kind === 'taka' ? '#ff8' : kind === 'shield' ? '#33ffee' : kind === 'ranged' ? '#ffe066' : kind === 'support' ? '#9f8' : '#f88';
   ctx.font = uiFont(12);
   ctx.textAlign = 'center';
-  ctx.fillText(e.name, x, y - 48 + stunBob);
-  drawBar(x - 14, y + 4, 28, 3, e.hp / e.maxHp, '#f44', '#333');
-  if (emergeP > 0) ctx.globalAlpha = 1;
+  ctx.fillText(e.name, x, y - 48 + bob);
+  if ((e.shield | 0) > 0) drawBar(x - 14, y + 1, 28, 2, e.shield / Math.max(1, e.shieldMax || e.shield), '#8ee', '#333');
+  if (e.hp > 0) drawBar(x - 14, y + 5, 28, 3, e.hp / e.maxHp, '#f44', '#333');
+  ctx.globalAlpha = 1;
 }
 try {
   window.__YK = {
@@ -12268,6 +12825,8 @@ try {
     saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
     openBranchPanel, closeBranchPanel, ensureMountState, equippedMount, activeNestForSide,
     beginDuskRaid, queueNightWave, emergeEnemy, startLocationBus, startRaidBus, tryPay,
+    eShots, enemies, arrows, kindFromName, kindsUnlocked, KIND_CUE, normalizeEnemyKind,
+    makeNightSpec, mixedPackSpecs, hurtEnemy, fireTonoShot, pulseSupport, tickEnemy, tickEShots,
   };
 } catch (_) {}
 </script>
