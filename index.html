@@ -908,7 +908,7 @@ function streetHash(n) {
 
 /** 電柱・電線・室外機・自販機・雑草・剥がれポスター。低画質は間引く。章で密度を変える */
 function drawStreetLayer(phase, nightish) {
-  if (GFX.quality === 'low') return;
+  const low = GFX.quality === 'low';
   const th = chapterTheme();
   const cam = state.cameraX || 0;
   const dense = th.decor === 'alley' || th.decor === 'neon';
@@ -941,7 +941,7 @@ function drawStreetLayer(phase, nightish) {
     }
     ctx.stroke();
   }
-  const maxProps = GFX.quality === 'high' ? 18 : 12;
+  const maxProps = low ? 6 : (GFX.quality === 'high' ? 18 : 12);
   let drawn = 0;
   for (let i = i0; i <= i1 && drawn < maxProps; i++) {
     const wx0 = i * step + ((i * 37) % 28);
@@ -949,8 +949,8 @@ function drawStreetLayer(phase, nightish) {
     if (sx < -70 || sx > W + 70) continue;
     const h = streetHash(i * 17 + (th.decor === 'alley' ? 1 : th.decor === 'pond' ? 2 : th.decor === 'neon' ? 3 : 4));
     // 電柱
-    drawPixelRect(sx - 2, GROUND_Y - 86, 4, 86, nightish ? '#2a2a28' : '#4a4a44');
-    drawPixelRect(sx - 11, GROUND_Y - 80, 22, 3, nightish ? '#3a3a36' : '#5a5a54');
+    drawPixelRect(sx - 3, GROUND_Y - 92, 6, 92, nightish ? '#2a2a28' : '#4a4a44');
+    drawPixelRect(sx - 14, GROUND_Y - 86, 28, 4, nightish ? '#3a3a36' : '#5a5a54');
     drawPixelRect(sx - 1, GROUND_Y - 88, 2, 6, '#333');
     if (nightish && h > 0.35) {
       const glow = ctx.createRadialGradient(sx, GROUND_Y - 44, 1, sx, GROUND_Y - 44, 22);
@@ -1000,7 +1000,7 @@ function drawStreetLayer(phase, nightish) {
       }
     }
     // 剥がれポスター（小さく、看板の壁紙にしない）
-    if (dense && i % 4 === 1) {
+    if (!low && dense && i % 4 === 1) {
       const px = sx + 22;
       drawPixelRect(px, GROUND_Y - 34, 10, 12, nightish ? '#4a3020' : '#8a6040');
       drawPixelRect(px + 1, GROUND_Y - 32, 8, 3, h > 0.5 ? '#c44' : '#c4a070');
@@ -8105,20 +8105,18 @@ function drawNests(nightish) {
     if (sx < -80 || sx > W + 80) continue;
     const lit = !!(state.duskRaid || state.isNight);
     const outpost = nest.source === 'outpost';
-    drawSoftShadow(sx, GROUND_Y, 22, lit ? 0.45 : 0.22);
+    drawSoftShadow(sx, GROUND_Y, 28, lit ? 0.5 : 0.24);
     // 住宅壁／半開きシャッター。魔法陣ではなく都市の隙間
     const wall = nightish ? '#1a1816' : (outpost ? '#4a3028' : '#5a5850');
-    drawPixelRect(sx - 26, GROUND_Y - 46, 16, 46, wall);
-    drawPixelRect(sx + 10, GROUND_Y - 40, 16, 40, nightish ? '#161412' : '#4a4840');
-    drawPixelRect(sx - 10, GROUND_Y - 6, 20, 6, '#3a3830');
-    const mouth = sx + (side < 0 ? 12 : -12);
-    // 半開きシャッター
-    drawPixelRect(mouth - 8, GROUND_Y - 28, 16, 6, '#2a2a28');
-    for (let r = 0; r < 4; r++) drawPixelRect(mouth - 8, GROUND_Y - 22 + r * 4, 16, 3, r % 2 ? '#1a1a18' : '#2a2a26');
-    drawPixelRect(mouth - 7, GROUND_Y - 14, 14, 14, lit ? '#1a1008' : '#0c0c0c');
-    // 室外機の隙間
-    drawPixelRect(sx + (side < 0 ? -24 : 12), GROUND_Y - 18, 12, 10, '#4a504c');
-    drawPixelRect(sx + (side < 0 ? -22 : 14), GROUND_Y - 16, 8, 3, '#2a2e2c');
+    drawPixelRect(sx - 34, GROUND_Y - 62, 22, 62, wall);
+    drawPixelRect(sx + 12, GROUND_Y - 54, 22, 54, nightish ? '#161412' : '#4a4840');
+    drawPixelRect(sx - 12, GROUND_Y - 8, 24, 8, '#3a3830');
+    const mouth = sx + (side < 0 ? 14 : -14);
+    drawPixelRect(mouth - 10, GROUND_Y - 36, 20, 8, '#2a2a28');
+    for (let r = 0; r < 6; r++) drawPixelRect(mouth - 10, GROUND_Y - 28 + r * 4, 20, 3, r % 2 ? '#1a1a18' : '#2a2a26');
+    drawPixelRect(mouth - 8, GROUND_Y - 18, 16, 18, lit ? '#1a1008' : '#0c0c0c');
+    drawPixelRect(sx + (side < 0 ? -32 : 16), GROUND_Y - 22, 14, 12, '#4a504c');
+    drawPixelRect(sx + (side < 0 ? -30 : 18), GROUND_Y - 20, 10, 4, '#2a2e2c');
     if (lit) {
       const pulse = 0.28 + Math.sin(state.animT * 5) * 0.12;
       ctx.globalAlpha = pulse;
@@ -9829,7 +9827,9 @@ function skyColors(phase) {
     { p: 0.00, t: '#0c1820', m: '#1a3040', b: '#2a4050' }, // 湿った夜明け前
     { p: 0.12, t: '#ffb080', m: '#ffd0a0', b: '#c8c070' }, // 白い朝焼け
     { p: 0.28, t: '#7ec8ff', m: '#e8f4ff', b: '#d0d080' }, // 漂白された朝
-    { p: 0.40, t: '#5ab0ff', m: '#f0f6ff', b: '#c8c868' }, // Harsh noon
+    { p: 0.38, t: '#5ab0ff', m: '#f0f6ff', b: '#c8c868' }, // Harsh noon
+    { p: 0.48, t: '#ff8a48', m: '#ffc070', b: '#d09040' }, // 昼の終わり＝琥珀へ
+    { p: 0.55, t: '#ff6a30', m: '#ff9040', b: '#c07030' }, // プレイ昼の終端で夕
     { p: 0.58, t: '#ff6a30', m: '#ff9040', b: '#c07030' }, // 琥珀の夕
     { p: 0.72, t: '#0c2830', m: '#1a4050', b: '#2a3840' }, // 湿った宵
     { p: 0.88, t: '#061418', m: '#0c2430', b: '#142830' }, // 自販機色の夜
@@ -12299,7 +12299,7 @@ function drawEnemy(x, y, e) {
 }
 try {
   window.__YK = {
-    get state() { return state; }, player, ADV, SAVE_KEY, MOUNTS, NEST_DEFS,
+    get state() { return state; }, player, ADV, SAVE_KEY, MOUNTS, NEST_DEFS, structures,
     inspectAdvCue, inspectAdvGraffiti, inspectAdvBox, enterAdvDungeon,
     advDungeonInteract, exitDungeon, resetGame, applySave, buildSaveBlob,
     saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
