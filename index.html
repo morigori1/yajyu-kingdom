@@ -314,7 +314,7 @@
   }
   @keyframes faceGlow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255,215,0,0); }
-    50% { box-shadow: 0 0 14px 2px rgba(255,215,0,.35); }
+    50% { box-shadow: 0 0 8px 0 rgba(255,215,0,.2); }
   }
   #overlay p {
     font-size: clamp(11px, 3.2vw, 13px);
@@ -820,8 +820,8 @@
         <span style="color:#888">パッド／キーボード　おかのした</span>
       </p>
       <div id="title-faces" style="display:flex;gap:12px;justify-content:center;align-items:flex-end;margin:8px 0;">
-        <div style="text-align:center"><img src="assets/doya.jpg" alt="先輩" width="88" height="88" style="object-fit:cover;object-position:center 18%;border:2px solid #ffd700;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
-        <div style="text-align:center"><img src="assets/kohai_pixel.png" alt="後輩" width="56" height="56" style="image-rendering:pixelated;border:2px solid #ff6b9d;background:#222"/><div style="font-size:9px;color:#ff6b9d;margin-top:4px">後輩</div></div>
+        <div style="text-align:center"><img src="assets/doya.jpg" alt="先輩" width="88" height="88" style="object-fit:cover;object-position:center 18%;border-radius:50%;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
+        <div style="text-align:center"><img src="assets/kohai_pixel.png" alt="後輩" width="56" height="56" style="image-rendering:pixelated;border-radius:8px;background:#222"/><div style="font-size:9px;color:#ff6b9d;margin-top:4px">後輩</div></div>
       </div>
       <button id="startBtn" type="button">いいよ！こいよ！（新規）</button>
       <button id="continueBtn" type="button" style="display:none;margin-top:8px;background:#2a3a1a">つづきから（セーブ）</button>
@@ -2889,14 +2889,7 @@ function drawExploreLayer(nightish) {
     if (sx < -80 || sx > W + 80) continue;
     drawSoftShadow(sx, GROUND_Y, 30, 0.25);
     drawExploreSite(sx, S, !!state.explore[S.id], exploreSiteAvail(S), nightish);
-    if (state.adv && state.adv.relic && !state.explore[S.id] && Math.abs(S.x - player.x) < ((state.adv.riskBonus ? 1100 : 900))) {
-      ctx.save();
-      ctx.globalAlpha = 0.18 + Math.sin(state.animT * 3 + S.x * 0.01) * 0.1;
-      ctx.strokeStyle = '#ffb040';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(sx, GROUND_Y - 36, 22, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
+    // 残響鈴の常時円は出さない。地点の？／ラベルで足りる
   }
   if (!state.isNight) for (const c of state.caches) {
     const sx = wx(c.x);
@@ -8183,26 +8176,17 @@ function drawSenpaiFace(dx, dy, size, flip) {
   ctx.save();
   ctx.imageSmoothingEnabled = true;
   const s = size;
+  // 頭の輪郭だけで切る。金枠・黒縁の肖像メダルにはしない
   ctx.beginPath();
-  ctx.ellipse(dx, dy, s * 0.46, s * 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(dx, dy + s * 0.06, s * 0.40, s * 0.46, 0, 0, Math.PI * 2);
   ctx.clip();
   if (flip) {
     ctx.translate(dx, dy);
     ctx.scale(-1, 1);
-    ctx.drawImage(im, -s / 2, -s / 2, s, s);
+    ctx.drawImage(im, -s / 2, -s / 2 + 3, s, s);
   } else {
-    ctx.drawImage(im, dx - s / 2, dy - s / 2, s, s);
+    ctx.drawImage(im, dx - s / 2, dy - s / 2 + 3, s, s);
   }
-  ctx.restore();
-  ctx.save();
-  ctx.strokeStyle = '#1a0a00';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.ellipse(dx, dy, s * 0.46, s * 0.5, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.strokeStyle = '#ffd700';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
   ctx.restore();
   return true;
 }
@@ -9626,8 +9610,7 @@ function update(dt) {
   const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
   const mt = mount ? ` <span style="color:${((state.mounts.stam)|0) < 18 ? '#f84' : '#8cf'}">${mount.short}${Math.round(state.mounts.stam)}</span>` : '';
   const nestTag = (state.duskRaid || state.isNight) ? ' <span style="color:#c8a0ff">巣進軍</span>' : '';
-  const faceImg = `<img src="assets/doya.jpg" alt="先輩" width="28" height="28" style="object-fit:cover;object-position:center 20%;border:1px solid #ffd700;vertical-align:middle;margin-right:4px">`;
-  left.innerHTML = `${faceImg}<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${mt}${nestTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
+  left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${mt}${nestTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
   const spot = nearestSpot();
   const blocked = !spot ? nearbySpots()[0] : null;
   const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
@@ -10319,29 +10302,20 @@ function draw() {
   drawMiliGadgets();
   drawTorchLights();
 
-  // ショップヒント円（最寄り1件＋他件数。無効は理由）
+  // 現地払い：足元にいるときだけ1つ。常時の謎円は出さない
   if (state.running) {
-    const focus = nearestSpot() || nearbySpots()[0];
-    for (const s of shopSpots()) {
-      const near = Math.abs(player.x - s.x) <= s.r;
-      if (!near && !s.can && !s.mount) continue;
-      ctx.strokeStyle = near && s === focus ? '#ffd700' : (s.can ? 'rgba(255,215,0,0.28)' : 'rgba(180,160,120,0.2)');
-      ctx.lineWidth = near && s === focus ? 3 : 2;
+    const focus = nearestSpot();
+    const inRange = !!(focus && Math.abs(player.x - focus.x) <= focus.r);
+    if (inRange) {
+      const others = nearbySpots().filter(s => s !== focus && Math.abs(player.x - s.x) <= s.r).length;
+      ctx.strokeStyle = focus.can ? '#ffd700' : '#c88';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(wx(s.x), GROUND_Y - 4, s.mount ? 14 : 12, 0, Math.PI * 2);
+      ctx.arc(wx(focus.x), GROUND_Y - 4, 12, 0, Math.PI * 2);
       ctx.stroke();
-    }
-    if (focus) {
-      const others = nearbySpots().filter(s => s !== focus).length;
-      ctx.globalAlpha = 0.28 + Math.sin(state.animT * 5) * 0.1;
-      ctx.strokeStyle = focus.can ? '#fff8c0' : '#c88';
-      ctx.beginPath();
-      ctx.arc(wx(focus.x), GROUND_Y - 4, 17 + Math.sin(state.animT * 5) * 2, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
       ctx.textAlign = 'center';
       const ready = focus.can
-        ? `[SPACE] ${focus.cost}🪙`
+        ? `払う ${focus.cost}🪙`
         : (focus.why || '今は払えない');
       drawUiLabel(ready, wx(focus.x), GROUND_Y - 78, focus.can ? '#ffd700' : '#fa8', 15);
       drawUiLabel(focus.label, wx(focus.x), GROUND_Y - 94, focus.mount ? '#8cf' : '#ff6b9d', 14);
@@ -12001,13 +11975,13 @@ function drawYajyu(x, y, facing) {
     }
   }
   {
-    const by = y - 36 + bob + squash - rideLift;
+    const by = y - 32 + bob + squash - rideLift;
     ctx.fillStyle = '#1a0a00';
-    ctx.fillRect(x - 11, by + 2, 22, 30);
+    ctx.fillRect(x - 11, by + 2, 22, 28);
     ctx.fillStyle = '#c87838';
-    ctx.fillRect(x - 9, by, 18, 28);
+    ctx.fillRect(x - 9, by, 18, 26);
     ctx.fillStyle = '#3a1020';
-    ctx.fillRect(x + (flip ? 6 : -12), by + 4, 6, 20);
+    ctx.fillRect(x + (flip ? 6 : -12), by + 4, 6, 18);
   }
   if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
     ctx.globalAlpha = 0.35;
@@ -12015,25 +11989,26 @@ function drawYajyu(x, y, facing) {
     ctx.globalAlpha = 1;
   }
   if (body && !mount) {
-    try { blitOutlined(x - 16, y - 44 + bob + squash, body, PAL, 2, flip); } catch (_) {}
+    try { blitOutlined(x - 16, y - 40 + bob + squash, body, PAL, 2, flip); } catch (_) {}
   }
-  // 顔：実写参照を十分な大きさで（リーゼント重ね塗りしない）
-  const faceY = y - 58 + bob - rideLift;
-  const faceSz = 52;
+  // 顔は頭。首で胴体とつなぐ。メダル枠は付けない
+  const faceY = y - 44 + bob - rideLift;
+  const faceSz = 34;
+  drawPixelRect(x - 5, faceY + 10, 10, 8, '#c87838');
+  drawPixelRect(x - 10, faceY + 16, 20, 5, '#5a2a18');
   const gotFace = drawSenpaiFace(x, faceY, faceSz, flip);
   if (!gotFace) {
     ctx.fillStyle = '#ffe0b0';
-    ctx.fillRect(x - 16, faceY - 18, 32, 34);
+    ctx.fillRect(x - 10, faceY - 10, 20, 22);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(x - 8, faceY - 4, 6, 6);
-    ctx.fillRect(x + 4, faceY - 4, 6, 6);
+    ctx.fillRect(x - 6, faceY - 2, 4, 4);
+    ctx.fillRect(x + 3, faceY - 2, 4, 4);
     ctx.fillStyle = '#222';
-    ctx.fillRect(x - 6, faceY - 2, 3, 3);
-    ctx.fillRect(x + 6, faceY - 2, 3, 3);
+    ctx.fillRect(x - 5, faceY - 1, 2, 2);
+    ctx.fillRect(x + 4, faceY - 1, 2, 2);
   }
-  // 王冠は顔の上（クリップしない）
-  const cy = faceY - 30;
-  blitOutlined(x - 16, cy, [
+  const cy = faceY - 18;
+  blitOutlined(x - 14, cy, [
     '.G.G.G.G.G.',
     'GgGgGgGgGgG',
     'GGGGUUGGGGG',
@@ -12041,24 +12016,12 @@ function drawYajyu(x, y, facing) {
     '..G.....G..',
   ], PAL, 2, false);
   if (Math.sin(state.animT * 8) > 0.15) {
-    drawPixelRect(x - 1, cy + 6, 4, 4, '#fff');
-    drawPixelRect(x - 10, cy + 3, 3, 3, '#ff6b9d');
-    drawPixelRect(x + 8, cy + 3, 3, 3, '#8af');
-  }
-  if (GFX.quality !== 'low' || state.titleCine) {
-    ctx.globalAlpha = 0.16 + Math.sin(state.animT * 3) * 0.06;
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath();
-    ctx.arc(x, cy + 8, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    drawPixelRect(x - 1, cy + 6, 3, 3, '#fff');
+    drawPixelRect(x - 8, cy + 3, 2, 2, '#ff6b9d');
+    drawPixelRect(x + 7, cy + 3, 2, 2, '#8af');
   }
   if (state.humidity >= 70 || state.titleCine) {
-    drawPixelRect(x + (flip ? -18 : 14), faceY + 8, 2, 4, '#8cf');
-  }
-  if (state.gazeT > 0) {
-    ctx.strokeStyle = 'rgba(255,60,60,0.55)';
-    ctx.strokeRect(x - 28, faceY - 34, 56, 90);
+    drawPixelRect(x + (flip ? -14 : 12), faceY + 6, 2, 3, '#8cf');
   }
   const M = state.mounts;
   if (mount && M) {
