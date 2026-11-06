@@ -854,10 +854,12 @@
 <button type="button" id="mute-chip" aria-label="音声ミュート切替" aria-pressed="false">音:ON</button>
 <button type="button" id="zoom-chip" aria-label="表示拡大切替">拡大:125%</button>
 <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
+<script src="assets/yk-art.js"></script>
 <script>
 /* =========================================================
    野獣キングダム — Kingdom Two Crowns 風最小プロトタイプ
    自作 canvas / 絵文字 / ドット描画のみ（外部画像なし）
+   ピクセル本体は assets/yk-art.js で一度だけアトラス化
    ========================================================= */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -875,6 +877,7 @@ loadSpr('kohai', 'assets/kohai_pixel.png');
 loadSpr('icon', 'assets/senpai_icon.png');
 loadSpr('tono', 'assets/tono_smile_pixel.png');
 loadSpr('face', 'assets/doya.jpg');
+try { if (window.YKArt && typeof YKArt.bake === 'function') YKArt.bake(); } catch (_) {}
 const REDUCE_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const W = canvas.width, H = canvas.height;
@@ -949,8 +952,13 @@ function drawStreetLayer(phase, nightish) {
     if (sx < -70 || sx > W + 70) continue;
     const h = streetHash(i * 17 + (th.decor === 'alley' ? 1 : th.decor === 'pond' ? 2 : th.decor === 'neon' ? 3 : 4));
     // 電柱
-    drawPixelRect(sx - 3, GROUND_Y - 92, 6, 92, nightish ? '#2a2a28' : '#4a4a44');
-    drawPixelRect(sx - 14, GROUND_Y - 86, 28, 4, nightish ? '#3a3a36' : '#5a5a54');
+    if (!artBlit('pole', sx - 8, GROUND_Y - 56, false)) {
+      drawPixelRect(sx - 3, GROUND_Y - 92, 6, 92, nightish ? '#2a2a28' : '#4a4a44');
+      drawPixelRect(sx - 14, GROUND_Y - 86, 28, 4, nightish ? '#3a3a36' : '#5a5a54');
+    } else {
+      drawPixelRect(sx - 3, GROUND_Y - 92, 6, 36, nightish ? '#2a2a28' : '#4a4a44');
+      drawPixelRect(sx - 14, GROUND_Y - 86, 28, 4, nightish ? '#3a3a36' : '#5a5a54');
+    }
     drawPixelRect(sx - 1, GROUND_Y - 88, 2, 6, '#333');
     if (nightish && h > 0.35) {
       const glow = ctx.createRadialGradient(sx, GROUND_Y - 44, 1, sx, GROUND_Y - 44, 22);
@@ -973,10 +981,12 @@ function drawStreetLayer(phase, nightish) {
     if ((th.decor === 'alley' || th.decor === 'neon') && i % 5 === 2) {
       const vx = sx - 28;
       const vend = th.decor === 'neon' ? (nightish ? '#3a2040' : '#6a3058') : (nightish ? '#1a3a32' : '#2a6a58');
-      drawPixelRect(vx, GROUND_Y - 36, 14, 36, vend);
-      drawPixelRect(vx + 2, GROUND_Y - 32, 10, 10, nightish ? '#8cf' : '#cfe');
-      drawPixelRect(vx + 3, GROUND_Y - 18, 3, 3, '#c44');
-      drawPixelRect(vx + 8, GROUND_Y - 18, 3, 3, '#48c');
+      if (!artBlit('vending', vx - 2, GROUND_Y - 40, false)) {
+        drawPixelRect(vx, GROUND_Y - 36, 14, 36, vend);
+        drawPixelRect(vx + 2, GROUND_Y - 32, 10, 10, nightish ? '#8cf' : '#cfe');
+        drawPixelRect(vx + 3, GROUND_Y - 18, 3, 3, '#c44');
+        drawPixelRect(vx + 8, GROUND_Y - 18, 3, 3, '#48c');
+      }
       if (nightish) {
         const vg = ctx.createRadialGradient(vx + 7, GROUND_Y - 20, 1, vx + 7, GROUND_Y - 20, 20);
         vg.addColorStop(0, 'rgba(58,208,200,0.28)');
@@ -991,6 +1001,7 @@ function drawStreetLayer(phase, nightish) {
         ctx.fillText('810', vx + 7, GROUND_Y - 38);
       }
     }
+    if (!low && i % 7 === 3) artBlit('manhole', sx - 6, GROUND_Y - 2, false);
     // 雑草
     if (th.decor !== 'neon') {
       for (let w = 0; w < 3; w++) {
@@ -7101,6 +7112,40 @@ const FR_NGIMO = mkEnemyFrames('I', 'i', 'J', 'Z');
 const FR_KOKO  = mkEnemyFrames('c', 'p', '1', 'R');
 const FR_MUR   = mkEnemyFrames('u', 's', '@', 'Z');
 
+function artReady() {
+  return !!(window.YKArt && (YKArt.ready || (typeof YKArt.bake === 'function' && YKArt.bake())));
+}
+function artBlit(name, x, y, flip) {
+  if (!artReady() || !YKArt.has(name)) return false;
+  return YKArt.blit(ctx, name, x, y, !!flip);
+}
+function enemyArtKind(kind) {
+  if (kind === 'runner' || kind === 'shield' || kind === 'ranged' || kind === 'support' || kind === 'taka' || kind === 'gaze' || kind === 'boss') return kind;
+  return 'grunt';
+}
+function enemyArtKey(e, kind, pose) {
+  const k = enemyArtKind(kind);
+  if (pose === 'die') {
+    const beat = (e && e.deathBeat) || 'slump';
+    const map = {
+      slump: 'die_slump', topple: 'die_topple', tumble: 'die_tumble',
+      sit: 'die_sit', fold: 'die_fold', lid: 'die_lid', flag: 'die_flag',
+      bag: 'die_bag', pop: 'die_pop',
+    };
+    return k + '_' + (map[beat] || 'die_slump');
+  }
+  if (pose === 'walk') {
+    const rate = kind === 'runner' ? 10 : kind === 'shield' || kind === 'boss' ? 4 : 6;
+    const fi = Math.abs(Math.floor((e.gait || 0) * rate)) % 4;
+    return k + '_walk' + fi;
+  }
+  if (pose === 'windup') return k + '_windup';
+  if (pose === 'attack') return k + '_attack';
+  if (pose === 'hit') return k + '_hit';
+  const fg = ((e && e.fidgetKind) | 0) % 2;
+  return k + (fg ? '_idle1' : '_idle');
+}
+
 const FR_FLAME = [
   ['...F....','..FYF...','..FYyYF.','..FYyYF.','...FYF..','....C...'],
   ['....F...','...FYF..','.FYyYyF.','..FyYyF.','...FYF..','....C...'],
@@ -8712,11 +8757,15 @@ function drawNests(nightish) {
     drawPixelRect(sx + 12, GROUND_Y - 54, 22, 54, nightish ? '#161412' : '#4a4840');
     drawPixelRect(sx - 12, GROUND_Y - 8, 24, 8, '#3a3830');
     const mouth = sx + (side < 0 ? 14 : -14);
-    drawPixelRect(mouth - 10, GROUND_Y - 36, 20, 8, '#2a2a28');
-    for (let r = 0; r < 6; r++) drawPixelRect(mouth - 10, GROUND_Y - 28 + r * 4, 20, 3, r % 2 ? '#1a1a18' : '#2a2a26');
-    drawPixelRect(mouth - 8, GROUND_Y - 18, 16, 18, lit ? '#1a1008' : '#0c0c0c');
-    drawPixelRect(sx + (side < 0 ? -32 : 16), GROUND_Y - 22, 14, 12, '#4a504c');
-    drawPixelRect(sx + (side < 0 ? -30 : 18), GROUND_Y - 20, 10, 4, '#2a2e2c');
+    if (!artBlit(lit ? 'nest_open' : 'nest_shut', mouth - 22, GROUND_Y - 48, side > 0)) {
+      drawPixelRect(mouth - 10, GROUND_Y - 36, 20, 8, '#2a2a28');
+      for (let r = 0; r < 6; r++) drawPixelRect(mouth - 10, GROUND_Y - 28 + r * 4, 20, 3, r % 2 ? '#1a1a18' : '#2a2a26');
+      drawPixelRect(mouth - 8, GROUND_Y - 18, 16, 18, lit ? '#1a1008' : '#0c0c0c');
+    }
+    if (!artBlit('ac_unit', sx + (side < 0 ? -34 : 16), GROUND_Y - 24, false)) {
+      drawPixelRect(sx + (side < 0 ? -32 : 16), GROUND_Y - 22, 14, 12, '#4a504c');
+      drawPixelRect(sx + (side < 0 ? -30 : 18), GROUND_Y - 20, 10, 4, '#2a2e2c');
+    }
     if (lit) {
       const pulse = 0.28 + Math.sin(state.animT * 5) * 0.12;
       ctx.globalAlpha = pulse;
@@ -8746,15 +8795,23 @@ function drawMountStands() {
     const eq = M.eq === m.id;
     drawPixelRect(sx - 10, GROUND_Y - 8, 20, 8, '#3a2a18');
     if (m.id === 'chari') {
-      drawPixelRect(sx - 8, GROUND_Y - 14, 5, 5, '#222');
-      drawPixelRect(sx + 3, GROUND_Y - 14, 5, 5, '#222');
-      drawPixelRect(sx - 6, GROUND_Y - 18, 12, 3, '#6a4030');
+      if (!artBlit('chari_body', sx - 24, GROUND_Y - 28, false)) {
+        drawPixelRect(sx - 8, GROUND_Y - 14, 5, 5, '#222');
+        drawPixelRect(sx + 3, GROUND_Y - 14, 5, 5, '#222');
+        drawPixelRect(sx - 6, GROUND_Y - 18, 12, 3, '#6a4030');
+      }
+      artBlit('wheel_0', sx - 20, GROUND_Y - 16, false);
+      artBlit('wheel_1', sx + 2, GROUND_Y - 16, false);
     } else if (m.id === 'scooter') {
-      drawPixelRect(sx - 8, GROUND_Y - 12, 16, 5, '#445');
-      drawPixelRect(sx + 4, GROUND_Y - 20, 3, 10, '#889');
+      if (!artBlit('scooter_body', sx - 24, GROUND_Y - 32, false)) {
+        drawPixelRect(sx - 8, GROUND_Y - 12, 16, 5, '#445');
+        drawPixelRect(sx + 4, GROUND_Y - 20, 3, 10, '#889');
+      }
     } else {
-      drawPixelRect(sx - 12, GROUND_Y - 16, 22, 10, '#6a4828');
-      drawPixelRect(sx + 8, GROUND_Y - 22, 6, 8, '#5a3820');
+      if (!artBlit('horse_0', sx - 28, GROUND_Y - 36, false)) {
+        drawPixelRect(sx - 12, GROUND_Y - 16, 22, 10, '#6a4828');
+        drawPixelRect(sx + 8, GROUND_Y - 22, 6, 8, '#5a3820');
+      }
     }
     ctx.textAlign = 'center';
     drawUiLabel(owned ? (eq ? '乗車中' : m.short) : m.short, sx, GROUND_Y - 26, eq ? '#ffd700' : (owned ? '#8cf' : '#c8a878'), 12);
@@ -12290,13 +12347,17 @@ function drawCampfire(x, y) {
     ctx.fillStyle = cg;
     ctx.fillRect(x - 40, y - 60, 80, 70);
   }
-  blitOutlined(x - 8 + sway * 0.3, y - 40, flame[fi] || flame[0], PAL, 3 + Math.min(2, state.civilTier|0), false);
+  if (!artBlit('hibachi_' + (fi % 2), x - 20, y - 36, false)) {
+    blitOutlined(x - 8 + sway * 0.3, y - 40, flame[fi] || flame[0], PAL, 3 + Math.min(2, state.civilTier|0), false);
+  }
   // 折りたたみ机＋アイスティー缶
   drawPixelRect(x - 28, y - 8, 18, 3, '#8a7a58');
   drawPixelRect(x - 26, y - 8, 2, 8, '#6a5a40');
   drawPixelRect(x - 14, y - 8, 2, 8, '#6a5a40');
-  drawPixelRect(x - 22, y - 14, 4, 6, '#3ad0c8');
-  drawPixelRect(x - 21, y - 16, 2, 2, '#cfe');
+  if (!artBlit('can', x - 24, y - 18, false)) {
+    drawPixelRect(x - 22, y - 14, 4, 6, '#3ad0c8');
+    drawPixelRect(x - 21, y - 16, 2, 2, '#cfe');
+  }
   if ((state.civilTier|0) >= 2) {
     const cg2 = ctx.createRadialGradient(x, y - 28, 4, x, y - 28, 50 + (state.bankTier|0)*6);
     cg2.addColorStop(0, 'rgba(255,200,80,0.35)');
@@ -12323,6 +12384,7 @@ function drawCampfire(x, y) {
   ctx.strokeStyle = '#c4a070';
   ctx.lineWidth = 2;
   ctx.strokeRect(x + 10 + signSway, y - 64, 78, 30);
+  artBlit('corkboard', x + 12 + signSway, y - 62, false);
   drawPixelRect(x + 16 + signSway, y - 58, 8, 6, '#f3ead4');
   drawPixelRect(x + 28 + signSway, y - 56, 10, 5, '#ff6b9d');
   drawSoftShadow(x + 40 + signSway, y, 20, 0.18);
@@ -12349,10 +12411,13 @@ function drawWall(wall, isLeft) {
   if (wall.level <= 0) {
     const bob = Math.sin(state.animT * 2 + wall.x * 0.01) * 1;
     // 机・コンテナ・波板の仮囲い
-    drawPixelRect(x - 16, GROUND_Y - 14 + bob, 14, 10, '#6a5840');
-    drawPixelRect(x + 2, GROUND_Y - 12 + bob, 12, 8, '#8a6a28');
-    drawPixelRect(x - 10, GROUND_Y - 22 + bob, 20, 8, '#7a7a70');
-    drawPixelRect(x - 8, GROUND_Y - 20 + bob, 16, 2, '#5a5a54');
+    if (!artBlit('wall_desk', x - 20, GROUND_Y - 28 + bob, false)) {
+      drawPixelRect(x - 16, GROUND_Y - 14 + bob, 14, 10, '#6a5840');
+      drawPixelRect(x + 2, GROUND_Y - 12 + bob, 12, 8, '#8a6a28');
+      drawPixelRect(x - 10, GROUND_Y - 22 + bob, 20, 8, '#7a7a70');
+    }
+    artBlit('namiita', x - 18, GROUND_Y - 20 + bob, false);
+    artBlit('crate', x + 6, GROUND_Y - 16 + bob, false);
     drawPixelRect(x + 10, GROUND_Y - 10 + bob, 5, 8, '#ff8844');
     ctx.textAlign = 'center';
     drawUiLabel(miliWallName(), x, GROUND_Y - 30, 'rgba(255,215,0,0.85)', 13);
@@ -12388,6 +12453,7 @@ function drawWall(wall, isLeft) {
     for (const by of [GROUND_Y - 16, GROUND_Y - 36]) {
       drawPixelRect(x - 16 + sway, by, 32, 5, '#7a7a70');
       drawPixelRect(x - 16 + sway, by + 1, 32, 1, '#4a4a44');
+      artBlit('namiita', x - 18 + sway, by - 2, false);
     }
     drawPixelRect(x - 18 + sway, GROUND_Y - 10, 10, 8, '#8a7848');
     drawPixelRect(x + 8 + sway, GROUND_Y - 10, 10, 8, '#8a7848');
@@ -12408,6 +12474,7 @@ function drawWall(wall, isLeft) {
         drawPixelRect(ox + sway, oy + brickH - 1, brickW, 1, '#2a2820');
         if ((row + col) % 5 === 0) drawPixelRect(ox + sway + 1, oy + 1, 2, 1, '#8a6040');
         if (row < 2 && (col + row) % 3 === 0) drawPixelRect(ox + sway, oy + 3, 3, 1, '#3a6a38');
+        if (GFX.quality !== 'low' && row === 0 && col === 0) artBlit('concrete', x - 16 + sway, GROUND_Y - 12, false);
       }
     }
     drawPixelRect(x - 17 + sway, GROUND_Y - h, 1, h, '#1a1814');
@@ -12486,12 +12553,10 @@ function drawYajyu(x, y, facing) {
   const rm = REDUCE_MOTION;
   const walking = Math.abs(player.vx) > 8 || state.titleCine;
   const running = Math.abs(player.vx) > 118;
-  const walkFrames = (FR_WALK && FR_WALK.length) ? FR_WALK : null;
-  const idleFrames = (FR_IDLE && FR_IDLE.length) ? FR_IDLE : walkFrames;
   const gait = player.gait || 0;
-  const fi = walking && !state.titleCine && walkFrames
-    ? ((Math.floor(gait * (running ? 8 : 5)) % walkFrames.length) + walkFrames.length) % walkFrames.length
-    : frameIndex(2, (idleFrames || [[]]).length);
+  const fi = walking && !state.titleCine
+    ? ((Math.floor(gait * (running ? 8 : 5)) % 4) + 4) % 4
+    : frameIndex(2, 2);
   const step = walking && !state.titleCine ? Math.sin(gait * Math.PI * 2) : Math.sin(state.animT * 2.2);
   const bob = walking && !state.titleCine ? (rm ? step * 0.6 : (running ? step * 2.2 : step * 1.4)) : step * 0.7;
   const squash = walking && !state.titleCine && step > 0.55 ? (rm ? 0 : 1.4) : 0;
@@ -12500,7 +12565,6 @@ function drawYajyu(x, y, facing) {
   const turn = (player.turnT || 0) > 0 ? (player.turnT / 0.14) : 0;
   const skill = player.skillPoseT || 0;
   const hit = player.hitT || 0;
-  const body = (walking && !state.titleCine && walkFrames) ? walkFrames[fi] : (idleFrames ? idleFrames[fi % idleFrames.length] : null);
   const mount = (typeof equippedMount === 'function') ? equippedMount() : null;
   let rideLift = 0;
   const spin = player.mountSpin || 0;
@@ -12516,80 +12580,83 @@ function drawYajyu(x, y, facing) {
     const bounce = mount.id === 'horse' ? (rm ? gallop * 2 : gallop * 5) : (rm ? gallop : gallop * 2.2);
     rideLift = 10 + bounce;
     const mx = x, my = y - 2 + bounce * 0.4;
+    const wi = Math.abs(Math.floor(spin * 8)) % 4;
     if (mount.id === 'chari') {
-      drawPixelRect(mx - 12, my - 14, 24, 5, '#6a4030');
-      drawPixelRect(mx + (flip ? -14 : 8), my - 22, 3, 10, '#444');
-      drawSpokeWheel(mx - 12, my - 5, 4, spin, '#222');
-      drawSpokeWheel(mx + 10, my - 5, 4, spin + 0.12, '#222');
+      if (!artBlit('chari_body', mx - 24, my - 28, flip)) {
+        drawPixelRect(mx - 12, my - 14, 24, 5, '#6a4030');
+        drawPixelRect(mx + (flip ? -14 : 8), my - 22, 3, 10, '#444');
+      }
+      if (!artBlit('wheel_' + wi, mx - 22, my - 16, false)) drawSpokeWheel(mx - 12, my - 5, 4, spin, '#222');
+      if (!artBlit('wheel_' + ((wi + 1) % 4), mx + 2, my - 16, false)) drawSpokeWheel(mx + 10, my - 5, 4, spin + 0.12, '#222');
     } else if (mount.id === 'scooter') {
       const scootLean = rm ? 0 : lean * 8;
-      drawPixelRect(mx - 14 + scootLean, my - 8, 28, 6, '#334');
-      drawPixelRect(mx - 12 + scootLean, my - 14, 18, 6, '#556');
-      drawPixelRect(mx + (flip ? -12 : 8) + scootLean, my - 26, 3, 14, '#99a');
-      drawPixelRect(mx + (flip ? -16 : 6) + scootLean, my - 28, 8, 3, '#ff6b9d');
-      drawSpokeWheel(mx - 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
-      drawSpokeWheel(mx + 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
+      if (!artBlit('scooter_body', mx - 24 + scootLean, my - 32, flip)) {
+        drawPixelRect(mx - 14 + scootLean, my - 8, 28, 6, '#334');
+        drawPixelRect(mx - 12 + scootLean, my - 14, 18, 6, '#556');
+        drawPixelRect(mx + (flip ? -12 : 8) + scootLean, my - 26, 3, 14, '#99a');
+        drawPixelRect(mx + (flip ? -16 : 6) + scootLean, my - 28, 8, 3, '#ff6b9d');
+      }
+      if (!artBlit('wheel_' + wi, mx - 20 + scootLean, my - 14, false)) drawSpokeWheel(mx - 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
+      if (!artBlit('wheel_' + wi, mx + 4 + scootLean, my - 14, false)) drawSpokeWheel(mx + 10 + scootLean, my - 4, 3, spin * 1.3, '#111');
       if (walking && !rm && GFX.quality !== 'low' && (Math.floor(gait * 6) % 2 === 0)) {
         ctx.globalAlpha = 0.4;
         drawPixelRect(mx + (flip ? 12 : -16), my - 6, 4, 2, '#889');
         ctx.globalAlpha = 1;
       }
     } else {
-      const headNod = rm ? 0 : Math.sin(gait * Math.PI * 2) * 2;
-      const tail = rm ? 0 : Math.sin(gait * Math.PI * 2 + 1.2) * 3;
-      drawPixelRect(mx - 20, my - 16, 36, 12, '#6a4828');
-      drawPixelRect(mx + (flip ? -22 : 12), my - 24 + headNod, 10, 10, '#5a3820');
-      drawPixelRect(mx + (flip ? 12 : -20) + tail, my - 10, 8, 4, '#4a2818');
-      drawPixelRect(mx - 6, my - 20, 10, 4, '#ffd700');
-      drawPixelRect(mx + (flip ? -8 : 4), my - 6, 5, 3, '#3a2414');
-      drawPixelRect(mx + (flip ? 4 : -10), my - 6 + (gallop > 0.6 ? 2 : 0), 5, 3, '#3a2414');
+      const hf = Math.abs(Math.floor(gait * 8)) % 4;
+      if (!artBlit('horse_' + hf, mx - 28, my - 36, flip)) {
+        const headNod = rm ? 0 : Math.sin(gait * Math.PI * 2) * 2;
+        const tail = rm ? 0 : Math.sin(gait * Math.PI * 2 + 1.2) * 3;
+        drawPixelRect(mx - 20, my - 16, 36, 12, '#6a4828');
+        drawPixelRect(mx + (flip ? -22 : 12), my - 24 + headNod, 10, 10, '#5a3820');
+        drawPixelRect(mx + (flip ? 12 : -20) + tail, my - 10, 8, 4, '#4a2818');
+        drawPixelRect(mx - 6, my - 20, 10, 4, '#ffd700');
+        drawPixelRect(mx + (flip ? -8 : 4), my - 6, 5, 3, '#3a2414');
+        drawPixelRect(mx + (flip ? 4 : -10), my - 6 + (gallop > 0.6 ? 2 : 0), 5, 3, '#3a2414');
+      }
     }
   }
   {
-    const by = y - 32 + bob + squash - rideLift;
-    ctx.fillStyle = '#1a0a00';
-    ctx.fillRect(x - 11, by + 2, 22, 28);
-    ctx.fillStyle = '#c87838';
-    ctx.fillRect(x - 9, by, 18, 26);
-    ctx.fillStyle = '#3a1020';
-    ctx.fillRect(x + (flip ? 6 : -12), by + 4, 6, 18);
+    let poseKey = 'senpai_idle';
+    if (skill > 0) poseKey = 'senpai_skill';
+    else if (hit > 0) poseKey = 'senpai_hit';
+    else if (mount) poseKey = 'senpai_ride';
+    else if (walking && !state.titleCine && running) poseKey = 'senpai_run' + fi;
+    else if (walking && !state.titleCine) poseKey = 'senpai_walk' + fi;
+    else poseKey = fi % 2 ? 'senpai_idle1' : 'senpai_idle';
+    const by = y - 64 + bob + squash - rideLift;
+    const drew = artBlit(poseKey, x - 24, by, flip);
+    if (!drew) {
+      ctx.fillStyle = '#1a0a00';
+      ctx.fillRect(x - 11, y - 30 + bob - rideLift, 22, 28);
+      ctx.fillStyle = '#c87838';
+      ctx.fillRect(x - 9, y - 32 + bob - rideLift, 18, 26);
+    }
   }
   if (walking && !state.titleCine && GFX.quality !== 'low' && fi % 2 === 1) {
     ctx.globalAlpha = 0.35;
     drawPixelRect(x + (flip ? 6 : -10), y - 2, 3, 2, '#c8a878');
     ctx.globalAlpha = 1;
   }
-  if (body && !mount) {
-    try { blitOutlined(x - 16, y - 40 + bob + squash, body, PAL, 2, flip); } catch (_) {}
-  }
-  // 顔は頭。首で胴体とつなぐ。メダル枠は付けない
-  const faceY = y - 44 + bob - rideLift;
-  const faceSz = 34;
-  drawPixelRect(x - 5, faceY + 10, 10, 8, '#c87838');
-  drawPixelRect(x - 10, faceY + 16, 20, 5, '#5a2a18');
+  // 顔は頭の中。メダル枠は付けない
+  const faceY = y - 50 + bob - rideLift;
+  const faceSz = 18;
+  drawPixelRect(x - 4, faceY + 8, 8, 5, '#c87838');
   const gotFace = drawSenpaiFace(x, faceY, faceSz, flip);
   if (!gotFace) {
     ctx.fillStyle = '#ffe0b0';
-    ctx.fillRect(x - 10, faceY - 10, 20, 22);
+    ctx.fillRect(x - 8, faceY - 8, 16, 16);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(x - 6, faceY - 2, 4, 4);
-    ctx.fillRect(x + 3, faceY - 2, 4, 4);
+    ctx.fillRect(x - 5, faceY - 2, 3, 3);
+    ctx.fillRect(x + 2, faceY - 2, 3, 3);
     ctx.fillStyle = '#222';
-    ctx.fillRect(x - 5, faceY - 1, 2, 2);
-    ctx.fillRect(x + 4, faceY - 1, 2, 2);
+    ctx.fillRect(x - 4, faceY - 1, 2, 2);
+    ctx.fillRect(x + 3, faceY - 1, 2, 2);
   }
-  const cy = faceY - 18;
-  blitOutlined(x - 14, cy, [
-    '.G.G.G.G.G.',
-    'GgGgGgGgGgG',
-    'GGGGUUGGGGG',
-    '.GGGGGGGGG.',
-    '..G.....G..',
-  ], PAL, 2, false);
-  if (Math.sin(state.animT * 8) > 0.15) {
-    drawPixelRect(x - 1, cy + 6, 3, 3, '#fff');
-    drawPixelRect(x - 8, cy + 3, 2, 2, '#ff6b9d');
-    drawPixelRect(x + 7, cy + 3, 2, 2, '#8af');
+  const cy = faceY - 12;
+  if (Math.sin(state.animT * 8) > 0.35) {
+    drawPixelRect(x - 1, cy + 8, 2, 2, '#fff');
   }
   if (state.humidity >= 70 || state.titleCine) {
     drawPixelRect(x + (flip ? -14 : 12), faceY + 6, 2, 3, '#8cf');
@@ -12660,10 +12727,18 @@ function drawArcher(x, y, u) {
     ctx.fillRect(x - 28, y - 52 + bob, 56, 48);
     ctx.globalAlpha = 1;
   }
-  blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
+  const kohaiKey = shooting ? 'kohai_attack' : 'kohai_idle';
+  if (!artBlit(kohaiKey, x - 24, y - 64 + bob, u.side === 'left')) {
+    blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
+  }
   if (SPR.kohai) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.kohai, x - 14, y - 52 + bob, 28, 28);
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(x, y - 50 + bob, 8, 9, 0, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(SPR.kohai, x - 10, y - 58 + bob, 20, 20);
+    ctx.restore();
   }
   if ((u.tier | 0) > 0) {
     ctx.fillStyle = '#ffd700';
@@ -12812,7 +12887,12 @@ function drawEnemy(x, y, e) {
   bob += squash;
   const beat = e.deathBeat || 'slump';
   const ddir = e.deathDir || toward;
-  if (deadP > 0) {
+  const artKey = enemyArtKey(e, kind, pose);
+  const useArt = artReady() && YKArt.has(artKey);
+  if (deadP > 0 && useArt) {
+    x += ddir * reactP * (beat === 'tumble' ? 6 : beat === 'topple' ? 4 : 0) * amp;
+    bob += reactP * (beat === 'slump' || beat === 'sit' || beat === 'fold' ? 3 : 1) * amp;
+  } else if (deadP > 0) {
     if (beat === 'tumble') {
       tilt = ddir * reactP * 1.45;
       x += ddir * reactP * 12 * amp;
@@ -12864,10 +12944,12 @@ function drawEnemy(x, y, e) {
   ctx.save();
   ctx.translate(x, y + bob);
   if (kind === 'boss') ctx.scale(1.12, 1.12);
-  if (tilt) ctx.rotate(tilt);
-  else if (Math.abs(lean) > 0.02) ctx.transform(1, 0, lean, 1, 0, 0);
+  if (!useArt && tilt) ctx.rotate(tilt);
+  else if (!useArt && Math.abs(lean) > 0.02) ctx.transform(1, 0, lean, 1, 0, 0);
   if (e._flash > 0) ctx.globalCompositeOperation = 'lighter';
-  blitOutlined(-16, -36, frames[fi % frames.length], PAL, 2, e.side > 0);
+  if (!useArt || !artBlit(artKey, -24, -64, e.side > 0)) {
+    blitOutlined(-16, -36, frames[fi % frames.length], PAL, 2, e.side > 0);
+  }
   if (e._flash > 0) {
     ctx.globalAlpha = Math.min(0.7, e._flash * 5);
     ctx.fillStyle = '#fff';
@@ -12875,13 +12957,21 @@ function drawEnemy(x, y, e) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
   }
-  if ((kind === 'ranged' || kind === 'boss') && SPR.tono) {
+  if ((kind === 'ranged' || kind === 'boss') && SPR.tono && !useArt) {
     ctx.imageSmoothingEnabled = false;
     const lift = pose === 'windup' ? -4 : 0;
     ctx.drawImage(SPR.tono, -14, -52 + lift, 28, 28);
+  } else if ((kind === 'ranged' || kind === 'boss') && SPR.tono && pose !== 'die') {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, -50, 7, 8, 0, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(SPR.tono, -8, -58, 16, 16);
+    ctx.restore();
   }
-  // 役割小物（盾・旗・袋・↑↓）＋待機の手・撃破の飛び
-  if (kind === 'shield' || kind === 'boss') {
+  // 役割小物はアトラスに無いときだけ（二重描きしない）
+  if (!useArt && (kind === 'shield' || kind === 'boss')) {
     const fidget = (!stepping && pose !== 'die') ? Math.sin(idleT * 2.6 + (e.idleSeed || 0)) * (1 + (e.fidgetKind|0) * 0.4) * amp : 0;
     const fly = pose === 'die' && (beat === 'lid' || beat === 'tumble') ? 1 : (pose === 'die' ? 0.45 : 0);
     const brace = pose === 'windup' ? 3 : pose === 'hit' ? -5 : pose === 'attack' ? 6 : pose === 'die' ? -8 - reactP * (10 + fly * 12) : fidget;
@@ -12898,7 +12988,7 @@ function drawEnemy(x, y, e) {
       drawPixelRect(lidX + 2 - t * 6, -18 + t * 12, 3, 6, '#cde');
     }
   }
-  if (kind === 'support') {
+  if (!useArt && kind === 'support') {
     const drop = pose === 'die' ? reactP * (beat === 'flag' ? 22 : 12) : 0;
     const fg = (e.fidgetKind | 0);
     const up = pose === 'die' ? 2 : (pose === 'windup' || pose === 'attack' ? 10 : 3 + Math.sin(idleT * (2.1 + fg) + (e.idleSeed||0)) * 2 * amp);
@@ -12907,7 +12997,7 @@ function drawEnemy(x, y, e) {
     drawPixelRect(toward * 12 + wave, -40 - up + drop, 10, 7, '#3c8');
     drawPixelRect(toward * 12 + wave, -38 - up + drop, 8, 2, '#ffe066');
   }
-  if (kind === 'taka') {
+  if (!useArt && kind === 'taka') {
     const spill = pose === 'die' && beat === 'bag';
     const swing = pose === 'die' ? ddir * reactP * (spill ? 18 : 10) : (pose === 'attack' ? 6 : (stepping ? Math.sin(gait * Math.PI * 2) * 3 : Math.sin(idleT * 3.2 + (e.idleSeed||0)) * 2 * amp));
     const bagY = pose === 'die' ? -18 + reactP * (spill ? 18 : 10) : -18;
@@ -12918,7 +13008,7 @@ function drawEnemy(x, y, e) {
       drawPixelRect(-toward * 14 + swing * 0.6, bagY + 6, 2, 2, '#ffe8a0');
     }
   }
-  if (kind === 'runner') {
+  if (!useArt && kind === 'runner') {
     const fly = pose === 'die' ? reactP * (beat === 'tumble' ? 22 : 12) : 0;
     const tw = pose === 'idle' ? Math.sin(idleT * (4 + (e.fidgetKind|0)) + (e.idleSeed||0)) * 2 * amp : Math.sin((stepping ? gait : idleT) * 14) * 3;
     ctx.fillStyle = '#44ddff';
@@ -12928,7 +13018,7 @@ function drawEnemy(x, y, e) {
     ctx.fillStyle = '#ff44aa';
     ctx.fillText('↓', 10 + fly, -44 - tw + fly * 0.4);
   }
-  if (kind === 'boss') {
+  if (!useArt && kind === 'boss') {
     const pulse = (pose === 'windup') ? 1 : (pose === 'idle' ? (Math.sin(idleT * 3 + (e.idleSeed||0)) > 0.65 ? 1 : 0) : 0);
     const fall = pose === 'die' ? reactP * (beat === 'lid' ? 18 : 10) : 0;
     drawPixelRect(-8 + (pose === 'die' ? ddir * reactP * 4 : 0), -54 - pulse * 2 + fall, 16, 3, '#ffd700');
@@ -12936,7 +13026,7 @@ function drawEnemy(x, y, e) {
     drawPixelRect(-1, -60 - pulse * 3 + fall, 3, 6, '#fff8c8');
     drawPixelRect(4, -58 - pulse * 2 + fall, 3, 4, '#ffd700');
   }
-  if (kind === 'ranged' && pose === 'idle' && !rm) {
+  if (!useArt && kind === 'ranged' && pose === 'idle' && !rm) {
     ctx.globalAlpha = 0.25 + Math.sin(idleT * 4 + (e.idleSeed||0)) * 0.12;
     ctx.fillStyle = '#ffb040';
     ctx.fillRect(-5, -38, 10, 4);
@@ -12964,7 +13054,7 @@ function drawEnemy(x, y, e) {
     ctx.fillRect(-6, -40, 12, 6);
     ctx.globalAlpha = 1;
   }
-  if (kind === 'gaze' && Math.abs((e.x || 0) - player.x) < 220 && pose !== 'die') {
+  if (!useArt && kind === 'gaze' && Math.abs((e.x || 0) - player.x) < 220 && pose !== 'die') {
     ctx.globalAlpha = 0.5 + Math.sin(state.animT * 10) * 0.2;
     drawPixelRect(-5, -30, 3, 3, '#f44');
     drawPixelRect(3, -30, 3, 3, '#f44');
@@ -12982,7 +13072,7 @@ function drawEnemy(x, y, e) {
     ctx.textAlign = 'center';
     ctx.fillText('（）', 0, -54);
   }
-  {
+  if (!useArt) {
     const ey = -28;
     const flip = e.side > 0;
     const lx = flip ? -6 : -4;
@@ -13032,7 +13122,8 @@ try {
     eShots, enemies, arrows, fx, kindFromName, kindsUnlocked, KIND_CUE, normalizeEnemyKind,
     makeNightSpec, mixedPackSpecs, hurtEnemy, fireTonoShot, pulseSupport, tickEnemy, tickEShots,
     enemyStepping, beginEnemyDeath, pickDeathBeat, pickHitBeat, deathCandidates,
-    LAST_DEATH_BEAT, LAST_DEATH_I,
+    LAST_DEATH_BEAT, LAST_DEATH_I, enemyArtKey, artBlit,
+    get YKArt() { return window.YKArt; },
   };
 } catch (_) {}
 </script>
