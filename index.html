@@ -809,15 +809,14 @@
       <div id="toast"></div>
     </div>
     <canvas id="c" width="960" height="540"></canvas>
-    <div id="hint">PC: 現地へ行ってスペースで払う　乗り物も現地　バスは遠路ワープ　民帳1／陣帳2は一覧　｜　スマホ: 下パッド</div>
+    <div id="hint">歩く→壁の前で払う→砲台を雇う　夜は砲台が撃つ／Qは止める　民帳・陣帳は一覧のみ　｜　スマホ: 下パッド</div>
     <div id="overlay">
       <h1>野獣キングダム<br><span class="meme">〜王道を征く〜</span> 👑</h1>
       <p>
-        下北沢（自称）　湿度114514　真夏（汗）<br>
-        王冠　<strong class="meme">野獣先輩</strong>　部室　こ↑こ↓<br><br>
-        いいよ！こいよ！　現地で払って建てる　巣から夜襲　乗り物で近場、ロケバスで遠路<br>
-        迫真バリケード　先輩砲台　帰宅チャリ／スクーター／ホース<br>
-        <span style="color:#888">パッド／キーボード　おかのした</span>
+        歩く → 壁の前で払う → 砲台を雇う → 夜は壁と砲台でしのぐ<br>
+        <strong class="meme">野獣先輩</strong>は括弧ツッコミで止める（攻撃しない）<br>
+        西と東の目印まで歩いてスペース／支払う<br>
+        <span style="color:#aaa">巣から夜襲　乗り物は近場　バスは遠路</span>
       </p>
       <div id="title-faces" style="display:flex;gap:12px;justify-content:center;align-items:flex-end;margin:8px 0;">
         <div style="text-align:center"><img src="assets/doya.jpg" alt="先輩" width="88" height="88" style="object-fit:cover;object-position:center 18%;border-radius:50%;background:#222"/><div style="font-size:9px;color:#ffd700;margin-top:4px">👑先輩</div></div>
@@ -846,7 +845,7 @@
     </div>
     <div class="pad-group">
       <button type="button" class="pad-btn" id="btn-pay" aria-label="コイン支払い">🪙<small>支払う</small></button>
-      <button type="button" class="pad-btn" id="btn-skill" aria-label="括弧ツッコミ">（）<small>迫真</small></button>
+      <button type="button" class="pad-btn" id="btn-skill" aria-label="括弧ツッコミで止める">（）<small>止める</small></button>
     </div>
   </div>
 </div>
@@ -1204,7 +1203,7 @@ const LORE = {
   },
   lose: {
     title: 'ファッ！？　消灯',
-    body: 'ぬわあああん疲れたもおおおん<br>†悔い改めて†　王道を征く…？<br><br>',
+    body: 'ぬわあああん疲れたもおおおん<br>昼に壁と砲台を払え　先輩はQで止めるだけ<br>†悔い改めて†　つづきは朝から<br><br>',
     btn: '†悔い改めて†',
   },
   heatStory: {
@@ -6562,7 +6561,7 @@ function trySkill() {
   player.skillPoseT = 0.38;
   spawnMeme(player.x, GROUND_Y - 70, 'あっ（察し）');
   spawnMeme(player.x + 30, GROUND_Y - 90, '（迫真）');
-  toast('括弧ツッコミ！　周囲のたかりが鈍る', 2.4);
+  toast('括弧ツッコミ！　止めるだけ（ダメージは砲台）', 2.4);
   story('あっ（察し）　見とけよ見とけよ〜', 2.0);
   for (const e of enemies) {
     if (!enemyHittable(e)) continue;
@@ -6574,6 +6573,7 @@ function trySkill() {
       if (e.pose === 'windup') { e.windup = 0; setEnemyPose(e, 'hit'); }
       else if (e.pose !== 'die') { e.pose = 'hit'; e.poseT = 0; }
       spawnSparks(e.x, GROUND_Y - 28, 4, ['#ff6b9d', '#fff'], 70);
+      spawnFloat(e.x, GROUND_Y - 48, '止めた', '#ff6b9d');
     }
   }
 }
@@ -6867,8 +6867,8 @@ function archerCdMul() {
 }
 
 function noteKill() {
-  if (state.isNight) state._nightKills = (state._nightKills | 0) + 1;
-  if (state.isNight && state.explorePerks && state.explorePerks.night && (state._nightKills | 0) % 6 === 0) {
+  if (raidActive()) state._nightKills = (state._nightKills | 0) + 1;
+  if (raidActive() && state.explorePerks && state.explorePerks.night && (state._nightKills | 0) % 6 === 0) {
     state.coins += 1;
     spawnMeme(player.x, GROUND_Y - 60, 'ネオン+1');
   }
@@ -7330,7 +7330,7 @@ function shopSpots() {
         else wall.x += wall.level === 1 ? 90 : 110;
         const sideJa = side === 'left' ? '西' : '東';
         if (wall.level === 1) {
-          toast(sideJa + 'の壁！ ' + pick(LORE.wallBuild));
+          toast(sideJa + 'の壁！ さらに歩いて砲台を雇う（4🪙）', 2.8);
           spawnMeme(wall.x, GROUND_Y - 40, pick(['いいゾ～これ', 'やりますねぇ', 'こ↑こ↓']));
         } else {
           toast(sideJa + '・石壁！ ' + pick(LORE.wallUpgrade));
@@ -7352,7 +7352,7 @@ function shopSpots() {
     spots.push({
       id: 'archer-' + side,
       x: wall.x + (side === 'left' ? 28 : -28),
-      r: 40,
+      r: 72,
       cost,
       can,
       branch: 'mili',
@@ -7901,11 +7901,22 @@ function shopSpots() {
   return spots;
 }
 
+function spotSurvivalRank(s) {
+  if (!s) return 9;
+  if (s.adv) return 0;
+  const id = s.id || '';
+  if (id.startsWith('wall-') || id.startsWith('archer-')) return 1;
+  if (s.branch === 'mili') return 2;
+  if (s.mount) return survivalNeed() ? 7 : 4;
+  if (id === 'heal' || id === 'bank-out' || id === 'mugicha' || id.indexOf('iced') >= 0 || id === 'ice-stand') return 6;
+  return 5;
+}
+
 function nearbySpots() {
   const spots = shopSpots().filter(s => Math.abs(player.x - s.x) <= s.r);
   spots.sort((a, b) => {
-    const pa = a.adv ? 0 : a.mount ? 0 : 1, pb = b.adv ? 0 : b.mount ? 0 : 1;
-    if (pa !== pb) return pa - pb;
+    const ra = spotSurvivalRank(a), rb = spotSurvivalRank(b);
+    if (ra !== rb) return ra - rb;
     if (!!a.can !== !!b.can) return a.can ? -1 : 1;
     return Math.abs(player.x - a.x) - Math.abs(player.x - b.x);
   });
@@ -7913,7 +7924,17 @@ function nearbySpots() {
 }
 
 function nearestSpot() {
-  const can = nearbySpots().filter(s => s.can);
+  let can = nearbySpots().filter(s => s.can);
+  if (survivalNeed()) {
+    const pri = can.filter(s => spotSurvivalRank(s) <= 2);
+    if (pri.length) can = pri;
+    else return null;
+  }
+  if (raidActive()) {
+    const mili = can.filter(s => s.branch === 'mili' || (s.id || '').indexOf('wall') === 0 || (s.id || '').indexOf('archer') === 0);
+    if (mili.length) can = mili;
+    else if (survivalNeed()) return null;
+  }
   return can.length ? can[0] : null;
 }
 
@@ -7925,16 +7946,29 @@ function tryPay() {
   if (state.bus && state.bus.carryPlayer) { toast('ロケバス移動中　到着まで待て', 1.6); return; }
   const spot = nearestSpot();
   if (!spot) {
-    const blocked = nearbySpots().find(s => !s.can);
+    const blocked = nearbySpots().find(s => !s.can && (!survivalNeed() || spotSurvivalRank(s) <= 2));
     if (blocked) {
-      toast(blocked.why || (blocked.label + '　今は払えない'), 2.2);
+      toast(blocked.why || (blocked.label + '　いまは払えない'), 2.2);
       spawnMeme(player.x, GROUND_Y - 40, 'あっ（察し）');
       return;
     }
+    const lw = structures.leftWall, rw = structures.rightWall;
+    if (lw.level < 1 || rw.level < 1) {
+      const side = lw.level < 1 && (rw.level >= 1 || player.x <= 0) ? '西' : '東';
+      const wx = (side === '西' ? lw.x : rw.x);
+      toast(side + 'へ歩いて壁を払え（3🪙・今 ' + (state.coins|0) + '）', 2.4);
+      spawnMeme(player.x, GROUND_Y - 40, side === '西' ? '◀西へ' : '東へ▶');
+      spawnFloat(wx, GROUND_Y - 44, '壁 3🪙', '#ffd700');
+      return;
+    }
+    if (gunCount() < 1) {
+      toast('壁の前で砲台を雇え（4🪙）。夜に撃つのは砲台', 2.4);
+      spawnMeme(player.x, GROUND_Y - 40, '砲台へ');
+      return;
+    }
     if (state.coins <= 0) { toast(pick(LORE.payEmpty)); spawnMeme(player.x, GROUND_Y - 40, 'ファッ!?'); return; }
-    state.coins--;
-    dropCoin(player.x + player.facing * 18, 1, true);
-    spawnMeme(player.x, GROUND_Y - 40, pick(LORE.payDrop));
+    toast('払える場所まで歩く　空き地に投げない', 2.0);
+    spawnMeme(player.x, GROUND_Y - 40, '現地で');
     return;
   }
   if (state.coins < spot.cost) {
@@ -8088,6 +8122,28 @@ function cueKindOnce(kind, x) {
 
 function enemyHittable(e) {
   return !!(e && e.hp > 0 && !(e.deadT > 0) && !(e.emergeT > 0));
+}
+
+function raidActive() {
+  return !!(state.isNight || state.duskRaid);
+}
+
+function gunCount() {
+  try { return units.filter(u => (u.role || 'gun') !== 'vanguard').length; } catch (_) { return 0; }
+}
+
+function wallBuiltCount() {
+  return ((structures.leftWall.level | 0) > 0 ? 1 : 0) + ((structures.rightWall.level | 0) > 0 ? 1 : 0);
+}
+
+function survivalNeed() {
+  return wallBuiltCount() < 2 || gunCount() < 1;
+}
+
+function sideHaltX(side) {
+  const wall = side < 0 ? structures.leftWall : structures.rightWall;
+  if (wall && wall.level > 0 && wall.hp > 0) return wall.x;
+  return 0;
 }
 
 function creditEnemyKill(e) {
@@ -8286,7 +8342,7 @@ function applyWallSmash(e, wall) {
   wall._flash = 0.22;
   spawnMeme(wall.x, GROUND_Y - 50, pick(LORE.wallHit));
   spawnSparks(wall.x, GROUND_Y - 30, 3, ['#c8a060', '#fff'], 60);
-  spawnFloat(wall.x, GROUND_Y - 54, '-' + wd, '#f84');
+  spawnFloat(wall.x, GROUND_Y - 54, '壁-' + wd, '#f84');
   if (wall.hp <= 0) {
     wall.hp = 0;
     wall.level = 0;
@@ -8306,7 +8362,7 @@ function applyCampSmash(e) {
   structures.campfire.hp -= cdmg;
   const cl = pick(LORE.campHit);
   spawnMeme(0, GROUND_Y - 70, 'ファッ!?');
-  spawnFloat(0, GROUND_Y - 64, '-' + cdmg, '#ff8844');
+  spawnFloat(0, GROUND_Y - 64, '部室-' + cdmg, '#ff8844');
   spawnSparks(0, GROUND_Y - 30, 5, ['#ff6600', '#ffcc33'], 80);
   if (structures.campfire.hp < 40) {
     toast(cl, 2);
@@ -8367,6 +8423,10 @@ function tickEnemy(e, dt) {
   if (e.hitT > 0 && e.pose !== 'die') e.pose = 'hit';
   else if (e.pose === 'hit' && e.hitT <= 0 && e.stunned <= 0) setEnemyPose(e, 'idle');
 
+  // 攻撃モーションは対象が消えても必ず進める（壁崩壊後に予備／殴りで固まるのを防ぐ）
+  if (e.pose === 'attack' && e.poseT >= 0.16) setEnemyPose(e, 'recover');
+  else if (e.pose === 'recover' && e.poseT >= 0.34) setEnemyPose(e, 'idle');
+
   const slow = (e.stunned > 0 ? 0.22 : 1) * (e._snareSlow > 0 ? 0.35 : 1) * (e.cheerT > 0 ? 1.28 : 1);
   const gaitRate = kind === 'runner' ? 3.4 : kind === 'shield' || kind === 'boss' ? 1.35 : kind === 'taka' ? 2.6 : 2.0;
 
@@ -8374,61 +8434,59 @@ function tickEnemy(e, dt) {
     state.gazeT = Math.max(state.gazeT, 0.6);
   }
 
+  const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
+  const halt = sideHaltX(e.side);
+  const atWall = wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20;
+  const atCamp = Math.abs(e.x - 0) < 28;
+  const inShootRange = Math.abs(e.x - halt) < (kind === 'boss' ? 200 : 188);
+  const inCheerRange = Math.abs(e.x - halt) < 150;
+
+  if (e.pose === 'windup') {
+    const keep =
+      ((kind === 'ranged' || kind === 'boss') && inShootRange) ||
+      (kind === 'support' && inCheerRange) ||
+      atWall || atCamp;
+    if (!keep) { e.windup = 0; setEnemyPose(e, 'idle'); }
+  }
+
   // 遠野／ボス：射程で止まって予備→笑顔弾
   const canShoot = (kind === 'ranged' || kind === 'boss') && e.stunned <= 0;
-  if (canShoot) {
-    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
-    const halt = (wall.level > 0 && wall.hp > 0) ? wall.x : 0;
-    const dist = Math.abs(e.x - halt);
-    const inRange = dist < (kind === 'boss' ? 200 : 188);
-    if (inRange && e.pose !== 'hit') {
-      if (e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover') {
-        if ((e.shotCd || 0) <= 0) {
-          setEnemyPose(e, 'windup');
-          e.windup = 0;
-        } else {
-          setEnemyPose(e, 'idle');
-        }
-      }
-      if (e.pose === 'windup') {
-        e.windup = (e.windup || 0) + dt;
-        const need = kind === 'boss' ? 0.7 : 0.52;
-        if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
-        else if (e.windup >= need) {
-          fireTonoShot(e);
-          e.shotCd = kind === 'boss' ? 1.35 : 1.55;
-          setEnemyPose(e, 'attack');
-        }
-      } else if (e.pose === 'attack' && e.poseT >= 0.14) {
-        setEnemyPose(e, 'recover');
-      } else if (e.pose === 'recover' && e.poseT >= 0.42) {
+  if (canShoot && inShootRange && e.pose !== 'hit') {
+    if (e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover') {
+      if ((e.shotCd || 0) <= 0) {
+        setEnemyPose(e, 'windup');
+        e.windup = 0;
+      } else {
         setEnemyPose(e, 'idle');
       }
-      if (kind === 'ranged') return false;
-      // ボスは近接も続ける
     }
+    if (e.pose === 'windup') {
+      e.windup = (e.windup || 0) + dt;
+      const need = kind === 'boss' ? 0.7 : 0.52;
+      if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
+      else if (e.windup >= need) {
+        fireTonoShot(e);
+        e.shotCd = kind === 'boss' ? 1.35 : 1.55;
+        setEnemyPose(e, 'attack');
+      }
+    }
+    if (kind === 'ranged') return false;
   }
 
   // ンギモ：止まって旗を振る
-  if (kind === 'support' && e.stunned <= 0) {
-    const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
-    const halt = (wall.level > 0 && wall.hp > 0) ? wall.x : 0;
-    if (Math.abs(e.x - halt) < 150) {
-      if ((e.cheerCd || 0) <= 0 && e.pose !== 'windup' && e.pose !== 'attack') {
-        setEnemyPose(e, 'windup');
-        e.windup = 0;
+  if (kind === 'support' && e.stunned <= 0 && inCheerRange) {
+    if ((e.cheerCd || 0) <= 0 && e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover') {
+      setEnemyPose(e, 'windup');
+      e.windup = 0;
+    }
+    if (e.pose === 'windup') {
+      e.windup = (e.windup || 0) + dt;
+      if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
+      else if (e.windup >= 0.32) {
+        pulseSupport(e);
+        setEnemyPose(e, 'attack');
       }
-      if (e.pose === 'windup') {
-        e.windup = (e.windup || 0) + dt;
-        if (e.stunned > 0) { e.windup = 0; setEnemyPose(e, 'idle'); }
-        else if (e.windup >= 0.32) {
-          pulseSupport(e);
-          setEnemyPose(e, 'attack');
-        }
-        return false;
-      }
-      if (e.pose === 'attack' && e.poseT >= 0.16) setEnemyPose(e, 'recover');
-      if (e.pose === 'recover' && e.poseT >= 0.3) setEnemyPose(e, 'idle');
+      return false;
     }
   }
 
@@ -8451,7 +8509,6 @@ function tickEnemy(e, dt) {
     return false;
   }
 
-  const wall = e.side < 0 ? structures.leftWall : structures.rightWall;
   let blocking = false;
   if (wall.level > 0 && wall.hp > 0) {
     if ((e.side < 0 && e.x >= wall.x - 14) || (e.side > 0 && e.x <= wall.x + 14)) blocking = true;
@@ -8473,8 +8530,6 @@ function tickEnemy(e, dt) {
     setEnemyPose(e, 'idle');
   }
 
-  const atWall = wall.level > 0 && wall.hp > 0 && Math.abs(e.x - wall.x) < 20;
-  const atCamp = Math.abs(e.x - 0) < 28;
   if ((atWall || atCamp) && e.stunned <= 0 && kind !== 'ranged') {
     if (e.pose !== 'windup' && e.pose !== 'attack' && e.pose !== 'recover' && e.pose !== 'hit') {
       if ((e.attackCd || 0) <= 0) {
@@ -8492,10 +8547,6 @@ function tickEnemy(e, dt) {
         if (atWall) applyWallSmash(e, wall);
         else applyCampSmash(e);
       }
-    } else if (e.pose === 'attack' && e.poseT >= 0.14) {
-      setEnemyPose(e, 'recover');
-    } else if (e.pose === 'recover' && e.poseT >= 0.26) {
-      setEnemyPose(e, 'idle');
     }
   }
   return false;
@@ -8649,12 +8700,12 @@ function nestDirWarn(nest) {
 
 function spawnFloat(x, y, text, color) {
   const floats = fx.filter(p => p.type === 'float');
-  if (floats.length >= 5) {
+  if (floats.length >= 10) {
     const last = floats[floats.length - 1];
     if (last && last.text === text && Math.abs(last.x - x) < 28) { last.t = 0; return; }
     fx.splice(fx.indexOf(floats[0]), 1);
   }
-  pushFx({ type: 'float', x, y, text: String(text).slice(0, 10), color: color || '#ffe8a0', t: 0, life: 0.85, vy: -46 });
+  pushFx({ type: 'float', x, y, text: String(text).slice(0, 12), color: color || '#ffe8a0', t: 0, life: 0.95, vy: -46 });
 }
 
 function spawnBuildFx(x, label) {
@@ -8802,6 +8853,12 @@ function beginDuskRaid() {
   const src = (w.source === 'outpost' || e.source === 'outpost') ? '拠点の口' : '遠巣';
   toast(`夕暮れ　${w.short}と${e.short}（${src}）が目を覚ます`, 3.0);
   nestDirWarn(w); nestDirWarn(e);
+  const noGuns = gunCount() < 1;
+  setTimeout(() => {
+    if (!state.duskRaid && !state.isNight) return;
+    if (noGuns) toast('砲台がいない。壁の前で雇うと撃つ。先輩はQで止めるだけ', 3.4);
+    else toast('砲台が撃つ　先輩はQで止める', 2.6);
+  }, 1700);
   try { if (typeof audPlay === 'function') audPlay('nest'); } catch (_) {}
 }
 
@@ -9088,13 +9145,13 @@ function startDay() {
   // 章導入（初回）→ 昼語録（関係・ロケ・真夏連動）
   let didIntro = false;
   try { didIntro = !!maybeChapterIntroStory(); } catch (_) { didIntro = false; }
-  let open = 'Day1　王道を征く';
-  try { open = dayOpenLine(state.day); } catch (_) {}
+  let open = 'Day1　西と東へ歩いて壁を払え';
+  try { open = (state.day | 0) === 1 ? '西と東へ歩いて壁を払え　砲台を雇う　夜は砲台が撃ち、先輩はQで止める' : dayOpenLine(state.day); } catch (_) {}
   const heatExtra = state._heatStoryPending || '';
   state._heatStoryPending = null;
   try {
-    if (!didIntro) {
-      story(open, 4.2);
+    if ((state.day | 0) === 1 || !didIntro) {
+      story(open, (state.day | 0) === 1 ? 5.2 : 4.2);
       if (heatExtra) setTimeout(() => { if (!state.isNight) story(heatExtra, 3.2); }, 2800);
     } else {
       setTimeout(() => {
@@ -9273,11 +9330,28 @@ function showEnd(win) {
   ov.classList.remove('cine-dawn');
   state.titleCine = true;
   state.titleDawn = win ? 0.7 : 0.15;
+  try { dismissDayChoice(true); } catch (_) {}
+  try { closeBranchPanel(); } catch (_) {}
   if (win) {
     // 互換：直接勝ち表示は章クリアへ
     showChapterClear();
     return;
   }
+  try {
+    // 敗北後のつづきは同じ日の朝。壁と砲台は残し、部室を少し戻す
+    state.isNight = false;
+    state.duskRaid = false;
+    state.nestQ = [];
+    state.nestRel = 0;
+    state.dayTimer = 0;
+    enemies.length = 0;
+    eShots.length = 0;
+    arrows.length = 0;
+    structures.campfire.hp = Math.max(40, Math.min(structures.campfire.maxHp | 0, 70));
+    state.running = false;
+    state.over = true;
+    saveGameCampaign();
+  } catch (_) {}
   state.endCut = -1;
   const pack = LORE.lose;
   const canCont = hasSave();
@@ -9654,7 +9728,14 @@ function continueGame() {
     const d = JSON.parse(raw);
     if (!d || d.v !== 1 || !(d.day >= 1)) { toast('セーブがない', 2); clearSave(); return; }
     fitCanvas();
+    try { dismissDayChoice(true); } catch (_) {}
+    try { closeBranchPanel(); } catch (_) {}
     applySave(d);
+    state.over = false;
+    state.running = true;
+    state.titleCine = false;
+    const ov = document.getElementById('overlay');
+    if (ov) { ov.classList.add('hidden'); ov.classList.remove('cine-dawn'); }
   } catch (e) {
     toast('セーブが壊れてる…新規で', 2.5);
     clearSave();
@@ -10200,9 +10281,10 @@ function update(dt) {
     const ideal = wall.x + (u.side === 'left' ? 16 : -16);
     u.x += (ideal - u.x) * dt * 2;
     u.cooldown -= dt;
-    if (u.cooldown <= 0 && state.isNight) {
+    if (u.cooldown <= 0 && raidActive()) {
       let best = null, bestD = 280 + (u.tier | 0) * 40 + (state.miliTier | 0) * 20;
       for (const e of enemies) {
+        if (!enemyHittable(e)) continue;
         const d = Math.abs(e.x - u.x);
         if (d < bestD && ((u.side === 'left' && e.x <= u.x + 40) || (u.side === 'right' && e.x >= u.x - 40) || d < 200)) {
           best = e; bestD = d;
@@ -10210,6 +10292,7 @@ function update(dt) {
       }
       if (!best) {
         for (const e of enemies) {
+          if (!enemyHittable(e)) continue;
           const d = Math.abs(e.x - u.x);
           if (d < bestD) { best = e; bestD = d; }
         }
@@ -10317,14 +10400,30 @@ function update(dt) {
   left.innerHTML = `<span class="gold">🪙 ${state.coins}</span> <span style="color:#8af">銀行${state.bank}</span>${combo}<br>Day ${state.day}${chTag}${asTag}${cmTag}${mt}${nestTag}${gaze}${wTag}${iTag}${busTag}${misTag}${heatTag}${riskTag}<br><span class="${state.isNight ? 'night' : 'gold'}">${state.isNight ? '夜' : '昼'} ${remain.toFixed(0)}s</span> 茶×${state.icedTeaStock} 麦×${state.mugichaStock|0}`;
   const spot = nearestSpot();
   const blocked = !spot ? nearbySpots()[0] : null;
-  const sk = state.skillCd > 0 ? `Q技能CD ${state.skillCd.toFixed(0)}s` : 'Q/迫真＝括弧ツッコミ';
-  if (spot) {
-    right.innerHTML = `<span class="meme">現地払い</span><br>${spot.label}<br><span class="gold">${spot.cost}🪙　スペース</span>`;
-  } else if (blocked && !blocked.can) {
-    right.innerHTML = `${blocked.label}<br><span style="color:#fa8">${blocked.why || '今は払えない'}</span>`;
+  const sk = state.skillCd > 0 ? `Q止める CD ${state.skillCd.toFixed(0)}s` : 'Q＝止める（撃たない）';
+  const actionHint = (function () {
+    const guns = gunCount();
+    const walls = wallBuiltCount();
+    if (state.duskRaid && !state.isNight) {
+      return guns ? '夕暮れ　砲台が撃つ　Qは止める' : '夕暮れ　砲台がない　壁前で雇う';
+    }
+    if (state.isNight) {
+      return guns ? '夜　砲台が撃つ　先輩はQで止める' : '夜　先輩はQで止める　撃つのは砲台';
+    }
+    if (walls < 2) {
+      const side = structures.leftWall.level < 1 ? '西' : '東';
+      return side + 'へ歩いて壁を払え 3🪙';
+    }
+    if (!guns) return '壁の前で砲台を雇え 4🪙';
+    return '現地で払う　夜は砲台、先輩はQ';
+  })();
+  const showPay = spot && (spot.cost <= (state.coins | 0)) && (!raidActive() || (spot.branch === 'mili') || (spot.id || '').indexOf('wall') === 0 || (spot.id || '').indexOf('archer') === 0);
+  if (showPay) {
+    right.innerHTML = `<span class="meme">いま払う</span><br>${spot.label}<br><span class="gold">${spot.cost}🪙　スペース</span>`;
+  } else if (blocked && !blocked.can && spotSurvivalRank(blocked) <= 2) {
+    right.innerHTML = `${blocked.label}<br><span style="color:#fa8">${blocked.why || 'いまは払えない'}</span>`;
   } else {
-    const eh = [((typeof advHudHint === 'function') ? advHudHint() : ''), ((typeof exploreHudHint === 'function') ? exploreHudHint() : ''), ((typeof ex2HudHint === 'function') ? ex2HudHint() : '')].filter(Boolean).join('<br>');
-    right.innerHTML = eh ? `${sk}<br>${eh}` : `${sk}<br>現地へ行って払う　遠路はロケバス`;
+    right.innerHTML = `${sk}<br>${actionHint}`;
   }
 }
 
@@ -11048,7 +11147,7 @@ function draw() {
   // 現地払い：足元にいるときだけ1つ。常時の謎円は出さない
   if (state.running) {
     const focus = nearestSpot();
-    const inRange = !!(focus && Math.abs(player.x - focus.x) <= focus.r);
+    const inRange = !!(focus && Math.abs(player.x - focus.x) <= focus.r && (!raidActive() || (focus.cost <= (state.coins | 0))));
     if (inRange) {
       const others = nearbySpots().filter(s => s !== focus && Math.abs(player.x - s.x) <= s.r).length;
       ctx.strokeStyle = focus.can ? '#ffd700' : '#c88';
@@ -11286,10 +11385,14 @@ function draw() {
 
   try { drawNestChevrons(); } catch (_) {}
 
-  // 名前プレート（顔の上）
+  // 名前プレート（顔の上）。夜襲中は役割だけにして被せない
   ctx.textAlign = 'center';
-  drawUiLabel('野獣先輩', wx(player.x), GROUND_Y - 102, '#ff6b9d', 14);
-  drawUiLabel('👑王道を征く', wx(player.x), GROUND_Y - 116, '#ffd700', 13);
+  if (raidActive()) {
+    drawUiLabel('先輩＝Qで止める', wx(player.x), GROUND_Y - 102, '#ff6b9d', 13);
+  } else {
+    drawUiLabel('野獣先輩', wx(player.x), GROUND_Y - 102, '#ff6b9d', 14);
+    drawUiLabel('👑王道を征く', wx(player.x), GROUND_Y - 116, '#ffd700', 13);
+  }
 
   // 湿度ヘイズ
   drawGroundFog(phase);
@@ -11340,7 +11443,8 @@ function draw() {
   // キャンプHPバー
   drawBar(wx(-30), GROUND_Y + 18, 60, 6, structures.campfire.hp / structures.campfire.maxHp, '#e85', '#333');
   ctx.textAlign = 'center';
-  drawUiLabel('部室', wx(0), GROUND_Y + 36, '#e8dcc0', 13);
+  const campHp = structures.campfire.hp | 0;
+  drawUiLabel(campHp < structures.campfire.maxHp ? ('部室 ' + campHp) : '部室', wx(0), GROUND_Y + 36, campHp < 40 ? '#f84' : '#e8dcc0', 13);
 
   ctx.restore(); // shake
 
@@ -11838,7 +11942,7 @@ function tickMiliGadgets(dt) {
     }
   }
   // くっさガス片鱗：壁付近の敵を遅延＋微ダメ（軽量）
-  if (state.awakenB === 'gas' && state.isNight) {
+  if (state.awakenB === 'gas' && raidActive()) {
     state._gasT = (state._gasT || 0) - dt;
     if (state._gasT <= 0) {
       state._gasT = 1.6;
@@ -11856,8 +11960,8 @@ function tickMiliGadgets(dt) {
       }
     }
   }
-  // 地雷：夜のみ起爆＋軽スプラッシュ
-  if (!state.isNight) return;
+  // 地雷：夜襲中（夕暮れ含む）起爆＋軽スプラッシュ
+  if (!raidActive()) return;
   const mR = mineRadius();
   const mD = mineDmg();
   for (let i = state.mines.length - 1; i >= 0; i--) {
@@ -12583,17 +12687,21 @@ function drawWall(wall, isLeft) {
   }
   if (wall.level <= 0) {
     const bob = Math.sin(state.animT * 2 + wall.x * 0.01) * 1;
-    // 机・コンテナ・波板の仮囲い
-    if (!artBlit('wall_desk', x - 20, GROUND_Y - 28 + bob, false)) {
-      drawPixelRect(x - 16, GROUND_Y - 14 + bob, 14, 10, '#6a5840');
-      drawPixelRect(x + 2, GROUND_Y - 12 + bob, 12, 8, '#8a6a28');
-      drawPixelRect(x - 10, GROUND_Y - 22 + bob, 20, 8, '#7a7a70');
-    }
-    artBlit('namiita', x - 18, GROUND_Y - 20 + bob, false);
-    artBlit('crate', x + 6, GROUND_Y - 16 + bob, false);
-    drawPixelRect(x + 10, GROUND_Y - 10 + bob, 5, 8, '#ff8844');
+    const ruined = (wall.maxHp | 0) > 0;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(x - 16, GROUND_Y - 22 + bob, 32, 22);
+    ctx.setLineDash([]);
+    ctx.restore();
+    drawPixelRect(x - 2, GROUND_Y - 26 + bob, 4, 18, '#c9a227');
+    drawPixelRect(x - 3, GROUND_Y - 30 + bob, 6, 5, '#ffd700');
+    if (ruined) artBlit('crate', x + 8, GROUND_Y - 14 + bob, false);
     ctx.textAlign = 'center';
-    drawUiLabel(miliWallName(), x, GROUND_Y - 30, 'rgba(255,215,0,0.85)', 13);
+    drawUiLabel(ruined ? '再建 3🪙' : '壁を建てる 3🪙', x, GROUND_Y - 38, '#ffd700', 13);
+    drawUiLabel(isLeft ? '◀西' : '東▶', x, GROUND_Y - 52, 'rgba(255,215,0,0.8)', 12);
     return;
   }
   const wood = wall.level === 1;
@@ -12685,6 +12793,9 @@ function drawWall(wall, isLeft) {
   ctx.textAlign = 'center';
   drawUiLabel(miliWallName(wall.level), x, GROUND_Y - h - 16, wood ? '#c9a227' : '#d0d0e8', 12);
   drawBar(x - 20, GROUND_Y + 10, 40, 5, wall.hp / wall.maxHp, wood ? '#8c4' : '#4cf', '#333');
+  if (raidActive() || wall._flash > 0) {
+    drawUiLabel('壁' + (wall.hp | 0), x, GROUND_Y + 24, wall.hp < wall.maxHp * 0.4 ? '#f84' : '#c8e0a0', 11);
+  }
 }
 
 function drawCoin(x, y) {
@@ -12980,6 +13091,8 @@ function drawArcher(x, y, u) {
   if (state.awakenA) tag = '青' + tag;
   else if (state.awakenB === 'iced') tag = '氷' + tag;
   ctx.fillText(tag, x, y - 62 + bob);
+  if (shooting) drawUiLabel('撃つ', x, y - 76 + bob, '#ffe8a0', 12);
+  else if (raidActive()) drawUiLabel('砲台', x, y - 76 + bob, '#c8e0ff', 11);
 }
 
 function drawEnemy(x, y, e) {
@@ -13292,6 +13405,7 @@ try {
     saveGame, shopSpots, nearestSpot, nearbySpots, ensureAdvState, scoutForage, playerSpeedMul,
     openBranchPanel, closeBranchPanel, ensureMountState, equippedMount, activeNestForSide,
     beginDuskRaid, queueNightWave, emergeEnemy, startLocationBus, startRaidBus, tryPay,
+    continueGame, dismissDayChoice, closeBranchPanel, applyCampSmash, showEnd,
     eShots, enemies, arrows, fx, kindFromName, kindsUnlocked, KIND_CUE, normalizeEnemyKind,
     makeNightSpec, mixedPackSpecs, hurtEnemy, fireTonoShot, pulseSupport, tickEnemy, tickEShots,
     enemyStepping, beginEnemyDeath, pickDeathBeat, pickHitBeat, deathCandidates,
@@ -13299,6 +13413,7 @@ try {
     get YKArt() { return window.YKArt; },
     get YKWorld() { return window.YKWorld; },
     worldBlit, worldGround, pickWorldHouse,
+    units, raidActive, gunCount, wallBuiltCount, survivalNeed, enemyHittable,
   };
 } catch (_) {}
 </script>
