@@ -855,11 +855,12 @@
 <button type="button" id="zoom-chip" aria-label="表示拡大切替">拡大:125%</button>
 <button type="button" id="gfx-chip" aria-label="画質切替">画質:自動</button>
 <script src="assets/yk-art.js"></script>
+<script src="assets/yk-world.js"></script>
 <script>
 /* =========================================================
    野獣キングダム — Kingdom Two Crowns 風最小プロトタイプ
    自作 canvas / 絵文字 / ドット描画のみ（外部画像なし）
-   ピクセル本体は assets/yk-art.js で一度だけアトラス化
+   ピクセル本体は assets/yk-art.js / yk-world.js で一度だけアトラス化
    ========================================================= */
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -878,6 +879,7 @@ loadSpr('icon', 'assets/senpai_icon.png');
 loadSpr('tono', 'assets/tono_smile_pixel.png');
 loadSpr('face', 'assets/doya.jpg');
 try { if (window.YKArt && typeof YKArt.bake === 'function') YKArt.bake(); } catch (_) {}
+try { if (window.YKWorld && typeof YKWorld.bake === 'function') YKWorld.bake(); } catch (_) {}
 const REDUCE_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 const W = canvas.width, H = canvas.height;
@@ -922,12 +924,13 @@ function drawStreetLayer(phase, nightish) {
   // 電線（電柱の前に薄く）
   ctx.strokeStyle = nightish ? 'rgba(18,22,22,0.5)' : 'rgba(36,36,36,0.4)';
   ctx.lineWidth = 1;
+  const sag = (REDUCE_MOTION || low) ? 0 : Math.sin(state.animT * 1.35) * 2.2;
   ctx.beginPath();
   let started = false;
   for (let i = i0; i <= i1; i++) {
     const wx0 = i * step + ((i * 37) % 28);
     const sx = wx(wx0);
-    const y = GROUND_Y - 78 + Math.sin(i * 0.7) * 5;
+    const y = GROUND_Y - 78 + Math.sin(i * 0.7) * 5 + sag;
     if (!started) { ctx.moveTo(sx, y); started = true; }
     else ctx.lineTo(sx, y);
   }
@@ -938,7 +941,7 @@ function drawStreetLayer(phase, nightish) {
     for (let i = i0; i <= i1; i++) {
       const wx0 = i * step + ((i * 37) % 28);
       const sx = wx(wx0);
-      const y = GROUND_Y - 72 + Math.sin(i * 0.7 + 1) * 4;
+      const y = GROUND_Y - 72 + Math.sin(i * 0.7 + 1) * 4 + sag * 0.7;
       if (!started) { ctx.moveTo(sx + 6, y); started = true; }
       else ctx.lineTo(sx + 6, y);
     }
@@ -1010,11 +1013,13 @@ function drawStreetLayer(phase, nightish) {
         drawPixelRect(wxw, GROUND_Y - gh, 2, gh, nightish ? '#2a4a28' : '#6a8a38');
       }
     }
-    // 剥がれポスター（小さく、看板の壁紙にしない）
+    // 剥がれポスター／古板（小さく、看板の壁紙にしない）
     if (!low && dense && i % 4 === 1) {
       const px = sx + 22;
-      drawPixelRect(px, GROUND_Y - 34, 10, 12, nightish ? '#4a3020' : '#8a6040');
-      drawPixelRect(px + 1, GROUND_Y - 32, 8, 3, h > 0.5 ? '#c44' : '#c4a070');
+      if (!worldGround('board', px, GROUND_Y - 22, {})) {
+        drawPixelRect(px, GROUND_Y - 34, 10, 12, nightish ? '#4a3020' : '#8a6040');
+        drawPixelRect(px + 1, GROUND_Y - 32, 8, 3, h > 0.5 ? '#c44' : '#c4a070');
+      }
       if (th.decor === 'alley' && i % 8 === 1) {
         ctx.font = uiFont(11);
         ctx.textAlign = 'center';
@@ -1022,6 +1027,7 @@ function drawStreetLayer(phase, nightish) {
         ctx.fillText('あり', px + 5, GROUND_Y - 22);
       }
     }
+    if (!low && i % 5 === 0) worldGround('weeds', sx - 22, GROUND_Y, {});
     // 池：ヨシ。外縁：錆びパネル
     if (th.decor === 'pond' && i % 2 === 0) {
       drawPixelRect(sx + 10, GROUND_Y - 16, 2, 16, '#3a4a30');
@@ -2746,6 +2752,11 @@ function exploreHudHint() {
   if (clue) return `<span style="color:#8cf">手がかり</span> ${clue.side < 0 ? '西' : '東'}約${Math.round(Math.abs(clue.x - px) / 10)}m${buff}`;
   return buff ? buff.trim() : '';
 }
+const EXPLORE_ART = {
+  alley: 'ex_alley', rooftop: 'ex_roof', cave: 'ex_cave', forest: 'ex_forest',
+  stone: 'ex_stone', wreck: 'ex_wreck', vend: 'ex_vend', ruin: 'ex_ruin',
+  sento: 'ex_sento', pool: 'ex_pool', edge: 'ex_edge',
+};
 function drawExploreSite(sx, S, found, avail, nightish) {
   const g = GROUND_Y;
   const dk = nightish ? 0.55 : 1;
@@ -2754,6 +2765,31 @@ function drawExploreSite(sx, S, found, avail, nightish) {
   else if (!found) ctx.globalAlpha = 0.6;
   const stone = nightish ? '#3a3a44' : '#7a7468';
   const dark = nightish ? '#18181e' : '#2e2a28';
+  const artName = EXPLORE_ART[S.kind];
+  const usedArt = artName && worldGround(artName, sx - 20, g, {});
+  if (usedArt) {
+    if (nightish && worldReady()) YKWorld.paintLights(ctx, artName, sx - 20, g, 0.85, {});
+    if (S.id === 'ex_neon') drawPixelRect(sx - 18, g - 78, 22, 6, found ? '#ff6b9d' : '#533');
+    ctx.restore();
+    ctx.font = uiFont(12);
+    ctx.textAlign = 'center';
+    if (found) {
+      ctx.globalAlpha = 0.9; ctx.fillStyle = '#8cf';
+      ctx.fillText(S.short, sx, g - 104);
+      drawPixelRect(sx + 26, g - 26, 2, 26, '#ccc');
+      drawPixelRect(sx + 28, g - 26, 10, 6, '#8cf');
+    } else {
+      const pulse = 0.5 + Math.sin(state.animT * 4 + S.x * 0.01) * 0.3;
+      ctx.globalAlpha = avail ? pulse : 0.35;
+      ctx.fillStyle = avail ? '#8cf' : '#889';
+      ctx.font = uiFont(16);
+      ctx.fillText('？', sx, g - 108 + Math.sin(state.animT * 3) * 2);
+      ctx.font = uiFont(11);
+      ctx.fillText(state.exploreSeen[S.id] ? S.short + (avail ? '' : '（封）') : '未踏', sx, g - 96);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
   switch (S.kind) {
     case 'alley':
       drawPixelRect(sx - 30, g - 70, 18, 70, stone);
@@ -7119,6 +7155,103 @@ function artBlit(name, x, y, flip) {
   if (!artReady() || !YKArt.has(name)) return false;
   return YKArt.blit(ctx, name, x, y, !!flip);
 }
+function worldReady() {
+  return !!(window.YKWorld && (YKWorld.ready || (typeof YKWorld.bake === 'function' && YKWorld.bake())));
+}
+function worldBlit(name, x, y, flip, scale) {
+  if (!worldReady() || !YKWorld.has(name)) return false;
+  return YKWorld.blit(ctx, name, x, y, !!flip, scale || 1);
+}
+function worldGround(name, x, gy, opts) {
+  if (!worldReady() || !YKWorld.has(name)) return false;
+  return YKWorld.blitGround(ctx, name, x, gy, opts || {});
+}
+function pickWorldHouse(i, decor) {
+  const h = streetHash(i * 19 + 7);
+  if (decor === 'pond') return h > 0.62 ? 'willow' : (h > 0.3 ? 'tree_b' : 'tree_a');
+  if (decor === 'neon') return h > 0.5 ? 'neon_a' : 'neon_b';
+  if (decor === 'void') return h > 0.66 ? 'tower' : (h > 0.33 ? 'void_a' : 'void_b');
+  if (h > 0.78) return 'house_c';
+  if (h > 0.52) return 'house_b';
+  if (h > 0.26) return 'house_d';
+  return 'house_a';
+}
+function drawWorldSkyline(phase) {
+  if (!worldReady()) return;
+  const th = chapterTheme();
+  const night = phase >= 0.68;
+  const name = th.decor === 'pond' ? 'sky_pond' : th.decor === 'neon' ? 'sky_neon' : th.decor === 'void' ? 'sky_void' : 'sky_shimo';
+  const fr = YKWorld.frames[name];
+  if (!fr) return;
+  const par = 0.16;
+  const tile = fr.w;
+  const shift = (state.cameraX || 0) * par;
+  const y = GROUND_Y - (th.decor === 'neon' ? 118 : th.decor === 'void' ? 112 : 96);
+  ctx.save();
+  ctx.globalAlpha = night ? 0.78 : 0.94;
+  const x0 = Math.floor((-tile + shift) / tile) * tile - shift;
+  for (let x = x0 - tile; x < W + tile; x += tile) YKWorld.blit(ctx, name, x, y, false);
+  ctx.restore();
+}
+function drawWorldMidHouses(phase) {
+  if (!worldReady()) return;
+  const th = chapterTheme();
+  const low = GFX.quality === 'low';
+  const par = 0.4;
+  const step = low ? 150 : (th.decor === 'neon' ? 92 : th.decor === 'void' ? 140 : 108);
+  const cam = state.cameraX || 0;
+  const i0 = Math.floor((cam * par - 90) / step) - 1;
+  const i1 = Math.ceil((cam * par + W + 90) / step) + 1;
+  const sc = low ? 0.55 : 0.68;
+  ctx.save();
+  ctx.globalAlpha = phase >= 0.68 ? 0.82 : 0.92;
+  for (let i = i0; i <= i1; i++) {
+    if (low && (i & 1)) continue;
+    const sx = i * step - cam * par + ((i * 13) % 19) - 8;
+    if (sx < -90 || sx > W + 90) continue;
+    const name = pickWorldHouse(i + 31, th.decor);
+    worldGround(name, sx, GROUND_Y - 10, { scale: sc });
+    if (phase >= 0.5) YKWorld.paintLights(ctx, name, sx, GROUND_Y - 10, phase, { scale: sc });
+  }
+  ctx.restore();
+}
+function drawWorldClubhouse(phase) {
+  if (!worldReady()) return;
+  const sx = wx(-86);
+  if (sx < -140 || sx > W + 140) return;
+  worldGround('house_club', sx, GROUND_Y, {});
+  if (phase >= 0.5) YKWorld.paintLights(ctx, 'house_club', sx, GROUND_Y, phase, {});
+  if (!REDUCE_MOTION && GFX.quality !== 'low') {
+    const fi = Math.sin(state.animT * 1.8) > 0 ? 1 : 0;
+    worldGround('laundry_' + fi, sx + 54, GROUND_Y - 36, {});
+  }
+}
+function drawWorldNearFacades(phase) {
+  if (!worldReady()) return;
+  const th = chapterTheme();
+  const low = GFX.quality === 'low';
+  const step = low ? 176 : (th.decor === 'neon' ? 118 : th.decor === 'pond' ? 150 : 124);
+  const cam = state.cameraX || 0;
+  const i0 = Math.floor((cam - 110) / step) - 1;
+  const i1 = Math.ceil((cam + W + 110) / step) + 1;
+  for (let i = i0; i <= i1; i++) {
+    const wx0 = i * step + ((i * 41) % 30);
+    if (Math.abs(wx0) < 88) continue;
+    const sx = wx(wx0);
+    if (sx < -100 || sx > W + 100) continue;
+    const name = pickWorldHouse(i, th.decor);
+    worldGround(name, sx, GROUND_Y, {});
+    if (phase >= 0.5) YKWorld.paintLights(ctx, name, sx, GROUND_Y, phase, {});
+    if (!low && th.decor === 'alley' && (i % 2 === 0)) {
+      const fi = REDUCE_MOTION ? 0 : (Math.sin(state.animT * 2.1 + i) > 0 ? 1 : 0);
+      worldGround('laundry_' + fi, sx + 22, GROUND_Y - 30, {});
+    }
+    if (!low && th.decor === 'pond' && (i % 2 === 0)) {
+      const fi = REDUCE_MOTION ? 0 : (Math.sin(state.animT * 1.6 + i) > 0 ? 1 : 0);
+      worldGround('reeds_' + fi, sx - 8, GROUND_Y, {});
+    }
+  }
+}
 function enemyArtKind(kind) {
   if (kind === 'runner' || kind === 'shield' || kind === 'ranged' || kind === 'support' || kind === 'taka' || kind === 'gaze' || kind === 'boss') return kind;
   return 'grunt';
@@ -8794,6 +8927,7 @@ function drawMountStands() {
     const owned = !!M.owned[m.id];
     const eq = M.eq === m.id;
     drawPixelRect(sx - 10, GROUND_Y - 8, 20, 8, '#3a2a18');
+    worldGround('hitch', sx - 18, GROUND_Y, {});
     if (m.id === 'chari') {
       if (!artBlit('chari_body', sx - 24, GROUND_Y - 28, false)) {
         drawPixelRect(sx - 8, GROUND_Y - 14, 5, 5, '#222');
@@ -10821,6 +10955,8 @@ function draw() {
   drawGroundTiles(phase);
   // 天候・空気レイヤ（地面の直後＝キャラの下）
   drawWeatherLayers(phase);
+  try { drawWorldClubhouse(phase); } catch (_) {}
+  try { drawWorldNearFacades(phase); } catch (_) {}
   try { drawStreetLayer(phase, nightish); } catch (_) {}
 
   // 領地床（聖地解放でマップ横断方向へ伸びる）
@@ -11283,58 +11419,26 @@ function drawParallaxHills(phase) {
       }
     }
   }
-  // 遠景デコール（章テーマ）
-  if (th.decor === 'neon') {
-    for (let i = -2; i < 10; i++) {
-      const tx = ((i * 140 - state.cameraX * 0.32) % (W + 140)) - 30;
-      const bh = 28 + (i % 4) * 10;
-      drawPixelRect(tx, GROUND_Y - bh, 18 + (i % 3) * 4, bh, night ? '#1a1020' : '#2a2030');
-      if (night || phase > 0.6) {
-        const tw = 0.4 + Math.sin(state.animT * 3 + i) * 0.3;
-        ctx.globalAlpha = 0.35 + tw * 0.4;
-        drawPixelRect(tx + 3, GROUND_Y - bh + 6, 3, 3, th.neon);
-        drawPixelRect(tx + 10, GROUND_Y - bh + 14, 3, 3, '#ffe066');
-        drawPixelRect(tx + 6, GROUND_Y - bh + 22, 4, 2, '#8cf');
-        ctx.globalAlpha = 1;
+  // 遠景スカイライン＋中景の家／木／ネオン／測定塔（ベイク済みスタンプ）
+  try { drawWorldSkyline(phase); } catch (_) {}
+  try { drawWorldMidHouses(phase); } catch (_) {}
+  if (!worldReady()) {
+    if (th.decor === 'neon') {
+      for (let i = -2; i < 10; i++) {
+        const tx = ((i * 140 - state.cameraX * 0.32) % (W + 140)) - 30;
+        const bh = 28 + (i % 4) * 10;
+        drawPixelRect(tx, GROUND_Y - bh, 18 + (i % 3) * 4, bh, night ? '#1a1020' : '#2a2030');
       }
-    }
-  } else if (th.decor === 'void') {
-    for (let i = -1; i < 8; i++) {
-      const tx = ((i * 180 - state.cameraX * 0.28) % (W + 180)) - 40;
-      const spire = 40 + (i % 3) * 14;
-      drawPixelRect(tx + 8, GROUND_Y - spire, 4, spire, night ? '#201818' : '#4a4038');
-      drawPixelRect(tx + 2, GROUND_Y - spire - 4, 16, 3, night ? '#3a3020' : '#6a5a40');
-      drawPixelRect(tx + 14, GROUND_Y - spire + 8, 8, 2, night ? '#ff9944' : '#8a6040');
-    }
-  } else if (th.decor === 'pond') {
-    for (let i = -2; i < 12; i++) {
-      const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160)) - 40;
-      drawPixelRect(tx + 6, GROUND_Y - 36, 4, 18, night ? '#1a1810' : '#3a3020');
-      blitPixels(tx, GROUND_Y - 56, ['..VvV.','vVVVVv','.VVVV.','.vVVv.'], PAL, 3, false);
-      // 水面きらめき帯
-      if (!night && i % 3 === 0) {
-        ctx.globalAlpha = 0.2 + Math.sin(state.animT * 2 + i) * 0.1;
-        ctx.fillStyle = '#c8e8ff';
-        ctx.fillRect(tx - 10, GROUND_Y - 8, 40, 2);
-        ctx.globalAlpha = 1;
+    } else if (th.decor === 'void') {
+      for (let i = -1; i < 8; i++) {
+        const tx = ((i * 180 - state.cameraX * 0.28) % (W + 180)) - 40;
+        const spire = 40 + (i % 3) * 14;
+        drawPixelRect(tx + 8, GROUND_Y - spire, 4, spire, night ? '#201818' : '#4a4038');
       }
-    }
     } else {
-    // alley / 下北：住宅壁・室外機・電柱。中世の森ではない
-    for (let i = -2; i < 12; i++) {
-      const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160));
-      const x = tx - 40;
-      drawPixelRect(x, GROUND_Y - 36, 28, 36, night ? '#2a2824' : '#6a6860');
-      drawPixelRect(x + 4, GROUND_Y - 28, 6, 6, night ? '#ffe080' : '#bcd');
-      drawPixelRect(x + 14, GROUND_Y - 28, 6, 6, night ? '#1a1814' : '#8a8880');
-      drawPixelRect(x + 30, GROUND_Y - 14, 12, 8, night ? '#3a403c' : '#6a7068');
-      if (i % 3 === 0) {
-        drawPixelRect(x + 44, GROUND_Y - 52, 3, 52, night ? '#2a2a28' : '#4a4a44');
-        drawPixelRect(x + 38, GROUND_Y - 48, 16, 2, '#3a3a38');
-      }
-      if (i % 4 === 0) {
-        drawPixelRect(x + 18, GROUND_Y - 48, 18, 10, night ? '#3a2018' : '#8a5a38');
-        drawPixelRect(x + 20, GROUND_Y - 46, 14, 2, th.accent);
+      for (let i = -2; i < 12; i++) {
+        const tx = ((i * 160 - state.cameraX * 0.35) % (W + 160)) - 40;
+        drawPixelRect(tx, GROUND_Y - 36, 28, 36, night ? '#2a2824' : '#6a6860');
       }
     }
   }
@@ -11439,6 +11543,11 @@ function drawPond(phase) {
   ctx.beginPath();
   ctx.ellipse(pondX, pondY, 38 * pondScale, 8 * pondScale, 0, 0, Math.PI * 2);
   ctx.stroke();
+  if (GFX.quality !== 'low') {
+    const fi = REDUCE_MOTION ? 0 : (Math.sin((state.animT || 0) * 1.7) > 0 ? 1 : 0);
+    worldGround('reeds_' + fi, pondX - 34 * pondScale, GROUND_Y, {});
+    worldGround('reeds_' + (1 - fi), pondX + 22 * pondScale, GROUND_Y, {});
+  }
 }
 
 // ---------- ロケバス／聖地／攻勢 ----------
@@ -12050,10 +12159,32 @@ function drawLandmarkScenery(sx, L, nightish) {
   }
 }
 
+function landmarkArtName(L) {
+  if (L.id === 'kabuki' || L.id === 'yamanote') return 'lm_neon';
+  if (L.kind === 'sushi') return 'lm_sushi';
+  if (L.kind === 'laundry') return 'lm_laundry';
+  return 'lm_park';
+}
 function drawLandmarkBuilding(sx, L, opened, nightish) {
   const kind = L.kind;
   const id = L.id;
   drawLandmarkScenery(sx, L, nightish);
+  const art = landmarkArtName(L);
+  if (worldGround(art, sx - 20, GROUND_Y, {})) {
+    if (nightish && worldReady()) YKWorld.paintLights(ctx, art, sx - 20, GROUND_Y, 0.82, {});
+    worldGround('bus_pole', sx + 28, GROUND_Y, {});
+    if (kind === 'sushi' && !REDUCE_MOTION) {
+      const noren = Math.sin(state.animT * 3 + sx * 0.01) * 2;
+      drawPixelRect(sx - 16 + noren * 0.3, GROUND_Y - 32, 8, 10, '#a01820');
+    }
+    if (id === 'kabuki') {
+      const pulse = 0.4 + Math.sin(state.animT * 6) * 0.3;
+      ctx.globalAlpha = pulse;
+      drawPixelRect(sx - 18, GROUND_Y - 48, 16, 3, '#ff6b9d');
+      ctx.globalAlpha = 1;
+    }
+    return;
+  }
   if (kind === 'sushi') {
     // あずま寿し／吉祥寺：暖簾＋カウンター＋提灯
     drawPixelRect(sx - 20, GROUND_Y - 30, 40, 30, nightish ? '#3a2818' : '#6a3a20');
@@ -12267,17 +12398,19 @@ function drawLandmarkMap(phase, nightish) {
     ctx.globalAlpha = 1;
   }
   drawOutposts(nightish);
-  if (unlockedCount() > 0 || state.assault) {
+  {
     const sx = wx(0);
-    // 部室バス停（屋根＋ベンチ＋時刻表）
+    // 部室バス停は常時シルエット（行き先は聖地解放後。輪は出さない）
     drawSoftShadow(sx + 42, GROUND_Y, 22, 0.3);
-    drawPixelRect(sx + 28, GROUND_Y - 40, 3, 40, '#666');
-    drawPixelRect(sx + 28, GROUND_Y - 44, 36, 5, state.assault ? '#8a2a1a' : '#2a6aaa');
-    drawPixelRect(sx + 30, GROUND_Y - 42, 32, 2, '#ffd700');
-    drawPixelRect(sx + 32, GROUND_Y - 14, 20, 3, '#6a4a28'); // ベンチ
-    drawPixelRect(sx + 34, GROUND_Y - 18, 2, 4, '#6a4a28');
-    drawPixelRect(sx + 48, GROUND_Y - 18, 2, 4, '#6a4a28');
-    drawPixelRect(sx + 56, GROUND_Y - 34, 12, 16, '#1a1a1a'); // 時刻表
+    if (!worldGround('bus_stop', sx + 24, GROUND_Y, {})) {
+      drawPixelRect(sx + 28, GROUND_Y - 40, 3, 40, '#666');
+      drawPixelRect(sx + 28, GROUND_Y - 44, 36, 5, state.assault ? '#8a2a1a' : '#2a6aaa');
+      drawPixelRect(sx + 30, GROUND_Y - 42, 32, 2, '#ffd700');
+      drawPixelRect(sx + 32, GROUND_Y - 14, 20, 3, '#6a4a28');
+      drawPixelRect(sx + 34, GROUND_Y - 18, 2, 4, '#6a4a28');
+      drawPixelRect(sx + 48, GROUND_Y - 18, 2, 4, '#6a4a28');
+      drawPixelRect(sx + 56, GROUND_Y - 34, 12, 16, '#1a1a1a');
+    }
     ctx.fillStyle = state.assault ? '#f84' : '#8cf';
     ctx.font = uiFont(11);
     ctx.textAlign = 'center';
@@ -13124,6 +13257,8 @@ try {
     enemyStepping, beginEnemyDeath, pickDeathBeat, pickHitBeat, deathCandidates,
     LAST_DEATH_BEAT, LAST_DEATH_I, enemyArtKey, artBlit,
     get YKArt() { return window.YKArt; },
+    get YKWorld() { return window.YKWorld; },
+    worldBlit, worldGround, pickWorldHouse,
   };
 } catch (_) {}
 </script>
