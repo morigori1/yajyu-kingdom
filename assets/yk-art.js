@@ -1,7 +1,8 @@
 /* 野獣キングダム — original pixel atlas (bake-once).
  * Provenance: authored for this repository. Summer Shimokitazawa parody palettes
  * (部室・波板・自販機シアン／薔薇／金冠). No third-party sprite packs, no hotlinks.
- * Face photos remain assets/senpai_pixel.png etc. (既存・Wiki顔周辺の縮小ドット).
+ * In-world actors are painted pixel figures (neck, joints, tan/doya marks).
+ * Title portraits may still use assets/doya.jpg as a separate card, not a body sticker.
  */
 (function (global) {
   const PAL = {
@@ -28,7 +29,9 @@
   };
 
   const CW = 24, CH = 32, SCALE = 2;
+  const AW = 28, AH = 40;
   const CELL_W = CW * SCALE, CELL_H = CH * SCALE;
+  const ACTOR_DW = AW * SCALE, ACTOR_DH = AH * SCALE;
   const COLS = 16;
 
   function buf(w, h) { return { w, h, p: new Array(w * h).fill('.') }; }
@@ -66,93 +69,123 @@
   }
 
   const KIND = {
-    senpai: { skin: 'S', shade: 'D', shirt: 'B', hi: 'b', pants: 'K', shoe: 'N', hair: 'K', accent: 'G', wide: 8, tall: 10, belly: 2, crown: true },
-    grunt: { skin: 'S', shade: 'D', shirt: 'M', hi: 'm', pants: 'K', shoe: 'N', hair: 'E', accent: 'R', wide: 6, tall: 9, belly: 0 },
-    runner: { skin: 'S', shade: 'D', shirt: 'c', hi: '1', pants: 'p', shoe: 'N', hair: 'c', accent: 'p', wide: 4, tall: 8, belly: 0, thin: true },
-    shield: { skin: 'D', shade: 'd', shirt: 'u', hi: 's', pants: 'H', shoe: 'N', hair: 'u', accent: '@', wide: 9, tall: 10, belly: 1, bulky: true },
-    ranged: { skin: 'O', shade: 'o', shirt: 'q', hi: 'Q', pants: 't', shoe: 'N', hair: 'q', accent: 'Q', wide: 7, tall: 9, belly: 1, round: true },
-    support: { skin: 'S', shade: 'D', shirt: 'I', hi: 'J', pants: 'i', shoe: 'N', hair: 'i', accent: 'J', wide: 6, tall: 9, belly: 0 },
-    taka: { skin: 'D', shade: 'd', shirt: 'X', hi: 'r', pants: 'C', shoe: 'N', hair: 'r', accent: 'g', wide: 5, tall: 8, belly: 0, hunch: true },
-    gaze: { skin: 'S', shade: 'D', shirt: 'E', hi: 'M', pants: 'e', shoe: 'N', hair: 'E', accent: 'Z', wide: 5, tall: 11, belly: 0, tallish: true },
-    boss: { skin: 'S', shade: 'D', shirt: 'u', hi: 's', pants: 'K', shoe: 'N', hair: 'K', accent: 'G', wide: 10, tall: 12, belly: 2, bulky: true, crown: true },
-    kohai: { skin: 'S', shade: 'D', shirt: 'A', hi: 'a', pants: 'K', shoe: 'N', hair: 'K', accent: 'L', wide: 5, tall: 8, belly: 0 },
+    senpai: { skin: 'o', shade: 'd', shirt: 'B', hi: 'b', pants: 'K', shoe: 'N', hair: 'K', accent: 'G', wide: 10, tall: 13, belly: 2, crown: true },
+    grunt: { skin: 'S', shade: 'D', shirt: 'M', hi: 'm', pants: 'K', shoe: 'N', hair: 'E', accent: 'R', wide: 8, tall: 12, belly: 0 },
+    runner: { skin: 'S', shade: 'D', shirt: 'c', hi: '1', pants: 'p', shoe: 'N', hair: 'c', accent: 'p', wide: 6, tall: 11, belly: 0, thin: true },
+    shield: { skin: 'D', shade: 'd', shirt: 'u', hi: 's', pants: 'H', shoe: 'N', hair: 'u', accent: '@', wide: 11, tall: 13, belly: 1, bulky: true },
+    ranged: { skin: 'O', shade: 'o', shirt: 'q', hi: 'Q', pants: 't', shoe: 'N', hair: 'q', accent: 'Q', wide: 8, tall: 12, belly: 1, round: true },
+    support: { skin: 'S', shade: 'D', shirt: 'I', hi: 'J', pants: 'i', shoe: 'N', hair: 'i', accent: 'J', wide: 8, tall: 12, belly: 0 },
+    taka: { skin: 'D', shade: 'd', shirt: 'X', hi: 'r', pants: 'C', shoe: 'N', hair: 'r', accent: 'g', wide: 7, tall: 11, belly: 0, hunch: true },
+    gaze: { skin: 'S', shade: 'D', shirt: 'E', hi: 'M', pants: 'e', shoe: 'N', hair: 'E', accent: 'Z', wide: 7, tall: 14, belly: 0, tallish: true },
+    boss: { skin: 'o', shade: 'd', shirt: 'u', hi: 's', pants: 'K', shoe: 'N', hair: 'K', accent: 'G', wide: 12, tall: 14, belly: 2, bulky: true, crown: true },
+    kohai: { skin: 'S', shade: 'D', shirt: 'A', hi: 'a', pants: 'K', shoe: 'N', hair: 'K', accent: 'L', wide: 7, tall: 12, belly: 0 },
   };
+
+  function paintLimb(b, x0, y0, x1, y1, thick, ch) {
+    const n = Math.max(2, Math.abs(x1 - x0) * 2, Math.abs(y1 - y0) * 2);
+    const r = Math.max(1, (thick || 2) >> 1);
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const x = Math.round(x0 + (x1 - x0) * t);
+      const y = Math.round(y0 + (y1 - y0) * t);
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) <= r + (thick >= 3 ? 1 : 0)) setp(b, x + dx, y + dy, ch);
+        }
+      }
+    }
+  }
 
   function paintHead(b, cx, cy, k, spec, pose) {
     const rx = spec.round ? 5 : spec.thin ? 3 : spec.bulky ? 5 : 4;
     const ry = spec.tallish ? 5 : 4;
+    rect(b, cx - 1, cy + ry - 1, 3, 3, k.skin);
+    setp(b, cx, cy + ry + 1, k.shade);
     oval(b, cx, cy, rx, ry, k.skin);
-    oval(b, cx, cy + 1, rx - 1, ry - 1, k.shade);
-    oval(b, cx, cy - 1, rx - 1, 2, k.hair);
-    if (pose !== 'die_fold') {
-      setp(b, cx - 2, cy, '1');
-      setp(b, cx + 2, cy, '1');
-      setp(b, cx - 2, cy + 1, 'N');
-      setp(b, cx + 2, cy + 1, 'N');
+    oval(b, cx, cy + 1, Math.max(2, rx - 1), Math.max(2, ry - 1), k.shade);
+    setp(b, cx - rx, cy, k.skin);
+    setp(b, cx + rx, cy, k.skin);
+    oval(b, cx, cy - 2, rx, Math.max(2, ry - 1), k.hair);
+    if (spec.kind === 'senpai') {
+      setp(b, cx - rx, cy - 1, k.skin);
+      setp(b, cx + rx, cy - 1, k.skin);
+      setp(b, cx - rx + 1, cy, k.skin);
+      setp(b, cx + rx - 1, cy, k.skin);
+      rect(b, cx - 2, cy - ry, 5, 1, k.hair);
     }
-    if (k.crown) {
-      rect(b, cx - 4, cy - ry - 2, 9, 2, 'G');
-      setp(b, cx - 4, cy - ry - 3, 'G');
-      setp(b, cx, cy - ry - 4, 'U');
-      setp(b, cx + 4, cy - ry - 3, 'G');
-    }
-    if (spec.kind === 'runner') {
-      setp(b, cx - 5, cy - 3, 'c');
-      setp(b, cx + 5, cy - 2, 'p');
-    }
+    if (pose === 'die_fold') return;
+    const by = cy - 1;
+    rect(b, cx - (spec.kind === 'senpai' || spec.kind === 'boss' ? 3 : 2), by, spec.kind === 'senpai' ? 3 : 2, 1, 'N');
+    rect(b, cx + 1, by, spec.kind === 'senpai' || spec.kind === 'boss' ? 3 : 2, 1, 'N');
+    setp(b, cx - 2, cy, '1');
+    setp(b, cx + 2, cy, '1');
+    setp(b, cx - 2, cy + 1, 'N');
+    setp(b, cx + 2, cy + 1, 'N');
     if (spec.kind === 'gaze' || spec.kind === 'boss') {
       setp(b, cx - 2, cy, 'Z');
       setp(b, cx + 2, cy, 'Z');
     }
-    if (spec.kind === 'ranged') {
-      rect(b, cx - 2, cy + 2, 5, 1, 'q');
+    setp(b, cx, cy + 1, k.shade);
+    if (spec.kind === 'senpai') {
+      setp(b, cx - 1, cy + 2, k.shade);
+      setp(b, cx, cy + 2, 'N');
+      setp(b, cx + 1, cy + 2, k.shade);
+      setp(b, cx + 2, cy + 2, k.skin);
+    } else if (spec.kind === 'ranged' || spec.kind === 'kohai') {
+      setp(b, cx - 1, cy + 2, 'N');
+      setp(b, cx, cy + 2, '1');
+      setp(b, cx + 1, cy + 2, 'N');
+    } else {
+      rect(b, cx - 1, cy + 2, 3, 1, 'N');
     }
+    if (k.crown) {
+      rect(b, cx - 3, cy - ry - 2, 7, 2, 'G');
+      setp(b, cx, cy - ry - 3, 'U');
+      setp(b, cx - 3, cy - ry - 3, 'G');
+      setp(b, cx + 3, cy - ry - 3, 'G');
+    }
+    if (spec.kind === 'runner') {
+      setp(b, cx - rx - 1, cy - 2, 'c');
+      setp(b, cx + rx + 1, cy - 1, 'p');
+    }
+    if (spec.kind === 'ranged') rect(b, cx - 2, cy + 3, 4, 1, 'q');
   }
 
   function paintTorso(b, cx, y, k, spec) {
     const w = spec.wide;
     const h = spec.tall;
-    rect(b, cx - (w >> 1), y, w, h, k.shirt);
+    rect(b, cx - (w >> 1), y, w, 3, k.shirt);
+    rect(b, cx - (w >> 1) + 1, y + 3, Math.max(4, w - 2), Math.max(4, h - 5), k.shirt);
     rect(b, cx - (w >> 1) + 1, y + 1, Math.max(2, w - 2), 2, k.hi);
-    if (spec.belly) rect(b, cx - (w >> 1) + 1, y + h - 3, w - 2, 2, k.hi);
-    if (spec.hunch) rect(b, cx - (w >> 1) - 1, y + 2, 2, 4, k.shirt);
+    if (spec.belly) rect(b, cx - (w >> 1) + 1, y + h - 5, w - 2, 3, k.hi);
+    if (spec.hunch) rect(b, cx - (w >> 1) - 1, y + 2, 3, 5, k.shirt);
+    rect(b, cx - (w >> 1) + 1, y + h - 2, w - 2, 2, k.pants);
   }
 
-  function line2(b, x0, y0, x1, y1, ch, ch2, thick) {
-    const n = Math.max(1, Math.abs(x1 - x0), Math.abs(y1 - y0));
-    const w = thick || 2;
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      const x = Math.round(x0 + (x1 - x0) * t);
-      const y = Math.round(y0 + (y1 - y0) * t);
-      for (let k = 0; k < w; k++) setp(b, x + k, y, k ? (ch2 || ch) : ch);
-    }
-  }
-
-  function paintArm(b, sx, sy, k, raise, swing, side) {
-    // 2-bone: upper then forearm. raise 0 hang / 1 up. swing -2..2.
+  function paintArm(b, sx, sy, k, spec, raise, swing, side) {
     const dir = side < 0 ? -1 : 1;
     const sw = swing || 0;
     const up = raise ? 1 : 0;
-    const elX = sx + dir + Math.round(sw * 0.6);
-    const elY = sy + (up ? -3 : 4);
-    const hx = elX + Math.round(sw * 0.9) + (up ? dir : 0);
-    const hy = elY + (up ? -2 : 3) + (Math.abs(sw) > 1 ? 0 : 1);
-    line2(b, sx, sy, elX, elY, k.shirt, k.hi);
-    line2(b, elX, elY, hx, hy, k.skin, k.skin);
+    const thick = spec.thin ? 2 : spec.bulky ? 3 : 2;
+    const elX = sx + dir * 2 + Math.round(sw * 0.55);
+    const elY = sy + (up ? -4 : 5);
+    const hx = elX + Math.round(sw * 0.85) + (up ? dir : 0);
+    const hy = elY + (up ? -3 : 4) + (Math.abs(sw) > 1 ? 0 : 1);
+    paintLimb(b, sx, sy, elX, elY, thick + 1, k.shirt);
+    paintLimb(b, elX, elY, hx, hy, thick, k.skin);
     setp(b, hx, hy, k.shade);
     setp(b, hx + dir, hy, k.shade);
   }
 
   function paintLeg(b, hx, hipY, ground, k, spec, bent, fwd, plant) {
-    const thigh = spec.thin ? 4 : spec.bulky ? 3 : 4;
-    const shin = spec.thin ? 5 : spec.bulky ? 3 : 4;
-    const kneeX = hx + Math.round((fwd || 0) * 0.45);
+    const thick = spec.thin ? 2 : spec.bulky ? 4 : 3;
+    const thigh = spec.thin ? 6 : spec.bulky ? 5 : 6;
+    const kneeX = hx + Math.round((fwd || 0) * 0.4);
     const kneeY = hipY + thigh - (bent ? 2 : 0);
-    const footX = plant ? hx + Math.round((fwd || 0) * 0.15) : hx + (fwd || 0);
+    const footX = plant ? hx + Math.round((fwd || 0) * 0.12) : hx + (fwd || 0);
     const footY = plant ? ground - 2 : ground - 2 - (bent ? 3 : 2);
-    line2(b, hx, hipY, kneeX, kneeY, k.pants, k.pants, spec.thin ? 2 : 3);
-    line2(b, kneeX, kneeY, footX, footY, k.pants, k.pants, spec.thin ? 2 : 3);
+    paintLimb(b, hx, hipY, kneeX, kneeY, thick, k.pants);
+    paintLimb(b, kneeX, kneeY, footX, footY, Math.max(2, thick - 1), k.pants);
     rect(b, footX - 1, plant ? ground - 2 : footY, plant ? 5 : 4, 2, k.shoe);
   }
 
@@ -264,24 +297,26 @@
     const k = KIND[kindId];
     const spec = Object.assign({ kind: kindId }, k);
     const p = poseForKind(kindId, poseName);
-    const b = buf(CW, CH);
-    const ground = CH - 2;
+    const b = buf(AW, AH);
+    const ground = AH - 2;
     const hip = p.hip || 0;
-    const cx = 12 + (p.lean || 0) + hip;
+    const cx = (AW >> 1) + (p.lean || 0) + Math.round(hip * 0.35);
     const torsoH = spec.tall;
-    let ty = ground - 8 - torsoH + (p.torso || 0) + (p.squat ? 2 : 0);
-    if (ty < 6) ty = 6;
-    if (ty > ground - 8) ty = ground - 8;
-    const hipY = ty + torsoH - 1;
-    paintLeg(b, cx - 3 + Math.min(0, hip), hipY, ground, k, spec, p.lBent, p.lFwd, !!p.lPlant);
-    paintLeg(b, cx + 1 + Math.max(0, hip), hipY, ground, k, spec, p.rBent, p.rFwd, !!p.rPlant);
-    rect(b, cx - 3, hipY, Math.max(6, spec.wide - 1), 2, k.pants);
+    const leg = poseName === 'ride' ? 10 : 14;
+    let ty = ground - leg - torsoH + (p.torso || 0) + (p.squat ? 4 : 0);
+    if (ty < 10) ty = 10;
+    if (ty > ground - 10) ty = ground - 10;
+    const hipY = ty + torsoH;
+    const hipW = Math.max(6, spec.wide - 2);
+    paintLeg(b, cx - Math.floor(hipW / 3) + Math.min(0, hip), hipY, ground, k, spec, p.lBent, p.lFwd, !!p.lPlant);
+    paintLeg(b, cx + Math.floor(hipW / 3) + Math.max(0, hip), hipY, ground, k, spec, p.rBent, p.rFwd, !!p.rPlant);
+    rect(b, cx - (hipW >> 1), hipY, hipW, 2, k.pants);
     paintTorso(b, cx, ty, k, spec);
-    const shX = Math.round(((p.rFwd || 0) - (p.lFwd || 0)) * 0.25);
-    paintArm(b, cx - (spec.wide >> 1) - 1 + (p.lArm || 0) + shX, ty + 1, k, p.lRaise, -(p.rFwd || 0) + (p.lArm || 0), -1);
-    paintArm(b, cx + (spec.wide >> 1) + (p.rArm || 0) + shX, ty + 1, k, p.rRaise, (p.lFwd || 0) + (p.rArm || 0), 1);
-    let hy = ty - 4 + (p.head || 0);
-    if (hy < 4) hy = 4;
+    const shX = Math.round(((p.rFwd || 0) - (p.lFwd || 0)) * 0.22);
+    paintArm(b, cx - (spec.wide >> 1) + (p.lArm || 0) + shX, ty + 2, k, spec, p.lRaise, -(p.rFwd || 0) + (p.lArm || 0), -1);
+    paintArm(b, cx + (spec.wide >> 1) + (p.rArm || 0) + shX, ty + 2, k, spec, p.rRaise, (p.lFwd || 0) + (p.rArm || 0), 1);
+    let hy = ty - 5 + (p.head || 0);
+    if (hy < 5) hy = 5;
     if (hy > ty - 2) hy = ty - 2;
     paintHead(b, cx, hy, k, spec, poseName);
     paintProp(b, spec, poseName, cx, ty);
@@ -291,8 +326,8 @@
   function paintTopple(kindId) {
     const k = KIND[kindId];
     const spec = Object.assign({ kind: kindId }, k);
-    const b = buf(CW, CH);
-    const y = 20;
+    const b = buf(AW, AH);
+    const y = 26;
     rect(b, 4, y, 14, spec.wide - 2, k.shirt);
     oval(b, 18, y + 2, 4, 3, k.skin);
     setp(b, 19, y + 2, '1');
@@ -310,8 +345,8 @@
   function paintTumble(kindId) {
     const k = KIND[kindId];
     const spec = Object.assign({ kind: kindId }, k);
-    const b = buf(CW, CH);
-    oval(b, 12, 20, 7, 5, k.shirt);
+    const b = buf(AW, AH);
+    oval(b, 14, 24, 8, 6, k.shirt);
     oval(b, 17, 18, 4, 3, k.skin);
     setp(b, 18, 18, 'N');
     rect(b, 6, 22, 4, 3, k.pants);
@@ -546,7 +581,7 @@
   }
 
   const Art = {
-    PAL, DEFS, SCALE, CELL_W, CELL_H, COLS,
+    PAL, DEFS, SCALE, CELL_W, CELL_H, COLS, AW, AH, ACTOR_DW, ACTOR_DH,
     canvas: null,
     frames: {},
     ready: false,
