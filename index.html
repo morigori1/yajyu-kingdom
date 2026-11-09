@@ -7157,6 +7157,11 @@ function artBlit(name, x, y, flip) {
   if (!artReady() || !YKArt.has(name)) return false;
   return YKArt.blit(ctx, name, x, y, !!flip);
 }
+function actorBlit(name, x, gy, flip, bob) {
+  const w = (window.YKArt && YKArt.ACTOR_DW) || 48;
+  const h = (window.YKArt && YKArt.ACTOR_DH) || 64;
+  return artBlit(name, Math.round(x - w / 2), Math.round(gy - h + (bob || 0)), !!flip);
+}
 function worldReady() {
   return !!(window.YKWorld && (YKWorld.ready || (typeof YKWorld.bake === 'function' && YKWorld.bake())));
 }
@@ -12766,7 +12771,7 @@ function drawWorker(x, y, w) {
   const bob = contact && moving ? 0.8 : (moving ? 0.15 : Math.sin(state.animT * 1.4 + (w.bob || 0)) * 0.4);
   const wind = (state.wind || 0) * 0.3;
   const key = moving ? ('kohai_walk' + fi) : (Math.sin(state.animT * 1.1 + (w.bob || 0)) > 0 ? 'kohai_idle1' : 'kohai_idle');
-  if (!artBlit(key, x - 24 + wind, y - 64 + bob, (w.side || 0) < 0)) {
+  if (!actorBlit(key, x + wind, y, (w.side || 0) < 0, bob)) {
     blitOutlined(x - 10 + wind, y - 30 + bob, [
       '..oo..',
       '.oooo.',
@@ -12776,30 +12781,14 @@ function drawWorker(x, y, w) {
       'nn..nn',
     ], Object.assign({}, PAL, { o: '#f0c8a0', s: '#4a6aaa', n: '#2a2a30' }), 2, false);
   }
-  if (SPR.kohai) {
-    ctx.drawImage(SPR.kohai, x - 12, y - 50 + bob, 22, 22);
-  }
-  // 袋／ツール
-  drawPixelRect(x + 8 + wind, y - 18 + bob, 6, 8, '#8b5a2b');
-  drawPixelRect(x + 9 + wind, y - 20 + bob, 4, 2, '#c9a227');
-  // 作業員表情
-  {
-    const ey = y - 28 + bob;
-    drawPixelRect(x - 3 + wind, ey, 2, 2, '#fff');
-    drawPixelRect(x + 2 + wind, ey, 2, 2, '#fff');
-    const busy = (w.workCd || 0) < 0.4;
-    drawPixelRect(x - 2 + wind, ey + 1, 2, 1, '#222');
-    drawPixelRect(x + 2 + wind, ey + 1, 2, 1, '#222');
-    if (busy || (state.bond && (state.bond.kohai|0) >= 15 && Math.sin(state.animT * 2 + x) > 0.5)) {
-      drawPixelRect(x - 2 + wind, ey + 5, 4, 2, '#c66');
-    }
-  }
+  drawPixelRect(x + 10 + wind, y - 18 + bob, 6, 8, '#8b5a2b');
+  drawPixelRect(x + 11 + wind, y - 20 + bob, 4, 2, '#c9a227');
   ctx.fillStyle = '#9cf';
   ctx.font = uiFont(11);
   ctx.textAlign = 'center';
   const job = (w && w.job) || 'gather';
   const tag = job === 'supply' ? '補給' : job === 'film' ? '撮影' : job === 'cheer' ? '応援' : ((state.civilTier | 0) >= 2 && Math.abs((w.x || 0) - 82) < 48 ? '屋台' : '作業');
-  ctx.fillText(tag, x, y - 48 + bob);
+  ctx.fillText(tag, x, y - 84 + bob);
 }
 
 function drawCampfire(x, y) {
@@ -12887,10 +12876,7 @@ function drawCampfire(x, y) {
   ctx.textAlign = 'left';
   drawUiLabel('王道を征く', x + 14 + signSway, y - 48, '#ffd700', 13);
   drawUiLabel('部室・IKZO', x + 14 + signSway, y - 36, '#ff6b9d', 13);
-  if (SPR.icon) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.icon, x - 36, y - 48, 28, 28);
-  }
+  // 掲示はアトラスのコルク板。顔写真の切り抜きは置かない
 }
 
 function drawWall(wall, isLeft) {
@@ -13142,8 +13128,7 @@ function drawYajyu(x, y, facing) {
     else if (walking && !state.titleCine && running) poseKey = 'senpai_run' + fi;
     else if (walking && !state.titleCine) poseKey = 'senpai_walk' + fi;
     else poseKey = (Math.sin(state.animT * 1.15) > 0 ? 'senpai_idle1' : 'senpai_idle');
-    const by = y - 64 + bob + squash - rideLift;
-    const drew = artBlit(poseKey, x - 24, by, flip);
+    const drew = actorBlit(poseKey, x, y, flip, bob + squash - rideLift);
     if (!drew) {
       ctx.fillStyle = '#1a0a00';
       ctx.fillRect(x - 11, y - 30 + bob - rideLift, 22, 28);
@@ -13156,37 +13141,13 @@ function drawYajyu(x, y, facing) {
     drawPixelRect(x + (flip ? 6 : -10), y - 2, 3, 2, '#c8a878');
     ctx.globalAlpha = 1;
   }
-  // 顔は頭の中。メダル枠は付けない
-  const faceY = y - 50 + bob - rideLift;
-  const faceSz = 18;
-  drawPixelRect(x - 4, faceY + 8, 8, 5, '#c87838');
-  const gotFace = drawSenpaiFace(x, faceY, faceSz, flip);
-  if (!gotFace) {
-    ctx.fillStyle = '#ffe0b0';
-    ctx.fillRect(x - 8, faceY - 8, 16, 16);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(x - 5, faceY - 2, 3, 3);
-    ctx.fillRect(x + 2, faceY - 2, 3, 3);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(x - 4, faceY - 1, 2, 2);
-    ctx.fillRect(x + 3, faceY - 1, 2, 2);
-  }
-  const cy = faceY - 12;
-  if (Math.sin(state.animT * 8) > 0.35) {
-    drawPixelRect(x - 1, cy + 8, 2, 2, '#fff');
-  }
   if (state.humidity >= 70 || state.titleCine) {
-    drawPixelRect(x + (flip ? -14 : 12), faceY + 6, 2, 3, '#8cf');
-  }
-  if (skill > 0) {
-    const arms = (1 - skill / 0.38) * 6;
-    drawPixelRect(x - 16, y - 36 - rideLift - arms, 6, 3, '#c87838');
-    drawPixelRect(x + 10, y - 36 - rideLift - arms, 6, 3, '#c87838');
+    drawPixelRect(x + (flip ? -12 : 10), y - 68 + bob - rideLift, 2, 3, '#8cf');
   }
   if (hit > 0) {
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#ff8c28';
-    ctx.fillRect(x - 14, y - 48 - rideLift, 28, 40);
+    ctx.fillRect(x - 16, y - 72 - rideLift, 32, 56);
     ctx.globalAlpha = 1;
   }
   const M = state.mounts;
@@ -13207,21 +13168,19 @@ function drawArcher(x, y, u) {
       const ox = k * 8;
       const fi = gaitWalkFi(state.animT * 1.15 + k * 0.35, 5);
       const oy = bob + ((fi % 3 === 0) ? 0.6 : 0) + Math.abs(k);
-      if (!artBlit('kohai_walk' + fi, x - 24 + ox, y - 62 + oy, u.side === 'left')) {
+      if (!actorBlit('kohai_walk' + fi, x + ox, y, u.side === 'left', oy)) {
         drawPixelRect(x - 4 + ox, y - 26 + oy, 8, 22, k === 0 ? '#5a2a18' : '#3a1a10');
         drawPixelRect(x - 5 + ox, y - 30 + oy, 10, 4, '#c9a227');
       }
     }
     drawPixelRect(x + 8, y - 28 + bob, 4, 18, '#888');
-    // 旗揺れ
     const fw = Math.sin(state.animT * 5 + x) * 3;
     drawPixelRect(x + 10 + fw, y - 44 + bob, 10, 8, '#ff6b9d');
     drawPixelRect(x + 10 + fw, y - 42 + bob, 8, 2, '#ffd700');
     ctx.fillStyle = '#ff6b9d';
     ctx.font = uiFont(11);
     ctx.textAlign = 'center';
-    ctx.fillText('トリオ', x, y - 48 + bob);
-    if (SPR.kohai) ctx.drawImage(SPR.kohai, x - 12, y - 52 + bob, 24, 24);
+    ctx.fillText('トリオ', x, y - 84 + bob);
     return;
   }
   const shooting = (u._shotFlash || 0) > 0;
@@ -13247,40 +13206,14 @@ function drawArcher(x, y, u) {
     ctx.globalAlpha = 1;
   }
   const kohaiKey = shooting ? 'kohai_attack' : (winding ? 'kohai_windup' : (Math.sin(state.animT * 1.2 + (u.x || 0)) > 0 ? 'kohai_idle1' : 'kohai_idle'));
-  if (!artBlit(kohaiKey, x - 24, y - 64 + bob, u.side === 'left')) {
+  if (!actorBlit(kohaiKey, x, y, u.side === 'left', bob)) {
     blitOutlined(x - 16, y - 36 + bob, FR_ARCH[fi], PAL, 2, u.side === 'left');
-  }
-  if (SPR.kohai) {
-    ctx.imageSmoothingEnabled = false;
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(x, y - 50 + bob, 8, 9, 0, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(SPR.kohai, x - 10, y - 58 + bob, 20, 20);
-    ctx.restore();
   }
   if ((u.tier | 0) > 0) {
     ctx.fillStyle = '#ffd700';
     ctx.font = uiFont(11);
     ctx.textAlign = 'center';
-    ctx.fillText('T' + (u.tier | 0), x, y - 56 + bob);
-  }
-  // 後輩表情
-  {
-    const ey = y - 40 + bob;
-    drawPixelRect(x - 4, ey, 2, 2, '#fff');
-    drawPixelRect(x + 2, ey, 2, 2, '#fff');
-    if (shooting) {
-      drawPixelRect(x - 3, ey, 2, 2, '#222');
-      drawPixelRect(x + 2, ey, 2, 2, '#222');
-      drawPixelRect(x - 2, ey + 6, 4, 1, '#422');
-    } else {
-      drawPixelRect(x - 3, ey + 1, 2, 1, '#222');
-      drawPixelRect(x + 2, ey + 1, 2, 1, '#222');
-      if ((state.bond && (state.bond.kohai|0) >= 20) || Math.sin(state.animT * 2 + x) > 0.8) {
-        drawPixelRect(x - 2, ey + 6, 4, 2, '#c66');
-      }
-    }
+    ctx.fillText('T' + (u.tier | 0), x, y - 84 + bob);
   }
   ctx.strokeStyle = '#c8a060';
   ctx.lineWidth = 2;
@@ -13468,28 +13401,17 @@ function drawEnemy(x, y, e) {
   if (!useArt && tilt) ctx.rotate(tilt);
   else if (!useArt && Math.abs(lean) > 0.02) ctx.transform(1, 0, lean, 1, 0, 0);
   if (e._flash > 0) ctx.globalCompositeOperation = 'lighter';
-  if (!useArt || !artBlit(artKey, -24, -64, e.side > 0)) {
+  const adw = (window.YKArt && YKArt.ACTOR_DW) || 48;
+  const adh = (window.YKArt && YKArt.ACTOR_DH) || 64;
+  if (!useArt || !artBlit(artKey, -(adw >> 1), -adh, e.side > 0)) {
     blitOutlined(-16, -36, frames[fi % frames.length], PAL, 2, e.side > 0);
   }
   if (e._flash > 0) {
     ctx.globalAlpha = Math.min(0.7, e._flash * 5);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(-14, -36, 28, 32);
+    ctx.fillRect(-16, -70, 32, 56);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
-  }
-  if ((kind === 'ranged' || kind === 'boss') && SPR.tono && !useArt) {
-    ctx.imageSmoothingEnabled = false;
-    const lift = pose === 'windup' ? -4 : 0;
-    ctx.drawImage(SPR.tono, -14, -52 + lift, 28, 28);
-  } else if ((kind === 'ranged' || kind === 'boss') && SPR.tono && pose !== 'die') {
-    ctx.save();
-    ctx.beginPath();
-    ctx.ellipse(0, -50, 7, 8, 0, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(SPR.tono, -8, -58, 16, 16);
-    ctx.restore();
   }
   // 役割小物はアトラスに無いときだけ（二重描きしない）
   if (!useArt && (kind === 'shield' || kind === 'boss')) {
